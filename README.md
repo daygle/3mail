@@ -2,15 +2,21 @@
 
 A modern, full-featured Android mail client supporting IMAP and Gmail (OAuth2).
 
-## Features (MVP)
+## Features
 
-- Multiple account support (IMAP + Gmail)
-- Modern Material 3 UI with Jetpack Compose
-- Inbox, compose, reply, forward
-- Offline caching with Room
-- Background sync with WorkManager
-- Push notifications for new mail
+- Multiple account support (IMAP + Gmail via OAuth2)
+- Modern Material 3 UI with Jetpack Compose — dynamic color (Material You), light/dark/system themes, sender avatars, swipe-to-archive/delete, navigation drawer with folders
+- Full message reading: HTML bodies rendered in a WebView (remote images blocked by default), plain-text fallback, on-demand body fetch
+- Compose, reply, reply-all, and forward with quoting and `Re:`/`Fwd:` handling
+- Attachments: view and download incoming attachments; attach files to outgoing mail
+- Two-way sync of read/star flags and delete/archive/move actions (local + IMAP server)
+- Conversation threading derived from `References`/`In-Reply-To` headers
+- Drafts saved to the server's Drafts folder
+- Configurable signature, sync frequency, notifications, and theme in Settings
+- Incremental UID-based background sync with WorkManager
+- Notifications for new mail
 - Full-text search across cached messages
+- Encrypted credential storage (Android Keystore via EncryptedSharedPreferences)
 
 ## Tech Stack
 
@@ -43,13 +49,14 @@ A modern, full-featured Android mail client supporting IMAP and Gmail (OAuth2).
 
 ## Security Notes
 
-- OAuth tokens and IMAP passwords are stored in the local Room database in this MVP. For production, migrate sensitive credentials to Android Keystore / EncryptedSharedPreferences.
-- Gmail requires OAuth2; app passwords are no longer recommended by Google.
+- IMAP passwords are stored via `EncryptedSharedPreferences` backed by an Android Keystore master key (see `data/security/CredentialStore.kt`), not as plaintext columns in the database.
+- Gmail uses OAuth2 access tokens fetched on demand; app passwords are no longer recommended by Google.
+- HTML message bodies load with remote images blocked by default to limit tracking pixels.
 
 ## Next Steps
 
-- Add proper OAuth2 token refresh flow
-- Implement Gmail-specific sync via Gmail API
-- Add attachment download / upload
-- Add threading and conversation view
-- Add swipe actions in the inbox list
+- Native Gmail API sync for labels and server-side threading (currently threading is header-derived and works across all IMAP accounts)
+- Rich-text compose and inline images
+- Contact autocomplete for recipients
+- Unified inbox across accounts
+- Instrumented UI tests

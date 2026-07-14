@@ -3,8 +3,10 @@ package com.threemail.android.ui.navigation
 import androidx.compose.runtime.Composable
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import com.threemail.android.ui.screens.account.AccountScreen
 import com.threemail.android.ui.screens.account.AddAccountScreen
 import com.threemail.android.ui.screens.compose.ComposeScreen
@@ -22,24 +24,34 @@ fun ThreeMailNavHost(navController: NavHostController) {
                 onNavigateToCompose = { navController.navigate(Screen.Compose.createRoute()) },
                 onNavigateToSearch = { navController.navigate(Screen.Search.route) },
                 onNavigateToAccounts = { navController.navigate(Screen.Accounts.route) },
+                onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
                 onNavigateToMessage = { messageId ->
                     navController.navigate(Screen.MessageDetail.createRoute(messageId))
                 }
             )
         }
-        composable(Screen.Compose.route) {
+        composable(
+            route = Screen.Compose.route,
+            arguments = listOf(
+                navArgument("mode") { type = NavType.StringType; defaultValue = "new" },
+                navArgument("refId") { type = NavType.LongType; defaultValue = -1L }
+            )
+        ) {
             ComposeScreen(
                 viewModel = hiltViewModel(),
                 onNavigateBack = { navController.popBackStack() }
             )
         }
-        composable(Screen.MessageDetail.route) {
+        composable(
+            route = Screen.MessageDetail.route,
+            arguments = listOf(navArgument("messageId") { type = NavType.LongType })
+        ) {
             MessageDetailScreen(
                 viewModel = hiltViewModel(),
                 onNavigateBack = { navController.popBackStack() },
-                onReply = { messageId ->
-                    navController.navigate(Screen.Compose.createRoute(messageId))
-                }
+                onReply = { messageId -> navController.navigate(Screen.Compose.createRoute("reply", messageId)) },
+                onReplyAll = { messageId -> navController.navigate(Screen.Compose.createRoute("replyAll", messageId)) },
+                onForward = { messageId -> navController.navigate(Screen.Compose.createRoute("forward", messageId)) }
             )
         }
         composable(Screen.Search.route) {
@@ -65,7 +77,10 @@ fun ThreeMailNavHost(navController: NavHostController) {
             )
         }
         composable(Screen.Settings.route) {
-            SettingsScreen(onNavigateBack = { navController.popBackStack() })
+            SettingsScreen(
+                viewModel = hiltViewModel(),
+                onNavigateBack = { navController.popBackStack() }
+            )
         }
     }
 }

@@ -1,35 +1,53 @@
 package com.threemail.android.ui.screens.compose
 
+import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Send
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.threemail.android.R
+import com.threemail.android.domain.model.Attachment
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,6 +56,11 @@ fun ComposeScreen(
     onNavigateBack: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+
+    LaunchedEffect(state.isSent, state.isDraftSaved) {
+        if (state.isSent || state.isDraftSaved) onNavigateBack()
+    }
 
     val recoverableAuthLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -47,8 +70,14 @@ fun ComposeScreen(
     }
 
     LaunchedEffect(state.recoverableAuthIntent) {
-        state.recoverableAuthIntent?.let { intent ->
-            recoverableAuthLauncher.launch(intent)
+        state.recoverableAuthIntent?.let { intent -> recoverableAuthLauncher.launch(intent) }
+    }
+
+    val attachmentPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris ->
+        uris.forEach { uri ->
+            copyToCache(context, uri)?.let { viewModel.addAttachment(it) }
         }
     }
 
@@ -62,9 +91,15 @@ fun ComposeScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { attachmentPicker.launch("*/*") }) {
+                        Icon(Icons.Default.AttachFile, contentDescription = "Attach")
+                    }
+                    IconButton(onClick = { viewModel.saveDraft() }, enabled = !state.isSavingDraft) {
+                        Icon(Icons.Default.Save, contentDescription = "Save draft")
+                    }
                     IconButton(onClick = { viewModel.send() }, enabled = !state.isSending) {
                         if (state.isSending) {
-                            CircularProgressIndicator(modifier = Modifier.padding(8.dp))
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp))
                         } else {
                             Icon(Icons.Default.Send, contentDescription = stringResource(R.string.send))
                         }
@@ -83,30 +118,54 @@ fun ComposeScreen(
                 .padding(padding)
                 .padding(16.dp)
         ) {
+            if (state.accounts.size > 1) {
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    state.accounts.forEach { account ->
+                        FilterChip(
+                            selected = state.selectedAccount?.id == account.id,
+                            onClick = { viewModel.selectAccount(account) },
+                            label = { Text(account.email, maxLines = 1) }
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+
             OutlinedTextField(
                 value = state.to,
                 onValueChange = viewModel::updateTo,
                 label = { Text(stringResource(R.string.to)) },
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
-                singleLine = true
+                singleLine = true,
+                trailingIcon = {
+                    TextButton(onClick = { viewModel.toggleCcBcc() }) {
+                        Text(if (state.showCcBcc) "Hide" else "Cc/Bcc")
+                        Icon(Icons.Default.ExpandMore, contentDescription = null)
+                    }
+                }
             )
-            OutlinedTextField(
-                value = state.cc,
-                onValueChange = viewModel::updateCc,
-                label = { Text(stringResource(R.string.cc)) },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
-                singleLine = true
-            )
-            OutlinedTextField(
-                value = state.bcc,
-                onValueChange = viewModel::updateBcc,
-                label = { Text(stringResource(R.string.bcc)) },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
-                singleLine = true
-            )
+            if (state.showCcBcc) {
+                OutlinedTextField(
+                    value = state.cc,
+                    onValueChange = viewModel::updateCc,
+                    label = { Text(stringResource(R.string.cc)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = state.bcc,
+                    onValueChange = viewModel::updateBcc,
+                    label = { Text(stringResource(R.string.bcc)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
+                    singleLine = true
+                )
+            }
             OutlinedTextField(
                 value = state.subject,
                 onValueChange = viewModel::updateSubject,
@@ -115,6 +174,24 @@ fun ComposeScreen(
                 keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
                 singleLine = true
             )
+
+            if (state.attachments.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    state.attachments.forEach { attachment ->
+                        InputChip(
+                            selected = false,
+                            onClick = { viewModel.removeAttachment(attachment) },
+                            label = { Text(attachment.fileName, maxLines = 1) },
+                            trailingIcon = { Icon(Icons.Default.Close, contentDescription = "Remove", Modifier.size(16.dp)) }
+                        )
+                    }
+                }
+            }
+
             OutlinedTextField(
                 value = state.body,
                 onValueChange = viewModel::updateBody,
@@ -127,13 +204,36 @@ fun ComposeScreen(
             state.error?.let {
                 Text(text = it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp))
             }
-            Button(
-                onClick = { viewModel.send() },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !state.isSending
-            ) {
-                Text(stringResource(R.string.send))
+        }
+    }
+}
+
+/** Copies the picked content Uri into the app cache so JavaMail can attach it by file path. */
+private fun copyToCache(context: android.content.Context, uri: Uri): Attachment? {
+    return try {
+        val resolver = context.contentResolver
+        var name = "attachment"
+        var size = 0L
+        resolver.query(uri, null, null, null, null)?.use { cursor ->
+            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+            if (cursor.moveToFirst()) {
+                if (nameIndex >= 0) name = cursor.getString(nameIndex) ?: name
+                if (sizeIndex >= 0) size = cursor.getLong(sizeIndex)
             }
         }
+        val outDir = File(context.cacheDir, "outgoing").apply { mkdirs() }
+        val outFile = File(outDir, name)
+        resolver.openInputStream(uri)?.use { input ->
+            outFile.outputStream().use { output -> input.copyTo(output) }
+        } ?: return null
+        Attachment(
+            fileName = name,
+            mimeType = resolver.getType(uri) ?: "application/octet-stream",
+            size = size,
+            localPath = outFile.absolutePath
+        )
+    } catch (e: Exception) {
+        null
     }
 }

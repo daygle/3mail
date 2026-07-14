@@ -1,6 +1,8 @@
 package com.threemail.android.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -9,19 +11,24 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.threemail.android.domain.model.MailMessage
+import com.threemail.android.ui.theme.avatarColorFor
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -30,78 +37,100 @@ import java.util.Locale
 fun MailListItem(
     message: MailMessage,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onToggleStar: (() -> Unit)? = null
 ) {
-    Card(
+    val sender = message.from.firstOrNull()
+    val senderLabel = sender?.name?.takeIf { it.isNotBlank() } ?: sender?.address ?: "(unknown)"
+    val avatarColor = avatarColorFor(sender?.address ?: senderLabel)
+
+    Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-            .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(
-            containerColor = if (message.isRead) {
-                MaterialTheme.colorScheme.surface
-            } else {
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-            }
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            .background(MaterialTheme.colorScheme.surface)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.Top
     ) {
-        Row(
+        // Unread accent dot.
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(top = 18.dp, end = 8.dp)
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(if (message.isRead) Color.Transparent else MaterialTheme.colorScheme.primary)
+        )
+
+        // Sender avatar with deterministic color + initial.
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(avatarColor),
+            contentAlignment = Alignment.Center
         ) {
-            Surface(
-                modifier = Modifier.size(40.dp),
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primary
-            ) {
-                Text(
-                    text = message.from.firstOrNull()?.name?.firstOrNull()?.uppercaseChar()?.toString()
-                        ?: message.from.firstOrNull()?.address?.firstOrNull()?.uppercaseChar()?.toString()
-                        ?: "?",
-                    modifier = Modifier.padding(8.dp),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
-            }
+            Text(
+                text = senderLabel.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar()?.toString() ?: "?",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White
+            )
+        }
 
-            Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(12.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = message.from.firstOrNull()?.name?.takeIf { it.isNotBlank() }
-                            ?: message.from.firstOrNull()?.address ?: "",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = if (message.isRead) FontWeight.Normal else FontWeight.Bold
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = formatDate(message.date),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = message.subject,
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontWeight = if (message.isRead) FontWeight.Normal else FontWeight.SemiBold
+                    text = senderLabel,
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontWeight = if (message.isRead) FontWeight.Medium else FontWeight.Bold
                     ),
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
+                if (message.attachments.isNotEmpty()) {
+                    Icon(
+                        imageVector = Icons.Default.AttachFile,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
+                Text(
+                    text = formatDate(message.date),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (message.isRead) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
+                )
+            }
+            Text(
+                text = message.subject,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = if (message.isRead) FontWeight.Normal else FontWeight.SemiBold
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = message.bodyPreview,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
+                if (onToggleStar != null) {
+                    IconButton(onClick = onToggleStar, modifier = Modifier.size(28.dp)) {
+                        Icon(
+                            imageVector = if (message.isStarred) Icons.Default.Star else Icons.Outlined.StarBorder,
+                            contentDescription = "Star",
+                            modifier = Modifier.size(18.dp),
+                            tint = if (message.isStarred) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
         }
     }

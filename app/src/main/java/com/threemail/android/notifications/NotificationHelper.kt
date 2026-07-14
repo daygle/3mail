@@ -6,12 +6,13 @@ import android.content.Context
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.threemail.android.R
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class NotificationHelper @Inject constructor(
-    private val context: Context
+    @ApplicationContext private val context: Context
 ) {
 
     companion object {
@@ -19,7 +20,7 @@ class NotificationHelper @Inject constructor(
         const val NOTIFICATION_ID = 1001
     }
 
-    fun createNotificationChannels(context: Context) {
+    fun createNotificationChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val name = context.getString(R.string.new_mail_notification_channel_name)
             val description = context.getString(R.string.new_mail_notification_channel_description)

@@ -33,6 +33,12 @@ interface FolderDao {
     @Update
     suspend fun update(folder: FolderEntity)
 
+    @Query("UPDATE folders SET syncVersion = :syncVersion WHERE id = :id")
+    suspend fun updateSyncVersion(id: Long, syncVersion: Long)
+
+    @Query("UPDATE folders SET unreadCount = :unreadCount WHERE id = :id")
+    suspend fun updateUnreadCount(id: Long, unreadCount: Int)
+
     @Delete
     suspend fun delete(folder: FolderEntity)
 
