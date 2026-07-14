@@ -62,7 +62,9 @@ fun InboxScreen(
     onNavigateToSearch: () -> Unit,
     onNavigateToAccounts: () -> Unit,
     onNavigateToSettings: () -> Unit,
-    onNavigateToMessage: (Long) -> Unit
+    onNavigateToMessage: (Long) -> Unit,
+    // Calendar route is wired in `ThreeMailNavHost` but the UI screen is not yet
+    // implemented; the nav graph omits it intentionally until that work resumes.
 ) {
     val state by viewModel.uiState.collectAsState()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)

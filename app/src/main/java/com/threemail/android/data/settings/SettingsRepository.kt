@@ -18,7 +18,9 @@ data class AppSettings(
     val syncIntervalMinutes: Long = 15,
     val notificationsEnabled: Boolean = true,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
-    val useDynamicColor: Boolean = true
+    val useDynamicColor: Boolean = true,
+    val emptyTrashOnLaunch: Boolean = false,
+    val emptyTrashOnQuit: Boolean = false
 )
 
 @Singleton
@@ -32,6 +34,8 @@ class SettingsRepository @Inject constructor(
         val NOTIFICATIONS = booleanPreferencesKey("notifications_enabled")
         val THEME = stringPreferencesKey("theme_mode")
         val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
+        val EMPTY_TRASH_ON_LAUNCH = booleanPreferencesKey("empty_trash_on_launch")
+        val EMPTY_TRASH_ON_QUIT = booleanPreferencesKey("empty_trash_on_quit")
     }
 
     val settings: Flow<AppSettings> = dataStore.data.map { prefs ->
@@ -40,17 +44,17 @@ class SettingsRepository @Inject constructor(
             syncIntervalMinutes = prefs[Keys.SYNC_INTERVAL] ?: 15L,
             notificationsEnabled = prefs[Keys.NOTIFICATIONS] ?: true,
             themeMode = prefs[Keys.THEME]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: ThemeMode.SYSTEM,
-            useDynamicColor = prefs[Keys.DYNAMIC_COLOR] ?: true
+            useDynamicColor = prefs[Keys.DYNAMIC_COLOR] ?: true,
+            emptyTrashOnLaunch = prefs[Keys.EMPTY_TRASH_ON_LAUNCH] ?: false,
+            emptyTrashOnQuit = prefs[Keys.EMPTY_TRASH_ON_QUIT] ?: false
         )
     }
 
     suspend fun setSignature(value: String) = dataStore.edit { it[Keys.SIGNATURE] = value }
-
     suspend fun setSyncInterval(minutes: Long) = dataStore.edit { it[Keys.SYNC_INTERVAL] = minutes }
-
     suspend fun setNotificationsEnabled(enabled: Boolean) = dataStore.edit { it[Keys.NOTIFICATIONS] = enabled }
-
     suspend fun setThemeMode(mode: ThemeMode) = dataStore.edit { it[Keys.THEME] = mode.name }
-
     suspend fun setDynamicColor(enabled: Boolean) = dataStore.edit { it[Keys.DYNAMIC_COLOR] = enabled }
+    suspend fun setEmptyTrashOnLaunch(enabled: Boolean) = dataStore.edit { it[Keys.EMPTY_TRASH_ON_LAUNCH] = enabled }
+    suspend fun setEmptyTrashOnQuit(enabled: Boolean) = dataStore.edit { it[Keys.EMPTY_TRASH_ON_QUIT] = enabled }
 }

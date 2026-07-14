@@ -4,9 +4,12 @@ import android.content.Context
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import androidx.work.workDataOf
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -16,11 +19,6 @@ import javax.inject.Singleton
 class SyncScheduler @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
-
-    companion object {
-        private const val SYNC_WORK_NAME = "threemail_periodic_sync"
-        private const val CALENDAR_SYNC_WORK_NAME = "threemail_calendar_periodic_sync"
-    }
 
     fun schedulePeriodicSync(intervalMinutes: Long = 15, replace: Boolean = false) {
         val interval = intervalMinutes.coerceAtLeast(15) // WorkManager minimum period.
@@ -59,8 +57,45 @@ class SyncScheduler @Inject constructor(
         )
     }
 
+    /**
+     * Schedules a single TrashCleanupWorker for the given trigger (open / close).
+     * ExistingWorkPolicy.REPLACE means a new occurrence replaces the in-flight one
+     * so we never queue duplicate cleanups when the app is bounced repeatedly.
+     */
+    fun enqueueTrashCleanup(trigger: String) {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val request = OneTimeWorkRequestBuilder<TrashCleanupWorker>()
+            .setConstraints(constraints)
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+            .setInputData(workDataOf(KEY_TRIGGER to trigger))
+            .build()
+
+        val uniqueName = when (trigger) {
+            TrashCleanupWorker.TRIGGER_LAUNCH -> TRASH_LAUNCH_WORK_NAME
+            TrashCleanupWorker.TRIGGER_QUIT -> TRASH_QUIT_WORK_NAME
+            else -> "${TRASH_LAUNCH_WORK_NAME}_$trigger"
+        }
+
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            uniqueName,
+            ExistingWorkPolicy.REPLACE,
+            request
+        )
+    }
+
     fun cancelPeriodicSync() {
         WorkManager.getInstance(context).cancelUniqueWork(SYNC_WORK_NAME)
         WorkManager.getInstance(context).cancelUniqueWork(CALENDAR_SYNC_WORK_NAME)
+    }
+
+    companion object {
+        private const val SYNC_WORK_NAME = "threemail_periodic_sync"
+        private const val CALENDAR_SYNC_WORK_NAME = "threemail_calendar_periodic_sync"
+        private const val TRASH_LAUNCH_WORK_NAME = "threemail_trash_cleanup_launch"
+        private const val TRASH_QUIT_WORK_NAME = "threemail_trash_cleanup_quit"
+        const val KEY_TRIGGER: String = "triggerKey"
     }
 }

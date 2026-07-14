@@ -102,6 +102,27 @@ fun SettingsScreen(
                 }
             }
 
+            SettingsSection(title = stringResource(R.string.trash_settings_section)) {
+                Text(
+                    text = stringResource(R.string.trash_settings_description),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                SwitchRow(
+                    title = stringResource(R.string.empty_trash_on_launch_title),
+                    subtitle = stringResource(R.string.empty_trash_on_launch_subtitle),
+                    checked = settings.emptyTrashOnLaunch,
+                    onCheckedChange = viewModel::setEmptyTrashOnLaunch
+                )
+                SwitchRow(
+                    title = stringResource(R.string.empty_trash_on_quit_title),
+                    subtitle = stringResource(R.string.empty_trash_on_quit_subtitle),
+                    checked = settings.emptyTrashOnQuit,
+                    onCheckedChange = viewModel::setEmptyTrashOnQuit
+                )
+            }
+
             SettingsSection(title = "Notifications") {
                 SwitchRow(
                     title = "New mail notifications",

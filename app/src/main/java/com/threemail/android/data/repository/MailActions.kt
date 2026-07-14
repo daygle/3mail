@@ -1,9 +1,14 @@
 package com.threemail.android.data.repository
 
+import com.threemail.android.data.remote.gmail.RecoverableAuthException
 import com.threemail.android.data.remote.imap.ImapClientFactory
+import com.threemail.android.domain.model.Account
+import com.threemail.android.domain.model.AccountType
 import com.threemail.android.domain.model.FolderType
 import com.threemail.android.domain.model.MailFolder
 import com.threemail.android.domain.model.MailMessage
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -62,6 +67,35 @@ class MailActions @Inject constructor(
             client.moveMessage(serverId, message.uid, target.serverId)
         }
     }
+
+    /**
+     * Permanently empties the trash folder for [account].
+     *
+     * Server-first, then local per the trash policy: the IMAP `DELETE` flag is set
+     * on every message and the folder is expunged. Only after the server reports
+     * success do we drop the cached rows from Room. If the server-side step fails
+     * we return the error and intentionally leave the local cache intact so it can
+     * be retried on the next cleanup trigger.
+     */
+    suspend fun emptyTrash(account: Account, trashFolder: MailFolder): Result<Int> =
+        withContext(Dispatchers.IO) {
+            if (account.accountType != AccountType.GMAIL && account.accountType != AccountType.IMAP) {
+                return@withContext Result.success(0)
+            }
+            try {
+                val client = imapClientFactory.create(account)
+                val serverResult = client.emptyTrashFolder(trashFolder.serverId)
+                val expunged = serverResult.getOrElse { failure ->
+                    return@withContext Result.failure(failure)
+                }
+                mailRepository.deleteMessagesInFolder(trashFolder.id)
+                Result.success(expunged)
+            } catch (e: RecoverableAuthException) {
+                throw e
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
 
     private suspend fun remote(
         message: MailMessage,

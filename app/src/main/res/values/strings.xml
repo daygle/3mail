@@ -42,4 +42,18 @@
     <string name="new_mail_notification_channel_name">New mail notifications</string>
     <string name="new_mail_notification_channel_description">Notifies you when new mail arrives</string>
     <string name="default_web_client_id" translatable="false">YOUR_WEB_CLIENT_ID</string>
+
+    <!-- Trash policy settings -->
+    <string name="trash_settings_section">Trash</string>
+    <string name="trash_settings_description">Permanently delete messages in each account\'s Trash folder. Runs server-first, then clears the local cache.</string>
+    <string name="empty_trash_on_launch_title">Empty trash on app open</string>
+    <string name="empty_trash_on_launch_subtitle">Permanently delete trash emails when 3mail opens.</string>
+    <string name="empty_trash_on_quit_title">Empty trash on app close</string>
+    <string name="empty_trash_on_quit_subtitle">Permanently delete trash emails when 3mail goes to background.</string>
+
+    <!-- Trash cleanup failure notification -->
+    <string name="trash_cleanup_notification_channel_name">Trash cleanup</string>
+    <string name="trash_cleanup_notification_channel_description">Reports persistent failures clearing the trash.</string>
+    <string name="trash_cleanup_failure_title">Trash cleanup failed</string>
+    <string name="trash_cleanup_failure_body">%1$d account(s) could not be emptied. Check connectivity and try again.</string>
 </resources>

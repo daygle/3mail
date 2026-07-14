@@ -44,4 +44,12 @@ class SettingsViewModel @Inject constructor(
     fun setDynamicColor(enabled: Boolean) {
         viewModelScope.launch { settingsRepository.setDynamicColor(enabled) }
     }
+
+    fun setEmptyTrashOnLaunch(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setEmptyTrashOnLaunch(enabled) }
+    }
+
+    fun setEmptyTrashOnQuit(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setEmptyTrashOnQuit(enabled) }
+    }
 }

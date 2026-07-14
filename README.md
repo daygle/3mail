@@ -17,6 +17,7 @@ A modern, full-featured Android mail client supporting IMAP and Gmail (OAuth2).
 - Notifications for new mail
 - Full-text search across cached messages
 - Encrypted credential storage (Android Keystore via EncryptedSharedPreferences)
+- Optional **Empty trash on launch / quit** (Settings → Trash) — server-first `EXPUNGE` then local Room prune, per active IMAP/Gmail account, dispatched through WorkManager so it survives process death on background
 
 ## Tech Stack
 
@@ -55,6 +56,7 @@ A modern, full-featured Android mail client supporting IMAP and Gmail (OAuth2).
 
 ## Next Steps
 
+- Compose UI surface for the dormant Google Calendar integration (data, sync, and API client are already wired — see `data/remote/calendar/`, `data/repository/CalendarRepository.kt`, `sync/CalendarSyncWorker.kt`; only the Calendar screen + month-grid + event form remain)
 - Native Gmail API sync for labels and server-side threading (currently threading is header-derived and works across all IMAP accounts)
 - Rich-text compose and inline images
 - Contact autocomplete for recipients
