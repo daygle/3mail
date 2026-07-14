@@ -81,4 +81,5 @@
     <string name="calendar_event_saved">Event saved</string>
     <string name="calendar_event_deleted">Event deleted</string>
     <string name="calendar_event_save_failed">Save failed: %1$s</string>
+    <string name="calendar_filter_all">All accounts</string>
 </resources>

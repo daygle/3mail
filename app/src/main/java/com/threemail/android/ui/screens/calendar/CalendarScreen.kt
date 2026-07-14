@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -21,6 +23,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -32,6 +35,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -60,6 +64,7 @@ fun CalendarScreen(
     val eventsByDay by viewModel.eventsByDay.collectAsState()
     val selectedDayEvents by viewModel.selectedDayEvents.collectAsState()
     val activeAccounts by viewModel.activeAccounts.collectAsState()
+    val selectedAccountId by viewModel.selectedAccountId.collectAsState()
 
     Scaffold(
         topBar = {
@@ -132,6 +137,14 @@ fun CalendarScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            if (activeAccounts.size > 1) {
+                AccountFilterRow(
+                    accounts = activeAccounts,
+                    selectedAccountId = selectedAccountId,
+                    onSelectAccount = viewModel::selectAccount
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+            }
             CalendarBody(
                 selectedMonth = selectedMonth,
                 selectedDay = selectedDay,
@@ -143,7 +156,7 @@ fun CalendarScreen(
                     if (event.eventId != null) onEditEvent(event.accountId, event.id)
                 },
                 onCreateEvent = {
-                    val accountId = activeAccounts.firstOrNull()?.id ?: 0L
+                    val accountId = selectedAccountId ?: activeAccounts.firstOrNull()?.id ?: 0L
                     if (accountId > 0L) onCreateEvent(accountId)
                 },
                 onRefresh = viewModel::refresh
@@ -218,4 +231,40 @@ private fun CalendarBody(
             .fillMaxWidth()
             .height(PaddingValues().calculateBottomPadding().dp.coerceAtLeast(60.dp))
     )
+}
+
+/**
+ * Horizontally-scrollable chip row shown above the grid when the user has more than
+ * one Gmail account with calendar sync enabled. An "All" chip aggregates; tapping a
+ * specific account scopes both the grid and the day agenda to that account.
+ */
+@Composable
+private fun AccountFilterRow(
+    accounts: List<com.threemail.android.domain.model.Account>,
+    selectedAccountId: Long?,
+    onSelectAccount: (Long?) -> Unit
+) {
+    val accountLabelFor = remember(accounts) { accounts.associate { it.id to it.email } }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        FilterChip(
+            selected = selectedAccountId == null,
+            onClick = { onSelectAccount(null) },
+            label = { Text(stringResource(R.string.calendar_filter_all)) },
+            modifier = Modifier.padding(end = 8.dp)
+        )
+        accounts.forEach { account ->
+            FilterChip(
+                selected = selectedAccountId == account.id,
+                onClick = { onSelectAccount(account.id) },
+                label = { Text(accountLabelFor[account.id] ?: account.email) },
+                modifier = Modifier.padding(end = 8.dp)
+            )
+        }
+    }
 }

@@ -60,6 +60,14 @@ class CalendarViewModel @Inject constructor(
     private val _selectedDay = MutableStateFlow(today)
     val selectedDay: StateFlow<LocalDate> = _selectedDay.asStateFlow()
 
+    /**
+     * Optional account filter. `null` means "aggregate every active Gmail account"; a
+     * non-null value narrows both the grid and the day agenda to events from that
+     * account. Persists across month changes within the same ViewModel lifetime.
+     */
+    private val _selectedAccountId = MutableStateFlow<Long?>(null)
+    val selectedAccountId: StateFlow<Long?> = _selectedAccountId.asStateFlow()
+
     val activeAccounts: StateFlow<List<Account>> = accountRepository
         .getAccounts()
         .map { all ->
@@ -79,16 +87,18 @@ class CalendarViewModel @Inject constructor(
 
     val eventsByDay: StateFlow<Map<LocalDate, List<CalendarEvent>>> = combine(
         activeAccounts,
-        selectedMonth
-    ) { accounts, month -> accounts to month }
-        .flatMapLatest { (accounts, _) ->
+        selectedMonth,
+        selectedAccountId
+    ) { accounts, month, filter -> Triple(accounts, month, filter) }
+        .flatMapLatest { (accounts, _, filter) ->
             val (windowStart, windowEnd) = visibleWindowLocalDates
             val startMs = windowStart.atStartOfDay(zone).toInstant().toEpochMilli()
             val endMsExclusive = windowEnd.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-            if (accounts.isEmpty()) {
+            val filtered = if (filter == null) accounts else accounts.filter { it.id == filter }
+            if (filtered.isEmpty()) {
                 flowOf(emptyMap())
             } else {
-                merge(accounts.map { acc -> calendarRepository.getEventsInRange(acc.id, startMs, endMsExclusive) })
+                merge(filtered.map { acc -> calendarRepository.getEventsInRange(acc.id, startMs, endMsExclusive) })
                     .map { all -> projectAllToVisibleGrid(all, windowStart, windowEnd) }
             }
         }
@@ -119,6 +129,13 @@ class CalendarViewModel @Inject constructor(
         // Bring the visible month in line if the user picked a day from the overflow band.
         val ym = YearMonth.from(day)
         if (ym != _selectedMonth.value) _selectedMonth.value = ym
+    }
+
+    /** Pass `null` to clear the filter and aggregate every active Gmail account. */
+    fun selectAccount(accountId: Long?) {
+        if (accountId == null || activeAccounts.value.any { it.id == accountId }) {
+            _selectedAccountId.value = accountId
+        }
     }
 
     fun refresh() {
