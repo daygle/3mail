@@ -9,6 +9,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.threemail.android.ui.screens.account.AccountScreen
 import com.threemail.android.ui.screens.account.AddAccountScreen
+import com.threemail.android.ui.screens.calendar.CalendarScreen
 import com.threemail.android.ui.screens.compose.ComposeScreen
 import com.threemail.android.ui.screens.inbox.InboxScreen
 import com.threemail.android.ui.screens.message.MessageDetailScreen
@@ -25,9 +26,16 @@ fun ThreeMailNavHost(navController: NavHostController) {
                 onNavigateToSearch = { navController.navigate(Screen.Search.route) },
                 onNavigateToAccounts = { navController.navigate(Screen.Accounts.route) },
                 onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
+                onNavigateToCalendar = { navController.navigate(Screen.Calendar.route) },
                 onNavigateToMessage = { messageId ->
                     navController.navigate(Screen.MessageDetail.createRoute(messageId))
                 }
+            )
+        }
+        composable(Screen.Calendar.route) {
+            CalendarScreen(
+                viewModel = hiltViewModel(),
+                onNavigateBack = { navController.popBackStack() }
             )
         }
         composable(

@@ -86,6 +86,7 @@ dependencies {
     implementation(libs.play.services.auth)
     implementation(libs.google.api.client.android)
     implementation(libs.google.api.services.gmail)
+    implementation(libs.google.api.services.calendar)
 
     // Image loading
     implementation(libs.io.coil.kt.compose)

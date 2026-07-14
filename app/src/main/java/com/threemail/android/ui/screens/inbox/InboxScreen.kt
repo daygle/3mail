@@ -62,6 +62,7 @@ fun InboxScreen(
     onNavigateToSearch: () -> Unit,
     onNavigateToAccounts: () -> Unit,
     onNavigateToSettings: () -> Unit,
+    onNavigateToCalendar: () -> Unit,
     onNavigateToMessage: (Long) -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -97,6 +98,10 @@ fun InboxScreen(
                 onSettings = {
                     scope.launch { drawerState.close() }
                     onNavigateToSettings()
+                },
+                onCalendar = {
+                    scope.launch { drawerState.close() }
+                    onNavigateToCalendar()
                 }
             )
         }

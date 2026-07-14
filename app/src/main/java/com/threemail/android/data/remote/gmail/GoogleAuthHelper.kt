@@ -22,12 +22,13 @@ class GoogleAuthHelper @Inject constructor(
 
     companion object {
         const val GMAIL_SCOPE = "https://mail.google.com/"
+        const val CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar"
     }
 
     private val signInClient: GoogleSignInClient by lazy {
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestEmail()
-            .requestScopes(Scope(GMAIL_SCOPE))
+            .requestScopes(Scope(GMAIL_SCOPE), Scope(CALENDAR_SCOPE))
             .build()
         GoogleSignIn.getClient(context, gso)
     }
