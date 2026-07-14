@@ -229,7 +229,7 @@ private fun CalendarBody(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(PaddingValues().calculateBottomPadding().dp.coerceAtLeast(60.dp))
+            .height(60.dp)
     )
 }
 

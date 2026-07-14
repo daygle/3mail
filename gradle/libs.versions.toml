@@ -23,6 +23,7 @@ gmailApi = "v1-rev20240520-2.0.0"
 calendarApi = "v3-rev20240517-2.0.0"
 coil = "2.7.0"
 securityCrypto = "1.1.0-alpha06"
+splashscreen = "1.0.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -82,6 +83,9 @@ io-coil-kt-compose = { group = "io.coil-kt", name = "coil-compose", version.ref 
 
 # Security (encrypted credential storage)
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
+
+# Splash screen
+androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashscreen" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

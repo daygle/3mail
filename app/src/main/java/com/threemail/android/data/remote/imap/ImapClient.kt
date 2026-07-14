@@ -282,7 +282,7 @@ class ImapClient(
                     val end = minOf(start + chunkSize, messages.size)
                     val chunk = (start until end).map { messages[it] }.toTypedArray()
                     if (chunk.isNotEmpty()) {
-                        folder.setFlags(chunk, Flags.Flag.DELETED, true)
+                        folder.setFlags(chunk, Flags(Flags.Flag.DELETED), true)
                         total += chunk.size
                     }
                     start = end
