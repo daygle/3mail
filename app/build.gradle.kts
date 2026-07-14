@@ -45,6 +45,11 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1,LICENSE.md,LICENSE.txt,NOTICE.md,NOTICE.txt}"
+            // The Google API / JavaMail jars ship overlapping metadata files.
+            excludes += "/META-INF/INDEX.LIST"
+            excludes += "/META-INF/DEPENDENCIES"
+            excludes += "/META-INF/NOTICE"
+            excludes += "/META-INF/LICENSE"
         }
     }
 }
@@ -80,9 +85,9 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.play.services)
 
-    // Mail
+    // Mail (android-mail already bundles android-activation, so no separate
+    // com.sun.activation:javax.activation dependency — it duplicates the classes)
     implementation(libs.java.mail)
-    implementation(libs.java.mail.activation)
 
     // Google Sign-In / Gmail
     implementation(libs.play.services.auth)
