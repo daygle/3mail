@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.threemail.android.data.remote.imap.ImapClientFactory
+import com.threemail.android.data.remote.MailRemoteFactory
 import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.repository.MailRepository
 import com.threemail.android.data.settings.SettingsRepository
@@ -23,7 +23,7 @@ class MailSyncWorker @AssistedInject constructor(
     private val mailRepository: MailRepository,
     private val settingsRepository: SettingsRepository,
     private val notificationHelper: NotificationHelper,
-    private val imapClientFactory: ImapClientFactory
+    private val mailRemoteFactory: MailRemoteFactory
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
@@ -36,26 +36,25 @@ class MailSyncWorker @AssistedInject constructor(
                 if (!account.syncEnabled) return@forEach
                 if (account.accountType != AccountType.IMAP && account.accountType != AccountType.GMAIL) return@forEach
 
-                val client = imapClientFactory.create(account)
-                val remoteFolders = client.fetchFolders().getOrNull() ?: return@forEach
+                val remote = mailRemoteFactory.create(account)
+                val remoteFolders = remote.fetchFolders().getOrNull() ?: return@forEach
                 val savedFolders = mailRepository.saveFolders(remoteFolders)
 
                 savedFolders.forEach { folder ->
                     // Only deep-sync the folders users care about most.
                     if (folder.type !in SYNCED_FOLDERS) return@forEach
 
-                    val cursor = mailRepository.getMaxUid(folder.id)
-                    val fetch = client.fetchMessagesSince(folder.serverId, cursor, limit = 100).getOrNull()
+                    val fetch = remote.fetchMessages(folder, folder.syncVersion, limit = 100).getOrNull()
                         ?: return@forEach
 
                     if (fetch.messages.isNotEmpty()) {
                         val toSave = fetch.messages.map { it.copy(folderId = folder.id) }
                         mailRepository.saveMessages(toSave)
-                        mailRepository.updateFolderCursor(folder.id, fetch.maxUid)
                         if (folder.type == FolderType.INBOX) {
                             newMessages += toSave.count { !it.isRead }
                         }
                     }
+                    mailRepository.updateFolderCursor(folder.id, fetch.nextCursor)
                 }
             }
 

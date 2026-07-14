@@ -18,7 +18,8 @@ data class AppSettings(
     val syncIntervalMinutes: Long = 15,
     val notificationsEnabled: Boolean = true,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
-    val useDynamicColor: Boolean = true
+    val useDynamicColor: Boolean = true,
+    val emptyTrashOnExit: Boolean = false
 )
 
 @Singleton
@@ -32,6 +33,7 @@ class SettingsRepository @Inject constructor(
         val NOTIFICATIONS = booleanPreferencesKey("notifications_enabled")
         val THEME = stringPreferencesKey("theme_mode")
         val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
+        val EMPTY_TRASH_ON_EXIT = booleanPreferencesKey("empty_trash_on_exit")
     }
 
     val settings: Flow<AppSettings> = dataStore.data.map { prefs ->
@@ -40,7 +42,8 @@ class SettingsRepository @Inject constructor(
             syncIntervalMinutes = prefs[Keys.SYNC_INTERVAL] ?: 15L,
             notificationsEnabled = prefs[Keys.NOTIFICATIONS] ?: true,
             themeMode = prefs[Keys.THEME]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: ThemeMode.SYSTEM,
-            useDynamicColor = prefs[Keys.DYNAMIC_COLOR] ?: true
+            useDynamicColor = prefs[Keys.DYNAMIC_COLOR] ?: true,
+            emptyTrashOnExit = prefs[Keys.EMPTY_TRASH_ON_EXIT] ?: false
         )
     }
 
@@ -53,4 +56,6 @@ class SettingsRepository @Inject constructor(
     suspend fun setThemeMode(mode: ThemeMode) = dataStore.edit { it[Keys.THEME] = mode.name }
 
     suspend fun setDynamicColor(enabled: Boolean) = dataStore.edit { it[Keys.DYNAMIC_COLOR] = enabled }
+
+    suspend fun setEmptyTrashOnExit(enabled: Boolean) = dataStore.edit { it[Keys.EMPTY_TRASH_ON_EXIT] = enabled }
 }

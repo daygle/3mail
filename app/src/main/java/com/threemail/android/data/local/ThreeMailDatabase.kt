@@ -13,7 +13,7 @@ import com.threemail.android.data.local.entity.MessageEntity
 
 @Database(
     entities = [AccountEntity::class, FolderEntity::class, MessageEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class ThreeMailDatabase : RoomDatabase() {

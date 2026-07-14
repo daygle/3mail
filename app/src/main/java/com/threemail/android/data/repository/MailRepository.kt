@@ -30,10 +30,17 @@ class MailRepository @Inject constructor(
         folderDao.getByServerId(accountId, serverId)?.toDomain()
 
     suspend fun saveFolders(folders: List<MailFolder>): List<MailFolder> {
-        val entities = folders.map { it.toEntity() }
-        val ids = folderDao.insertAll(entities)
-        return folders.mapIndexed { index, folder ->
-            folder.copy(id = ids.getOrNull(index) ?: folder.id)
+        // Preserve the id and sync cursor of folders we already know about, so
+        // re-saving the folder list each sync does not reset incremental cursors.
+        return folders.map { folder ->
+            val existing = folderDao.getByServerId(folder.accountId, folder.serverId)
+            val merged = folder.copy(
+                id = existing?.id ?: 0,
+                syncVersion = existing?.syncVersion ?: folder.syncVersion,
+                unreadCount = existing?.unreadCount ?: folder.unreadCount
+            )
+            val id = folderDao.insert(merged.toEntity())
+            merged.copy(id = id)
         }
     }
 
@@ -52,6 +59,9 @@ class MailRepository @Inject constructor(
 
     suspend fun getMessageById(id: Long): MailMessage? =
         messageDao.getById(id)?.toDomain()
+
+    suspend fun getMessagesOnce(folderId: Long): List<MailMessage> =
+        messageDao.getByFolderOnce(folderId).map { it.toDomain() }
 
     fun getThread(accountId: Long, threadId: String): Flow<List<MailMessage>> =
         messageDao.getByThread(accountId, threadId).map { list -> list.map { it.toDomain() } }
@@ -128,6 +138,7 @@ class MailRepository @Inject constructor(
         isDraft = isDraft,
         attachments = parseAttachments(attachmentsJson),
         uid = uid,
+        remoteId = remoteId,
         syncedAt = syncedAt
     )
 
@@ -151,6 +162,7 @@ class MailRepository @Inject constructor(
         isDraft = isDraft,
         attachmentsJson = serializeAttachments(attachments),
         uid = uid,
+        remoteId = remoteId,
         syncedAt = syncedAt
     )
 

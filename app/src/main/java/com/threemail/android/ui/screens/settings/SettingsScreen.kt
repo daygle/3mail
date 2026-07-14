@@ -21,12 +21,17 @@ import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -43,10 +48,20 @@ fun SettingsScreen(
     onNavigateBack: () -> Unit
 ) {
     val settings by viewModel.settings.collectAsState()
+    val statusMessage by viewModel.statusMessage.collectAsState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(statusMessage) {
+        statusMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearStatus()
+        }
+    }
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             LargeTopAppBar(
                 title = { Text(stringResource(R.string.settings)) },
@@ -109,6 +124,19 @@ fun SettingsScreen(
                     checked = settings.notificationsEnabled,
                     onCheckedChange = viewModel::setNotificationsEnabled
                 )
+            }
+
+            SettingsSection(title = "Trash") {
+                SwitchRow(
+                    title = "Empty trash on open",
+                    subtitle = "Permanently delete trashed mail when the app starts",
+                    checked = settings.emptyTrashOnExit,
+                    onCheckedChange = viewModel::setEmptyTrashOnExit
+                )
+                Spacer(Modifier.height(12.dp))
+                TextButton(onClick = viewModel::emptyTrashNow) {
+                    Text("Empty trash now")
+                }
             }
 
             SettingsSection(title = "Signature") {

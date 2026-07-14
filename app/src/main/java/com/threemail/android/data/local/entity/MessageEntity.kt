@@ -49,5 +49,6 @@ data class MessageEntity(
     val isDraft: Boolean = false,
     val attachmentsJson: String = "[]",
     val uid: Long = 0,
+    val remoteId: String = "",
     val syncedAt: Long = 0
 )
