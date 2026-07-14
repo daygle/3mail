@@ -85,6 +85,10 @@ class MailRepository @Inject constructor(
         messageDao.deleteById(id)
     }
 
+    suspend fun deleteMessagesInFolder(folderId: Long) {
+        messageDao.deleteByFolder(folderId)
+    }
+
     suspend fun updateReadStatus(id: Long, isRead: Boolean) {
         messageDao.updateReadStatus(id, isRead)
     }

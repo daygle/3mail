@@ -1,82 +1,107 @@
 package com.threemail.android.ui.screens.calendar
 
-import android.app.DatePickerDialog
-import android.app.TimePickerDialog
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Today
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.threemail.android.domain.model.CalendarEvent
+import com.threemail.android.R
 import com.threemail.android.ui.components.EmptyState
-import com.threemail.android.ui.components.LoadingIndicator
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Date
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
+
+private val MonthHeaderFormatter: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarScreen(
     viewModel: CalendarViewModel,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onCreateEvent: (accountId: Long) -> Unit,
+    onEditEvent: (accountId: Long, eventId: Long) -> Unit
 ) {
-    val state by viewModel.uiState.collectAsState()
-    var showCreate by remember { mutableStateOf(false) }
-
-    val recoverableAuthLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { _ ->
-        viewModel.onRecoverableAuthHandled()
-        viewModel.retryAfterRecoverableAuth()
-    }
-    LaunchedEffect(state.recoverableAuthIntent) {
-        state.recoverableAuthIntent?.let { recoverableAuthLauncher.launch(it) }
-    }
+    val selectedMonth by viewModel.selectedMonth.collectAsState()
+    val selectedDay by viewModel.selectedDay.collectAsState()
+    val eventsByDay by viewModel.eventsByDay.collectAsState()
+    val selectedDayEvents by viewModel.selectedDayEvents.collectAsState()
+    val activeAccounts by viewModel.activeAccounts.collectAsState()
+    val selectedAccountId by viewModel.selectedAccountId.collectAsState()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Calendar") },
+                title = { Text(selectedMonth.format(MonthHeaderFormatter)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.cancel)
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = viewModel::goToToday) {
+                        Icon(
+                            imageVector = Icons.Default.Today,
+                            contentDescription = stringResource(R.string.calendar_today)
+                        )
+                    }
+                    IconButton(onClick = viewModel::goToPreviousMonth) {
+                        Icon(
+                            imageVector = Icons.Default.ChevronLeft,
+                            contentDescription = stringResource(R.string.calendar_prev_month)
+                        )
+                    }
+                    IconButton(onClick = viewModel::goToNextMonth) {
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = stringResource(R.string.calendar_next_month)
+                        )
+                    }
+                    IconButton(onClick = viewModel::refresh) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = stringResource(R.string.sync)
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -86,155 +111,160 @@ fun CalendarScreen(
             )
         },
         floatingActionButton = {
-            if (state.accountEmail != null) {
-                FloatingActionButton(onClick = { showCreate = true }) {
-                    Icon(Icons.Default.Add, contentDescription = "New event")
-                }
-            }
+            val fabAccountId = activeAccounts.firstOrNull()?.id ?: 0L
+            ExtendedFloatingActionButton(
+                onClick = {
+                    if (fabAccountId > 0L) onCreateEvent(fabAccountId)
+                },
+                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                text = { Text(stringResource(R.string.calendar_new_event)) },
+                expanded = true
+            )
         }
     ) { padding ->
-        Box(modifier = Modifier.padding(padding)) {
-            when {
-                state.isLoading && state.events.isEmpty() -> LoadingIndicator()
-                state.accountEmail == null -> EmptyState(
-                    title = "No Google account",
-                    subtitle = "Add a Google account to connect your calendar."
+        if (activeAccounts.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+                EmptyState(
+                    title = stringResource(R.string.calendar_no_account_title),
+                    subtitle = stringResource(R.string.calendar_no_account_subtitle)
                 )
-                state.events.isEmpty() -> EmptyState(
-                    title = "No upcoming events",
-                    subtitle = "You're all clear for the next 60 days."
-                )
-                else -> AgendaList(events = state.events, onDelete = viewModel::deleteEvent)
             }
+            return@Scaffold
         }
-    }
 
-    if (showCreate) {
-        NewEventDialog(
-            onDismiss = { showCreate = false },
-            onCreate = { title, start, end, allDay ->
-                showCreate = false
-                viewModel.createEvent(title, start, end, allDay)
-            }
-        )
-    }
-}
-
-@Composable
-private fun AgendaList(events: List<CalendarEvent>, onDelete: (String) -> Unit) {
-    val grouped = events.groupBy { dayKey(it.start) }
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
-        grouped.forEach { (day, dayEvents) ->
-            item(key = "header-$day") {
-                Text(
-                    text = day,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            if (activeAccounts.size > 1) {
+                AccountFilterRow(
+                    accounts = activeAccounts,
+                    selectedAccountId = selectedAccountId,
+                    onSelectAccount = viewModel::selectAccount
                 )
+                Spacer(modifier = Modifier.height(4.dp))
             }
-            items(dayEvents.size) { index ->
-                EventRow(event = dayEvents[index], onDelete = { onDelete(dayEvents[index].id) })
-            }
+            CalendarBody(
+                selectedMonth = selectedMonth,
+                selectedDay = selectedDay,
+                today = LocalDate.now(ZoneId.systemDefault()),
+                eventsByDay = eventsByDay,
+                selectedDayEvents = selectedDayEvents,
+                onSelectDay = viewModel::selectDay,
+                onEventClick = { event ->
+                    if (event.eventId != null) onEditEvent(event.accountId, event.id)
+                },
+                onCreateEvent = {
+                    val accountId = selectedAccountId ?: activeAccounts.firstOrNull()?.id ?: 0L
+                    if (accountId > 0L) onCreateEvent(accountId)
+                },
+                onRefresh = viewModel::refresh
+            )
         }
     }
 }
 
 @Composable
-private fun EventRow(event: CalendarEvent, onDelete: () -> Unit) {
+private fun CalendarBody(
+    selectedMonth: YearMonth,
+    selectedDay: LocalDate,
+    today: LocalDate,
+    eventsByDay: Map<LocalDate, List<com.threemail.android.domain.model.CalendarEvent>>,
+    selectedDayEvents: List<com.threemail.android.domain.model.CalendarEvent>,
+    onSelectDay: (LocalDate) -> Unit,
+    onEventClick: (com.threemail.android.domain.model.CalendarEvent) -> Unit,
+    onCreateEvent: () -> Unit,
+    onRefresh: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column {
+            MonthGrid(
+                visibleMonth = selectedMonth,
+                eventsByDay = eventsByDay,
+                selectedDay = selectedDay,
+                today = today,
+                onDayClick = onSelectDay,
+                onEventClick = onEventClick,
+                modifier = Modifier.padding(8.dp)
+            )
+        }
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 4.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.size(width = 64.dp, height = 40.dp)) {
-            Text(
-                text = if (event.allDay) "All day" else timeFormat.format(Date(event.start)),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            if (!event.allDay) {
-                Text(
-                    text = timeFormat.format(Date(event.end)),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        Spacer(Modifier.size(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(event.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-            event.location?.takeIf { it.isNotBlank() }?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        IconButton(onClick = onDelete) {
-            Icon(Icons.Default.DeleteOutline, contentDescription = "Delete", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        Spacer(modifier = Modifier)
+        Text(
+            text = if (selectedDay == today) {
+                stringResource(R.string.calendar_today)
+            } else {
+                ""
+            },
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(end = 16.dp)
+        )
     }
-}
-
-@Composable
-private fun NewEventDialog(
-    onDismiss: () -> Unit,
-    onCreate: (title: String, start: Long, end: Long, allDay: Boolean) -> Unit
-) {
-    val context = LocalContext.current
-    var title by remember { mutableStateOf("") }
-    val startCal = remember { Calendar.getInstance().apply { add(Calendar.HOUR_OF_DAY, 1); set(Calendar.MINUTE, 0) } }
-    var startLabel by remember { mutableStateOf(dateTimeFormat.format(startCal.time)) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("New event") },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("Title") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(12.dp))
-                TextButton(onClick = {
-                    DatePickerDialog(
-                        context,
-                        { _, y, m, d ->
-                            startCal.set(Calendar.YEAR, y); startCal.set(Calendar.MONTH, m); startCal.set(Calendar.DAY_OF_MONTH, d)
-                            TimePickerDialog(
-                                context,
-                                { _, h, min ->
-                                    startCal.set(Calendar.HOUR_OF_DAY, h); startCal.set(Calendar.MINUTE, min)
-                                    startLabel = dateTimeFormat.format(startCal.time)
-                                },
-                                startCal.get(Calendar.HOUR_OF_DAY), startCal.get(Calendar.MINUTE), false
-                            ).show()
-                        },
-                        startCal.get(Calendar.YEAR), startCal.get(Calendar.MONTH), startCal.get(Calendar.DAY_OF_MONTH)
-                    ).show()
-                }) {
-                    Text("Starts: $startLabel")
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = title.isNotBlank(),
-                onClick = {
-                    val start = startCal.timeInMillis
-                    onCreate(title, start, start + 60L * 60 * 1000, false)
-                }
-            ) { Text("Create") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    DayAgenda(
+        day = selectedDay,
+        events = selectedDayEvents,
+        onEventClick = onEventClick,
+        onCreateClick = onCreateEvent,
+        onRefresh = onRefresh,
+        modifier = Modifier.fillMaxSize()
+    )
+    // Padding: ensure content sits above the system bottom inset / FAB by accounting
+    // for any insets not otherwise consumed.
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(PaddingValues().calculateBottomPadding().dp.coerceAtLeast(60.dp))
     )
 }
 
-private val timeFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
-private val dateTimeFormat = SimpleDateFormat("EEE, MMM d 'at' h:mm a", Locale.getDefault())
-private val dayHeaderFormat = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault())
-
-private fun dayKey(timestamp: Long): String = dayHeaderFormat.format(Date(timestamp))
+/**
+ * Horizontally-scrollable chip row shown above the grid when the user has more than
+ * one Gmail account with calendar sync enabled. An "All" chip aggregates; tapping a
+ * specific account scopes both the grid and the day agenda to that account.
+ */
+@Composable
+private fun AccountFilterRow(
+    accounts: List<com.threemail.android.domain.model.Account>,
+    selectedAccountId: Long?,
+    onSelectAccount: (Long?) -> Unit
+) {
+    val accountLabelFor = remember(accounts) { accounts.associate { it.id to it.email } }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        FilterChip(
+            selected = selectedAccountId == null,
+            onClick = { onSelectAccount(null) },
+            label = { Text(stringResource(R.string.calendar_filter_all)) },
+            modifier = Modifier.padding(end = 8.dp)
+        )
+        accounts.forEach { account ->
+            FilterChip(
+                selected = selectedAccountId == account.id,
+                onClick = { onSelectAccount(account.id) },
+                label = { Text(accountLabelFor[account.id] ?: account.email) },
+                modifier = Modifier.padding(end = 8.dp)
+            )
+        }
+    }
+}

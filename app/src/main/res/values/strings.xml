@@ -42,4 +42,44 @@
     <string name="new_mail_notification_channel_name">New mail notifications</string>
     <string name="new_mail_notification_channel_description">Notifies you when new mail arrives</string>
     <string name="default_web_client_id" translatable="false">YOUR_WEB_CLIENT_ID</string>
+
+    <!-- Trash policy settings -->
+    <string name="trash_settings_section">Trash</string>
+    <string name="trash_settings_description">Permanently delete messages in each account\'s Trash folder. Runs server-first, then clears the local cache.</string>
+    <string name="empty_trash_on_launch_title">Empty trash on app open</string>
+    <string name="empty_trash_on_launch_subtitle">Permanently delete trash emails when 3mail opens.</string>
+    <string name="empty_trash_on_quit_title">Empty trash on app close</string>
+    <string name="empty_trash_on_quit_subtitle">Permanently delete trash emails when 3mail goes to background.</string>
+
+    <!-- Trash cleanup failure notification -->
+    <string name="trash_cleanup_notification_channel_name">Trash cleanup</string>
+    <string name="trash_cleanup_notification_channel_description">Reports persistent failures clearing the trash.</string>
+    <string name="trash_cleanup_failure_title">Trash cleanup failed</string>
+    <string name="trash_cleanup_failure_body">%1$d account(s) could not be emptied. Check connectivity and try again.</string>
+
+    <!-- Calendar -->
+    <string name="calendar_no_account_title">No Google account connected</string>
+    <string name="calendar_no_account_subtitle">Sign in with Google to see your events here.</string>
+    <string name="calendar_no_events_title">Nothing scheduled</string>
+    <string name="calendar_no_events_subtitle">Tap New event to add one.</string>
+    <string name="calendar_prev_month">Previous month</string>
+    <string name="calendar_next_month">Next month</string>
+    <string name="calendar_today">Today</string>
+    <string name="calendar_new_event">New event</string>
+    <string name="calendar_edit_event">Edit event</string>
+    <string name="calendar_event_title_label">Title</string>
+    <string name="calendar_all_day">All day</string>
+    <string name="calendar_start">Starts</string>
+    <string name="calendar_end">Ends</string>
+    <string name="calendar_pick_date">Date</string>
+    <string name="calendar_pick_time">Time</string>
+    <string name="calendar_location">Location</string>
+    <string name="calendar_attendees">Guests (comma-separated)</string>
+    <string name="calendar_description">Notes</string>
+    <string name="calendar_delete_title">Delete event?</string>
+    <string name="calendar_delete_body">This will permanently remove the event from your Google Calendar and any invitees will be notified.</string>
+    <string name="calendar_event_saved">Event saved</string>
+    <string name="calendar_event_deleted">Event deleted</string>
+    <string name="calendar_event_save_failed">Save failed: %1$s</string>
+    <string name="calendar_filter_all">All accounts</string>
 </resources>

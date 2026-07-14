@@ -2,24 +2,30 @@ package com.threemail.android.data.repository
 
 import com.threemail.android.data.remote.MailRemote
 import com.threemail.android.data.remote.MailRemoteFactory
+import com.threemail.android.data.remote.gmail.RecoverableAuthException
+import com.threemail.android.data.remote.imap.ImapClientFactory
+import com.threemail.android.domain.model.Account
+import com.threemail.android.domain.model.AccountType
 import com.threemail.android.domain.model.FolderType
 import com.threemail.android.domain.model.MailFolder
 import com.threemail.android.domain.model.MailMessage
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
  * Coordinates message mutations so that local state and the remote server stay in
- * sync. The local database is updated optimistically; the server call is best
- * effort and reported back via [Result]. Works against [MailRemote] so IMAP and
- * Gmail accounts are handled uniformly.
+ * sync. Message actions (read/star/delete/archive/move) go through [MailRemote] so
+ * IMAP and Gmail accounts are handled by their native transport. Emptying trash
+ * uses the IMAP expunge path directly (efficient bulk delete).
  */
 @Singleton
 class MailActions @Inject constructor(
     private val accountRepository: AccountRepository,
     private val mailRepository: MailRepository,
-    private val mailRemoteFactory: MailRemoteFactory
+    private val mailRemoteFactory: MailRemoteFactory,
+    private val imapClientFactory: ImapClientFactory
 ) {
 
     suspend fun setRead(message: MailMessage, isRead: Boolean): Result<Unit> {
@@ -56,19 +62,32 @@ class MailActions @Inject constructor(
         return remote(message, source) { remote, folder -> remote.move(folder, message, target) }
     }
 
-    /** Permanently deletes every message in each account's Trash folder. */
-    suspend fun emptyTrash(): Result<Unit> = runCatching {
-        accountRepository.getAccounts().first().forEach { account ->
-            val folders = mailRepository.getFoldersOnce(account.id)
-            val trash = folders.firstOrNull { it.type == FolderType.TRASH } ?: return@forEach
-            val remote = mailRemoteFactory.create(account)
-            mailRepository.getMessagesOnce(trash.id).forEach { message ->
-                // Permanent delete (trash = null) removes it rather than re-trashing.
-                remote.delete(trash, message, null)
-                mailRepository.deleteMessageLocal(message.id)
+    /**
+     * Permanently empties the trash folder for [account].
+     *
+     * Server-first: every message is flagged `DELETED` and the folder is expunged;
+     * only after the server reports success do we drop the cached rows from Room, so
+     * a failed cleanup leaves the local cache intact for the next retry. Returns the
+     * number of expunged messages.
+     */
+    suspend fun emptyTrash(account: Account, trashFolder: MailFolder): Result<Int> =
+        withContext(Dispatchers.IO) {
+            if (account.accountType != AccountType.GMAIL && account.accountType != AccountType.IMAP) {
+                return@withContext Result.success(0)
+            }
+            try {
+                val client = imapClientFactory.create(account)
+                val expunged = client.emptyTrashFolder(trashFolder.serverId).getOrElse { failure ->
+                    return@withContext Result.failure(failure)
+                }
+                mailRepository.deleteMessagesInFolder(trashFolder.id)
+                Result.success(expunged)
+            } catch (e: RecoverableAuthException) {
+                throw e
+            } catch (e: Exception) {
+                Result.failure(e)
             }
         }
-    }
 
     private suspend fun remote(
         message: MailMessage,

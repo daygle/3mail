@@ -18,17 +18,28 @@ class NotificationHelper @Inject constructor(
     companion object {
         const val CHANNEL_ID = "new_mail_channel"
         const val NOTIFICATION_ID = 1001
+
+        const val TRASH_CHANNEL_ID = "trash_cleanup_channel"
+        const val TRASH_NOTIFICATION_ID = 1002
     }
 
     fun createNotificationChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val name = context.getString(R.string.new_mail_notification_channel_name)
-            val description = context.getString(R.string.new_mail_notification_channel_description)
-            val channel = NotificationChannel(CHANNEL_ID, name, NotificationManager.IMPORTANCE_DEFAULT).apply {
-                this.description = description
-            }
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
+
+            val mailName = context.getString(R.string.new_mail_notification_channel_name)
+            val mailDescription = context.getString(R.string.new_mail_notification_channel_description)
+            val mailChannel = NotificationChannel(CHANNEL_ID, mailName, NotificationManager.IMPORTANCE_DEFAULT).apply {
+                this.description = mailDescription
+            }
+            notificationManager.createNotificationChannel(mailChannel)
+
+            val trashName = context.getString(R.string.trash_cleanup_notification_channel_name)
+            val trashDescription = context.getString(R.string.trash_cleanup_notification_channel_description)
+            val trashChannel = NotificationChannel(TRASH_CHANNEL_ID, trashName, NotificationManager.IMPORTANCE_LOW).apply {
+                this.description = trashDescription
+            }
+            notificationManager.createNotificationChannel(trashChannel)
         }
     }
 
@@ -43,5 +54,19 @@ class NotificationHelper @Inject constructor(
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(NOTIFICATION_ID, notification)
+    }
+
+    /** Shown when the trash-cleanup worker exhausts all retry attempts and still fails for every account. */
+    fun showTrashCleanupFailure(accountCount: Int) {
+        val notification = NotificationCompat.Builder(context, TRASH_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.trash_cleanup_failure_title))
+            .setContentText(context.getString(R.string.trash_cleanup_failure_body, accountCount))
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setAutoCancel(true)
+            .build()
+
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.notify(TRASH_NOTIFICATION_ID, notification)
     }
 }

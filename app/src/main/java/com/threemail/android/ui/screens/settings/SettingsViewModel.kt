@@ -2,13 +2,11 @@ package com.threemail.android.ui.screens.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.threemail.android.data.repository.MailActions
 import com.threemail.android.data.settings.AppSettings
 import com.threemail.android.data.settings.SettingsRepository
 import com.threemail.android.data.settings.ThemeMode
 import com.threemail.android.sync.SyncScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -18,17 +16,11 @@ import javax.inject.Inject
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
-    private val syncScheduler: SyncScheduler,
-    private val mailActions: MailActions
+    private val syncScheduler: SyncScheduler
 ) : ViewModel() {
 
     val settings: StateFlow<AppSettings> = settingsRepository.settings
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppSettings())
-
-    private val _statusMessage = MutableStateFlow<String?>(null)
-    val statusMessage: StateFlow<String?> = _statusMessage
-
-    fun clearStatus() { _statusMessage.value = null }
 
     fun setSignature(value: String) {
         viewModelScope.launch { settingsRepository.setSignature(value) }
@@ -53,16 +45,11 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.setDynamicColor(enabled) }
     }
 
-    fun setEmptyTrashOnExit(enabled: Boolean) {
-        viewModelScope.launch { settingsRepository.setEmptyTrashOnExit(enabled) }
+    fun setEmptyTrashOnLaunch(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setEmptyTrashOnLaunch(enabled) }
     }
 
-    fun emptyTrashNow() {
-        viewModelScope.launch {
-            _statusMessage.value = "Emptying trash…"
-            mailActions.emptyTrash()
-                .onSuccess { _statusMessage.value = "Trash emptied" }
-                .onFailure { _statusMessage.value = "Couldn't empty trash: ${it.message}" }
-        }
+    fun setEmptyTrashOnQuit(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setEmptyTrashOnQuit(enabled) }
     }
 }

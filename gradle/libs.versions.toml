@@ -20,7 +20,7 @@ coroutines = "1.8.1"
 gmsAuth = "21.2.0"
 googleApiClient = "2.2.0"
 gmailApi = "v1-rev20240520-2.0.0"
-calendarApi = "v3-rev20220715-2.0.0"
+calendarApi = "v3-rev20241030-2.0.0"
 coil = "2.7.0"
 securityCrypto = "1.1.0-alpha06"
 
@@ -30,6 +30,7 @@ junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
+androidx-lifecycle-process = { group = "androidx.lifecycle", name = "lifecycle-process", version.ref = "lifecycleRuntimeKtx" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 androidx-ui = { group = "androidx.compose.ui", name = "ui" }

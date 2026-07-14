@@ -10,5 +10,6 @@ data class Account(
     val useEncryption: Boolean = true,
     val password: String? = null,
     val isActive: Boolean = true,
-    val syncEnabled: Boolean = true
+    val syncEnabled: Boolean = true,
+    val calendarSyncEnabled: Boolean = true
 )

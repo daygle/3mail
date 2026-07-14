@@ -266,6 +266,37 @@ class ImapClient(
         }
     }
 
+    /**
+     * Marks every message in [folderServerId] as DELETED, then expunges the folder.
+     * Returns the number of messages expunged (zero when the folder was already empty).
+     * Messages are flagged in chunks of [chunkSize] so very large trash folders do not
+     * overstay IMAP server command timeouts.
+     */
+    suspend fun emptyTrashFolder(folderServerId: String, chunkSize: Int = 500): Result<Int> =
+        try {
+            val expunged = withFolder(folderServerId, Folder.READ_WRITE) { folder ->
+                val messages = folder.messages
+                var total = 0
+                var start = 0
+                while (start < messages.size) {
+                    val end = minOf(start + chunkSize, messages.size)
+                    val chunk = (start until end).map { messages[it] }.toTypedArray()
+                    if (chunk.isNotEmpty()) {
+                        folder.setFlags(chunk, Flags.Flag.DELETED, true)
+                        total += chunk.size
+                    }
+                    start = end
+                }
+                if (messages.isNotEmpty()) folder.expunge()
+                total
+            }
+            Result.success(expunged)
+        } catch (e: RecoverableAuthException) {
+            throw e
+        } catch (e: MessagingException) {
+            Result.failure(e)
+        }
+
     suspend fun moveMessage(fromServerId: String, uid: Long, toServerId: String): Result<Unit> =
         try {
             withContext(Dispatchers.IO) {

@@ -17,5 +17,6 @@ data class AccountEntity(
     val password: String? = null,
     val isActive: Boolean = true,
     val syncEnabled: Boolean = true,
+    val calendarSyncEnabled: Boolean = true,
     val createdAt: Long = System.currentTimeMillis()
 )

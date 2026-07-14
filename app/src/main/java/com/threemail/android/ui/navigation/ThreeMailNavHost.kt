@@ -9,6 +9,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.threemail.android.ui.screens.account.AccountScreen
 import com.threemail.android.ui.screens.account.AddAccountScreen
+import com.threemail.android.ui.screens.calendar.CalendarEventScreen
 import com.threemail.android.ui.screens.calendar.CalendarScreen
 import com.threemail.android.ui.screens.compose.ComposeScreen
 import com.threemail.android.ui.screens.inbox.InboxScreen
@@ -30,12 +31,6 @@ fun ThreeMailNavHost(navController: NavHostController) {
                 onNavigateToMessage = { messageId ->
                     navController.navigate(Screen.MessageDetail.createRoute(messageId))
                 }
-            )
-        }
-        composable(Screen.Calendar.route) {
-            CalendarScreen(
-                viewModel = hiltViewModel(),
-                onNavigateBack = { navController.popBackStack() }
             )
         }
         composable(
@@ -86,6 +81,30 @@ fun ThreeMailNavHost(navController: NavHostController) {
         }
         composable(Screen.Settings.route) {
             SettingsScreen(
+                viewModel = hiltViewModel(),
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+        composable(Screen.Calendar.route) {
+            CalendarScreen(
+                viewModel = hiltViewModel(),
+                onNavigateBack = { navController.popBackStack() },
+                onCreateEvent = { accountId ->
+                    navController.navigate(Screen.CalendarEvent.createRoute(accountId, -1L))
+                },
+                onEditEvent = { accountId, eventId ->
+                    navController.navigate(Screen.CalendarEvent.createRoute(accountId, eventId))
+                }
+            )
+        }
+        composable(
+            route = Screen.CalendarEvent.route,
+            arguments = listOf(
+                navArgument("accountId") { type = NavType.LongType },
+                navArgument("eventId") { type = NavType.LongType; defaultValue = -1L }
+            )
+        ) {
+            CalendarEventScreen(
                 viewModel = hiltViewModel(),
                 onNavigateBack = { navController.popBackStack() }
             )

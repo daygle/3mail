@@ -28,7 +28,8 @@ class GoogleAuthHelper @Inject constructor(
     private val signInClient: GoogleSignInClient by lazy {
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestEmail()
-            .requestScopes(Scope(GMAIL_SCOPE), Scope(CALENDAR_SCOPE))
+            .requestScopes(Scope(GMAIL_SCOPE))
+            .requestScopes(Scope(CALENDAR_SCOPE))
             .build()
         GoogleSignIn.getClient(context, gso)
     }
@@ -47,6 +48,13 @@ class GoogleAuthHelper @Inject constructor(
         return getSignedInAccount()?.email
     }
 
+    fun hasCalendarConsent(): Boolean {
+        return GoogleSignIn.hasPermissions(
+            getSignedInAccount() ?: return false,
+            Scope(CALENDAR_SCOPE)
+        )
+    }
+
     /**
      * Fetches an OAuth2 access token for Gmail IMAP/SMTP.
      * Call this on a background coroutine right before connecting to the mail server.
@@ -63,6 +71,15 @@ class GoogleAuthHelper @Inject constructor(
             throw RecoverableAuthException(e.intent, "Google consent required for mail access")
         }
     }
+
+    /** Returns an Intent the caller can launch to ask the user for the Calendar scope. */
+    fun requestCalendarConsentIntent() =
+        GoogleSignIn.getClient(
+            context,
+            GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestScopes(Scope(CALENDAR_SCOPE))
+                .build()
+        ).signInIntent
 
     /**
      * Parses the result of the Google Sign-In intent.
