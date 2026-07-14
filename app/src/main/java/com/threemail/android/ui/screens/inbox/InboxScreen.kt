@@ -63,8 +63,7 @@ fun InboxScreen(
     onNavigateToAccounts: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToMessage: (Long) -> Unit,
-    // Calendar route is wired in `ThreeMailNavHost` but the UI screen is not yet
-    // implemented; the nav graph omits it intentionally until that work resumes.
+    onNavigateToCalendar: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -99,6 +98,10 @@ fun InboxScreen(
                 onSettings = {
                     scope.launch { drawerState.close() }
                     onNavigateToSettings()
+                },
+                onCalendar = {
+                    scope.launch { drawerState.close() }
+                    onNavigateToCalendar()
                 }
             )
         }

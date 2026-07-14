@@ -56,4 +56,26 @@
     <string name="trash_cleanup_notification_channel_description">Reports persistent failures clearing the trash.</string>
     <string name="trash_cleanup_failure_title">Trash cleanup failed</string>
     <string name="trash_cleanup_failure_body">%1$d account(s) could not be emptied. Check connectivity and try again.</string>
+
+    <!-- Calendar -->
+    <string name="calendar_no_account_title">No Google account connected</string>
+    <string name="calendar_no_account_subtitle">Sign in with Google to see your events here.</string>
+    <string name="calendar_no_events_title">Nothing scheduled</string>
+    <string name="calendar_no_events_subtitle">Tap New event to add one.</string>
+    <string name="calendar_prev_month">Previous month</string>
+    <string name="calendar_next_month">Next month</string>
+    <string name="calendar_today">Today</string>
+    <string name="calendar_new_event">New event</string>
+    <string name="calendar_edit_event">Edit event</string>
+    <string name="calendar_event_title_label">Title</string>
+    <string name="calendar_all_day">All day</string>
+    <string name="calendar_start">Starts</string>
+    <string name="calendar_end">Ends</string>
+    <string name="calendar_pick_date">Date</string>
+    <string name="calendar_pick_time">Time</string>
+    <string name="calendar_location">Location</string>
+    <string name="calendar_attendees">Guests (comma-separated)</string>
+    <string name="calendar_description">Notes</string>
+    <string name="calendar_delete_title">Delete event?</string>
+    <string name="calendar_delete_body">This will permanently remove the event from your Google Calendar and any invitees will be notified.</string>
 </resources>

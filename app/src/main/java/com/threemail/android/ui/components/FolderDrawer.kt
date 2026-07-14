@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Drafts
 import androidx.compose.material.icons.filled.Inbox
@@ -48,7 +49,8 @@ fun FolderDrawerContent(
     selectedFolder: MailFolder?,
     onFolderClick: (MailFolder) -> Unit,
     onManageAccounts: () -> Unit,
-    onSettings: () -> Unit
+    onSettings: () -> Unit,
+    onCalendar: () -> Unit
 ) {
     ModalDrawerSheet {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -96,6 +98,13 @@ fun FolderDrawerContent(
             }
         }
         HorizontalDivider()
+        NavigationDrawerItem(
+            icon = { Icon(Icons.Default.CalendarMonth, contentDescription = null) },
+            label = { Text("Calendar") },
+            selected = false,
+            onClick = onCalendar,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+        )
         NavigationDrawerItem(
             icon = { Icon(Icons.Default.ManageAccounts, contentDescription = null) },
             label = { Text("Manage accounts") },
