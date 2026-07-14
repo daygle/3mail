@@ -24,6 +24,7 @@ class ThreeMailApplication : Application(), Configuration.Provider {
         super.onCreate()
         notificationHelper.createNotificationChannels()
         syncScheduler.schedulePeriodicSync()
+        syncScheduler.schedulePeriodicCalendarSync()
     }
 
     override val workConfiguration: Configuration

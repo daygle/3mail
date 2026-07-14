@@ -20,6 +20,7 @@ coroutines = "1.8.1"
 gmsAuth = "21.2.0"
 googleApiClient = "2.2.0"
 gmailApi = "v1-rev20240520-2.0.0"
+calendarApi = "v3-rev20241030-2.0.0"
 coil = "2.7.0"
 securityCrypto = "1.1.0-alpha06"
 
@@ -73,6 +74,7 @@ kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "ko
 play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "gmsAuth" }
 google-api-client-android = { group = "com.google.api-client", name = "google-api-client-android", version.ref = "googleApiClient" }
 google-api-services-gmail = { group = "com.google.apis", name = "google-api-services-gmail", version.ref = "gmailApi" }
+google-api-services-calendar = { group = "com.google.apis", name = "google-api-services-calendar", version.ref = "calendarApi" }
 
 # Coil
 io-coil-kt-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }

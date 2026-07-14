@@ -20,4 +20,12 @@ sealed class Screen(val route: String) {
     data object Accounts : Screen("accounts")
     data object AddAccount : Screen("add_account")
     data object Settings : Screen("settings")
+
+    data object Calendar : Screen("calendar")
+
+    data object CalendarEvent : Screen("calendar_event/{accountId}/{eventId}") {
+        /** eventId = -1 means "create a new event"; any other value means "edit existing". */
+        fun createRoute(accountId: Long, eventId: Long = -1L): String =
+            "calendar_event/$accountId/$eventId"
+    }
 }

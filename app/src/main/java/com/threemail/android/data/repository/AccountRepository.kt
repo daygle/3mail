@@ -52,7 +52,8 @@ class AccountRepository @Inject constructor(
         // Hydrate the password from the encrypted store; the DB column stays null.
         password = if (accountType == AccountType.IMAP) credentialStore.getPassword(email) else null,
         isActive = isActive,
-        syncEnabled = syncEnabled
+        syncEnabled = syncEnabled,
+        calendarSyncEnabled = calendarSyncEnabled
     )
 
     private fun Account.toEntity(): AccountEntity = AccountEntity(
@@ -65,6 +66,7 @@ class AccountRepository @Inject constructor(
         useEncryption = useEncryption,
         password = null,
         isActive = isActive,
-        syncEnabled = syncEnabled
+        syncEnabled = syncEnabled,
+        calendarSyncEnabled = calendarSyncEnabled
     )
 }

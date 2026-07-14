@@ -19,6 +19,7 @@ class SyncScheduler @Inject constructor(
 
     companion object {
         private const val SYNC_WORK_NAME = "threemail_periodic_sync"
+        private const val CALENDAR_SYNC_WORK_NAME = "threemail_calendar_periodic_sync"
     }
 
     fun schedulePeriodicSync(intervalMinutes: Long = 15, replace: Boolean = false) {
@@ -40,7 +41,26 @@ class SyncScheduler @Inject constructor(
         )
     }
 
+    fun schedulePeriodicCalendarSync(intervalMinutes: Long = 30, replace: Boolean = false) {
+        val interval = intervalMinutes.coerceAtLeast(15)
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val request = PeriodicWorkRequestBuilder<CalendarSyncWorker>(interval, TimeUnit.MINUTES)
+            .setConstraints(constraints)
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.MINUTES)
+            .build()
+
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            CALENDAR_SYNC_WORK_NAME,
+            if (replace) ExistingPeriodicWorkPolicy.UPDATE else ExistingPeriodicWorkPolicy.KEEP,
+            request
+        )
+    }
+
     fun cancelPeriodicSync() {
         WorkManager.getInstance(context).cancelUniqueWork(SYNC_WORK_NAME)
+        WorkManager.getInstance(context).cancelUniqueWork(CALENDAR_SYNC_WORK_NAME)
     }
 }
