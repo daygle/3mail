@@ -7,7 +7,7 @@ junitVersion = "1.2.1"
 espressoCore = "3.6.1"
 lifecycleRuntimeKtx = "2.8.3"
 activityCompose = "1.9.0"
-composeBom = "2024.06.00"
+composeBom = "2024.09.00"
 apacheCommonsNet = "3.9.0"
 javaMail = "1.6.7"
 room = "2.6.1"
@@ -21,6 +21,7 @@ gmsAuth = "21.2.0"
 googleApiClient = "2.2.0"
 gmailApi = "v1-rev20240520-2.0.0"
 coil = "2.7.0"
+securityCrypto = "1.1.0-alpha06"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -75,6 +76,9 @@ google-api-services-gmail = { group = "com.google.apis", name = "google-api-serv
 
 # Coil
 io-coil-kt-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
+
+# Security (encrypted credential storage)
+androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

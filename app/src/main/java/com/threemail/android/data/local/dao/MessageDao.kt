@@ -45,8 +45,26 @@ interface MessageDao {
     @Query("UPDATE messages SET isStarred = :isStarred WHERE id = :id")
     suspend fun updateStarred(id: Long, isStarred: Boolean)
 
+    @Query("UPDATE messages SET bodyHtml = :bodyHtml, bodyPlain = :bodyPlain, bodyPreview = :bodyPreview, attachmentsJson = :attachmentsJson WHERE id = :id")
+    suspend fun updateBody(id: Long, bodyHtml: String?, bodyPlain: String?, bodyPreview: String, attachmentsJson: String)
+
+    @Query("UPDATE messages SET folderId = :folderId WHERE id = :id")
+    suspend fun updateFolder(id: Long, folderId: Long)
+
+    @Query("UPDATE messages SET isRead = 1 WHERE folderId = :folderId")
+    suspend fun markAllReadInFolder(folderId: Long)
+
+    @Query("SELECT MAX(uid) FROM messages WHERE folderId = :folderId")
+    suspend fun getMaxUid(folderId: Long): Long?
+
+    @Query("SELECT * FROM messages WHERE accountId = :accountId AND threadId = :threadId ORDER BY date ASC")
+    suspend fun getThreadOnce(accountId: Long, threadId: String): List<MessageEntity>
+
     @Delete
     suspend fun delete(message: MessageEntity)
+
+    @Query("DELETE FROM messages WHERE id = :id")
+    suspend fun deleteById(id: Long)
 
     @Query("DELETE FROM messages WHERE folderId = :folderId")
     suspend fun deleteByFolder(folderId: Long)

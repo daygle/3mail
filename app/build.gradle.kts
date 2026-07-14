@@ -90,6 +90,9 @@ dependencies {
     // Image loading
     implementation(libs.io.coil.kt.compose)
 
+    // Encrypted credential storage
+    implementation(libs.androidx.security.crypto)
+
     // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

@@ -37,14 +37,42 @@ class MailRepository @Inject constructor(
         }
     }
 
+    suspend fun getFoldersOnce(accountId: Long): List<MailFolder> =
+        folderDao.getByAccountOnce(accountId).map { it.toDomain() }
+
+    suspend fun getFolderById(id: Long): MailFolder? =
+        folderDao.getById(id)?.toDomain()
+
+    suspend fun updateFolderCursor(folderId: Long, maxUid: Long) {
+        folderDao.updateSyncVersion(folderId, maxUid)
+    }
+
     fun getMessages(folderId: Long): Flow<List<MailMessage>> =
         messageDao.getByFolder(folderId).map { list -> list.map { it.toDomain() } }
 
     suspend fun getMessageById(id: Long): MailMessage? =
         messageDao.getById(id)?.toDomain()
 
+    fun getThread(accountId: Long, threadId: String): Flow<List<MailMessage>> =
+        messageDao.getByThread(accountId, threadId).map { list -> list.map { it.toDomain() } }
+
+    suspend fun getMaxUid(folderId: Long): Long =
+        messageDao.getMaxUid(folderId) ?: 0L
+
     suspend fun saveMessages(messages: List<MailMessage>) {
         messageDao.insertAll(messages.map { it.toEntity() })
+    }
+
+    suspend fun updateBody(id: Long, bodyHtml: String?, bodyPlain: String?, bodyPreview: String, attachments: List<Attachment>) {
+        messageDao.updateBody(id, bodyHtml, bodyPlain, bodyPreview, serializeAttachments(attachments))
+    }
+
+    suspend fun moveMessageToFolder(id: Long, folderId: Long) {
+        messageDao.updateFolder(id, folderId)
+    }
+
+    suspend fun deleteMessageLocal(id: Long) {
+        messageDao.deleteById(id)
     }
 
     suspend fun updateReadStatus(id: Long, isRead: Boolean) {

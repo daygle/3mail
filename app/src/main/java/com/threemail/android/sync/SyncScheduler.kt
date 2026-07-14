@@ -21,20 +21,21 @@ class SyncScheduler @Inject constructor(
         private const val SYNC_WORK_NAME = "threemail_periodic_sync"
     }
 
-    fun schedulePeriodicSync(intervalMinutes: Long = 15) {
+    fun schedulePeriodicSync(intervalMinutes: Long = 15, replace: Boolean = false) {
+        val interval = intervalMinutes.coerceAtLeast(15) // WorkManager minimum period.
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .setRequiresBatteryNotLow(true)
             .build()
 
-        val request = PeriodicWorkRequestBuilder<MailSyncWorker>(intervalMinutes, TimeUnit.MINUTES)
+        val request = PeriodicWorkRequestBuilder<MailSyncWorker>(interval, TimeUnit.MINUTES)
             .setConstraints(constraints)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.MINUTES)
             .build()
 
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             SYNC_WORK_NAME,
-            ExistingPeriodicWorkPolicy.KEEP,
+            if (replace) ExistingPeriodicWorkPolicy.UPDATE else ExistingPeriodicWorkPolicy.KEEP,
             request
         )
     }

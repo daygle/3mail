@@ -17,9 +17,12 @@ class ThreeMailApplication : Application(), Configuration.Provider {
     @Inject
     lateinit var syncScheduler: SyncScheduler
 
+    @Inject
+    lateinit var notificationHelper: NotificationHelper
+
     override fun onCreate() {
         super.onCreate()
-        NotificationHelper.createNotificationChannels(this)
+        notificationHelper.createNotificationChannels()
         syncScheduler.schedulePeriodicSync()
     }
 

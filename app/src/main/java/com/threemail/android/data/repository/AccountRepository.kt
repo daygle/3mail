@@ -2,6 +2,7 @@ package com.threemail.android.data.repository
 
 import com.threemail.android.data.local.dao.AccountDao
 import com.threemail.android.data.local.entity.AccountEntity
+import com.threemail.android.data.security.CredentialStore
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.AccountType
 import kotlinx.coroutines.flow.Flow
@@ -11,7 +12,8 @@ import javax.inject.Singleton
 
 @Singleton
 class AccountRepository @Inject constructor(
-    private val accountDao: AccountDao
+    private val accountDao: AccountDao,
+    private val credentialStore: CredentialStore
 ) {
 
     fun getAccounts(): Flow<List<Account>> =
@@ -24,14 +26,18 @@ class AccountRepository @Inject constructor(
         accountDao.getByEmail(email)?.toDomain()
 
     suspend fun addAccount(account: Account): Long {
+        // Persist the password in the encrypted credential store, not the database.
+        credentialStore.savePassword(account.email, account.password)
         return accountDao.insert(account.toEntity())
     }
 
     suspend fun updateAccount(account: Account) {
+        credentialStore.savePassword(account.email, account.password)
         accountDao.update(account.toEntity())
     }
 
     suspend fun deleteAccount(account: Account) {
+        credentialStore.deletePassword(account.email)
         accountDao.delete(account.toEntity())
     }
 
@@ -43,7 +49,8 @@ class AccountRepository @Inject constructor(
         incomingServer = incomingServer,
         incomingPort = incomingPort,
         useEncryption = useEncryption,
-        password = password,
+        // Hydrate the password from the encrypted store; the DB column stays null.
+        password = if (accountType == AccountType.IMAP) credentialStore.getPassword(email) else null,
         isActive = isActive,
         syncEnabled = syncEnabled
     )
@@ -56,7 +63,7 @@ class AccountRepository @Inject constructor(
         incomingServer = incomingServer,
         incomingPort = incomingPort,
         useEncryption = useEncryption,
-        password = password,
+        password = null,
         isActive = isActive,
         syncEnabled = syncEnabled
     )
