@@ -78,4 +78,7 @@
     <string name="calendar_description">Notes</string>
     <string name="calendar_delete_title">Delete event?</string>
     <string name="calendar_delete_body">This will permanently remove the event from your Google Calendar and any invitees will be notified.</string>
+    <string name="calendar_event_saved">Event saved</string>
+    <string name="calendar_event_deleted">Event deleted</string>
+    <string name="calendar_event_save_failed">Save failed: %1$s</string>
 </resources>

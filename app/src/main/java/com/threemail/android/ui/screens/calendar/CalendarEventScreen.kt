@@ -29,6 +29,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -46,6 +49,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.threemail.android.R
@@ -78,16 +82,46 @@ fun CalendarEventScreen(
     val saveResult by viewModel.saveResult.collectAsState()
 
     val showDeleteDialog = remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
 
+    /**
+     * Bridges the VM's one-shot save events to the M3 Snackbar so the user actually
+     * sees whether their Save tap succeeded. Success/Delete post a confirmation then
+     * navigate back; Error stays on screen so the user can retry.
+     */
     LaunchedEffect(saveResult) {
-        if (saveResult is CalendarSaveResult.Success || saveResult is CalendarSaveResult.Deleted) {
-            onNavigateBack()
-            viewModel.consumeResult()
+        when (val current = saveResult) {
+            is CalendarSaveResult.Success -> {
+                snackbarHostState.showSnackbar(
+                    message = context.getString(R.string.calendar_event_saved),
+                    duration = SnackbarDuration.Short
+                )
+                viewModel.consumeResult()
+                onNavigateBack()
+            }
+            is CalendarSaveResult.Deleted -> {
+                snackbarHostState.showSnackbar(
+                    message = context.getString(R.string.calendar_event_deleted),
+                    duration = SnackbarDuration.Short
+                )
+                viewModel.consumeResult()
+                onNavigateBack()
+            }
+            is CalendarSaveResult.Error -> {
+                snackbarHostState.showSnackbar(
+                    message = context.getString(R.string.calendar_event_save_failed, current.message),
+                    duration = SnackbarDuration.Long
+                )
+                viewModel.consumeResult()
+            }
+            else -> Unit
         }
     }
 
     if (state.isBound) {
         Scaffold(
+            snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 TopAppBar(
                     title = {
