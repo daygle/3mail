@@ -40,6 +40,6 @@ object FtsUtil {
         if (truncated.endsWith("\"")) return truncated
         val lastSpace = truncated.lastIndexOf(' ')
         return if (lastSpace > 0) truncated.substring(0, lastSpace) + "\""
-        else truncated + "\""
+        else truncated.take(MAX_QUERY_LENGTH - 1) + "\""
     }
 }

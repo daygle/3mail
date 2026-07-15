@@ -24,6 +24,7 @@ calendarApi = "v3-rev20240517-2.0.0"
 coil = "2.7.0"
 securityCrypto = "1.1.0-alpha06"
 splashscreen = "1.0.1"
+robolectric = "4.12.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -87,6 +88,7 @@ androidx-security-crypto = { group = "androidx.security", name = "security-crypt
 
 # Splash screen
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashscreen" }
+robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
