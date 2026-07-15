@@ -13,15 +13,22 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.FormatBold
+import androidx.compose.material.icons.filled.FormatItalic
+import androidx.compose.material.icons.filled.FormatListNumbered
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -39,14 +46,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import com.threemail.android.R
 import com.threemail.android.domain.model.Attachment
+import com.threemail.android.util.RichTextFormatter
+import com.threemail.android.util.TextEdit
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -192,20 +206,86 @@ fun ComposeScreen(
                 }
             }
 
+            var bodyValue by remember { mutableStateOf(TextFieldValue(state.body)) }
+            LaunchedEffect(state.body) {
+                // Adopt externally-set body (reply/forward prefill) without clobbering edits.
+                if (state.body != bodyValue.text) {
+                    bodyValue = TextFieldValue(state.body, TextRange(state.body.length))
+                }
+            }
+            var showLinkDialog by remember { mutableStateOf(false) }
+
+            fun apply(op: (TextEdit) -> TextEdit) {
+                val edit = TextEdit(bodyValue.text, bodyValue.selection.start, bodyValue.selection.end)
+                val result = op(edit)
+                bodyValue = TextFieldValue(result.text, TextRange(result.selectionStart, result.selectionEnd))
+                viewModel.updateBody(result.text)
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Row {
+                IconButton(onClick = { apply(RichTextFormatter::bold) }) {
+                    Icon(Icons.Default.FormatBold, contentDescription = "Bold")
+                }
+                IconButton(onClick = { apply(RichTextFormatter::italic) }) {
+                    Icon(Icons.Default.FormatItalic, contentDescription = "Italic")
+                }
+                IconButton(onClick = { apply(RichTextFormatter::bulletList) }) {
+                    Icon(Icons.AutoMirrored.Filled.FormatListBulleted, contentDescription = "Bulleted list")
+                }
+                IconButton(onClick = { apply(RichTextFormatter::numberedList) }) {
+                    Icon(Icons.Default.FormatListNumbered, contentDescription = "Numbered list")
+                }
+                IconButton(onClick = { showLinkDialog = true }) {
+                    Icon(Icons.Default.Link, contentDescription = "Insert link")
+                }
+            }
+
             OutlinedTextField(
-                value = state.body,
-                onValueChange = viewModel::updateBody,
+                value = bodyValue,
+                onValueChange = { bodyValue = it; viewModel.updateBody(it.text) },
                 label = { Text(stringResource(R.string.message)) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
                 keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Default)
             )
+
+            if (showLinkDialog) {
+                LinkDialog(
+                    onDismiss = { showLinkDialog = false },
+                    onConfirm = { url ->
+                        showLinkDialog = false
+                        apply { RichTextFormatter.link(it, url) }
+                    }
+                )
+            }
+
             state.error?.let {
                 Text(text = it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp))
             }
         }
     }
+}
+
+@Composable
+private fun LinkDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var url by remember { mutableStateOf("https://") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Insert link") },
+        text = {
+            OutlinedTextField(
+                value = url,
+                onValueChange = { url = it },
+                label = { Text("URL") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = { TextButton(onClick = { onConfirm(url) }) { Text("Insert") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
+    )
 }
 
 /** Copies the picked content Uri into the app cache so JavaMail can attach it by file path. */

@@ -4,8 +4,9 @@ import android.content.Intent
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.threemail.android.data.remote.MailRemoteFactory
+import com.threemail.android.data.remote.OutgoingMessage
 import com.threemail.android.data.remote.gmail.RecoverableAuthException
-import com.threemail.android.data.remote.imap.ImapClientFactory
 import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.repository.MailRepository
 import com.threemail.android.data.settings.SettingsRepository
@@ -14,6 +15,7 @@ import com.threemail.android.domain.model.Attachment
 import com.threemail.android.domain.model.FolderType
 import com.threemail.android.util.AddressParser
 import com.threemail.android.util.MailText
+import com.threemail.android.util.Markdown
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,7 +28,7 @@ class ComposeViewModel @Inject constructor(
     private val accountRepository: AccountRepository,
     private val mailRepository: MailRepository,
     private val settingsRepository: SettingsRepository,
-    private val imapClientFactory: ImapClientFactory,
+    private val mailRemoteFactory: MailRemoteFactory,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -144,16 +146,20 @@ class ComposeViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(isSending = true, error = null, recoverableAuthIntent = null)
         viewModelScope.launch {
             try {
-                val client = imapClientFactory.create(account)
-                val result = client.sendMessage(
-                    to = AddressParser.parse(_uiState.value.to),
-                    cc = AddressParser.parse(_uiState.value.cc),
-                    bcc = AddressParser.parse(_uiState.value.bcc),
-                    subject = _uiState.value.subject,
-                    body = _uiState.value.body,
-                    attachments = _uiState.value.attachments,
-                    inReplyTo = inReplyTo,
-                    references = references
+                val remote = mailRemoteFactory.create(account)
+                val body = _uiState.value.body
+                val result = remote.send(
+                    OutgoingMessage(
+                        to = AddressParser.parse(_uiState.value.to),
+                        cc = AddressParser.parse(_uiState.value.cc),
+                        bcc = AddressParser.parse(_uiState.value.bcc),
+                        subject = _uiState.value.subject,
+                        textBody = body,
+                        htmlBody = Markdown.toHtml(body),
+                        attachments = _uiState.value.attachments,
+                        inReplyTo = inReplyTo,
+                        references = references
+                    )
                 )
                 result.onSuccess {
                     _uiState.value = _uiState.value.copy(isSending = false, isSent = true)
@@ -179,15 +185,19 @@ class ComposeViewModel @Inject constructor(
                     _uiState.value = _uiState.value.copy(isSavingDraft = false, error = "No drafts folder available")
                     return@launch
                 }
-                val client = imapClientFactory.create(account)
-                client.appendDraft(
-                    draftsServerId = drafts.serverId,
-                    to = AddressParser.parse(_uiState.value.to),
-                    cc = AddressParser.parse(_uiState.value.cc),
-                    bcc = AddressParser.parse(_uiState.value.bcc),
-                    subject = _uiState.value.subject,
-                    body = _uiState.value.body,
-                    attachments = _uiState.value.attachments
+                val remote = mailRemoteFactory.create(account)
+                val body = _uiState.value.body
+                remote.appendDraft(
+                    drafts,
+                    OutgoingMessage(
+                        to = AddressParser.parse(_uiState.value.to),
+                        cc = AddressParser.parse(_uiState.value.cc),
+                        bcc = AddressParser.parse(_uiState.value.bcc),
+                        subject = _uiState.value.subject,
+                        textBody = body,
+                        htmlBody = Markdown.toHtml(body),
+                        attachments = _uiState.value.attachments
+                    )
                 ).onSuccess {
                     _uiState.value = _uiState.value.copy(isSavingDraft = false, isDraftSaved = true)
                 }.onFailure {

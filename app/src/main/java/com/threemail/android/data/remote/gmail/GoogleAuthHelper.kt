@@ -68,7 +68,8 @@ class GoogleAuthHelper @Inject constructor(
         try {
             GoogleAuthUtil.getToken(context, account, "oauth2:$GMAIL_SCOPE")
         } catch (e: UserRecoverableAuthException) {
-            throw RecoverableAuthException(e.intent, "Google consent required for mail access")
+            val intent = e.intent ?: throw IllegalStateException("Google consent required but no intent was provided", e)
+            throw RecoverableAuthException(intent, "Google consent required for mail access")
         }
     }
 

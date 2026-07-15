@@ -103,9 +103,11 @@ fun ThreeMailNavHost(navController: NavHostController) {
                 navArgument("accountId") { type = NavType.LongType },
                 navArgument("eventId") { type = NavType.LongType; defaultValue = -1L }
             )
-        ) {
+        ) { backStackEntry ->
             CalendarEventScreen(
                 viewModel = hiltViewModel(),
+                accountId = backStackEntry.arguments?.getLong("accountId") ?: 0L,
+                eventId = backStackEntry.arguments?.getLong("eventId") ?: -1L,
                 onNavigateBack = { navController.popBackStack() }
             )
         }

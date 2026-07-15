@@ -3,9 +3,9 @@ package com.threemail.android.ui.screens.account
 import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.threemail.android.data.remote.MailRemoteFactory
 import com.threemail.android.data.remote.gmail.GoogleAuthHelper
 import com.threemail.android.data.remote.gmail.RecoverableAuthException
-import com.threemail.android.data.remote.imap.ImapClientFactory
 import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.AccountType
@@ -19,7 +19,7 @@ import javax.inject.Inject
 class AddAccountViewModel @Inject constructor(
     private val accountRepository: AccountRepository,
     private val googleAuthHelper: GoogleAuthHelper,
-    private val imapClientFactory: ImapClientFactory
+    private val mailRemoteFactory: MailRemoteFactory
 ) : ViewModel() {
 
     data class UiState(
@@ -72,8 +72,7 @@ class AddAccountViewModel @Inject constructor(
                     useEncryption = state.useEncryption,
                     password = state.password.ifBlank { null }
                 )
-                val client = imapClientFactory.create(account)
-                val test = client.testConnection()
+                val test = mailRemoteFactory.create(account).testConnection()
                 test.onSuccess {
                     accountRepository.addAccount(account)
                     _uiState.value = _uiState.value.copy(isSaving = false, isSaved = true)
@@ -105,8 +104,7 @@ class AddAccountViewModel @Inject constructor(
                     useEncryption = true,
                     syncEnabled = true
                 )
-                val client = imapClientFactory.create(account)
-                val test = client.testConnection()
+                val test = mailRemoteFactory.create(account).testConnection()
                 test.onSuccess {
                     accountRepository.addAccount(account)
                     _uiState.value = _uiState.value.copy(isSaving = false, isSaved = true)

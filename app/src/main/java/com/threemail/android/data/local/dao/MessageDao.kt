@@ -18,6 +18,9 @@ interface MessageDao {
     @Query("SELECT * FROM messages WHERE folderId = :folderId ORDER BY date DESC LIMIT :limit OFFSET :offset")
     suspend fun getByFolderPaged(folderId: Long, limit: Int, offset: Int): List<MessageEntity>
 
+    @Query("SELECT * FROM messages WHERE folderId = :folderId ORDER BY date DESC")
+    suspend fun getByFolderOnce(folderId: Long): List<MessageEntity>
+
     @Query("SELECT * FROM messages WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): MessageEntity?
 

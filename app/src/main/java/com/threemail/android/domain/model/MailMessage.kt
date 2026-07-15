@@ -20,6 +20,8 @@ data class MailMessage(
     val isDraft: Boolean = false,
     val attachments: List<Attachment> = emptyList(),
     val uid: Long = 0,
+    /** Provider-native handle used for remote operations: IMAP UID (as string) or Gmail message id. */
+    val remoteId: String = "",
     val syncedAt: Long = 0
 )
 

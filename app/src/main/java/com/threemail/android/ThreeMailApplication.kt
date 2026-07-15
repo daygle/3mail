@@ -51,7 +51,7 @@ class ThreeMailApplication : Application(), Configuration.Provider {
         registerTrashCleanup()
     }
 
-    override val workConfiguration: Configuration
+    override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
             .setWorkerFactory(workerFactory)
             .build()

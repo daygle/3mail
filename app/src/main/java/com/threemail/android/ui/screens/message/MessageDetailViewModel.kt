@@ -4,7 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import android.content.Context
-import com.threemail.android.data.remote.imap.ImapClientFactory
+import com.threemail.android.data.remote.MailRemoteFactory
 import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.repository.MailActions
 import com.threemail.android.data.repository.MailRepository
@@ -25,7 +25,7 @@ class MessageDetailViewModel @Inject constructor(
     private val mailRepository: MailRepository,
     private val accountRepository: AccountRepository,
     private val mailActions: MailActions,
-    private val imapClientFactory: ImapClientFactory,
+    private val mailRemoteFactory: MailRemoteFactory,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -77,8 +77,8 @@ class MessageDetailViewModel @Inject constructor(
                     _uiState.value = _uiState.value.copy(isLoadingBody = false)
                     return@launch
                 }
-                val client = imapClientFactory.create(account)
-                client.fetchBody(folder.serverId, message.uid).onSuccess { body ->
+                val remote = mailRemoteFactory.create(account)
+                remote.fetchBody(folder, message).onSuccess { body ->
                     val preview = (body.plain ?: body.html?.let { MailText.stripHtml(it) } ?: message.bodyPreview)
                         .replace(Regex("\\s+"), " ").trim().take(200)
                     mailRepository.updateBody(message.id, body.html, body.plain, preview, body.attachments)
@@ -144,8 +144,8 @@ class MessageDetailViewModel @Inject constructor(
                 }
                 val destDir = File(context.cacheDir, "attachments").apply { mkdirs() }
                 val destFile = File(destDir, attachment.fileName)
-                val client = imapClientFactory.create(account)
-                client.downloadAttachment(folder.serverId, message.uid, attachment.fileName, destFile)
+                val remote = mailRemoteFactory.create(account)
+                remote.downloadAttachment(folder, message, attachment, destFile)
                     .onSuccess { file ->
                         _uiState.value = _uiState.value.copy(downloadingAttachment = null, openFile = file)
                     }

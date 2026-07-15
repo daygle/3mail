@@ -20,7 +20,7 @@ import com.threemail.android.data.local.entity.MessageEntity
         MessageEntity::class,
         CalendarEventEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class ThreeMailDatabase : RoomDatabase() {

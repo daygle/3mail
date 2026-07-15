@@ -3,13 +3,12 @@ package com.threemail.android.ui.screens.inbox
 import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.threemail.android.data.remote.MailRemoteFactory
 import com.threemail.android.data.remote.gmail.RecoverableAuthException
-import com.threemail.android.data.remote.imap.ImapClientFactory
 import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.repository.MailActions
 import com.threemail.android.data.repository.MailRepository
 import com.threemail.android.domain.model.Account
-import com.threemail.android.domain.model.AccountType
 import com.threemail.android.domain.model.MailFolder
 import com.threemail.android.domain.model.MailMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -31,7 +30,7 @@ class InboxViewModel @Inject constructor(
     private val accountRepository: AccountRepository,
     private val mailRepository: MailRepository,
     private val mailActions: MailActions,
-    private val imapClientFactory: ImapClientFactory
+    private val mailRemoteFactory: MailRemoteFactory
 ) : ViewModel() {
 
     data class UiState(
@@ -136,16 +135,14 @@ class InboxViewModel @Inject constructor(
         _transient.value = _transient.value.copy(isSyncing = true, error = null, recoverableAuthIntent = null)
         viewModelScope.launch {
             try {
-                if (account.accountType == AccountType.GMAIL || account.accountType == AccountType.IMAP) {
-                    val client = imapClientFactory.create(account)
-                    val sinceUid = mailRepository.getMaxUid(folder.id)
-                    val result = client.fetchMessagesSince(folder.serverId, sinceUid, limit = 100)
-                    result.onSuccess { fetch ->
-                        if (fetch.messages.isNotEmpty()) {
-                            mailRepository.saveMessages(fetch.messages.map { it.copy(folderId = folder.id) })
-                        }
-                    }.onFailure { throw it }
-                }
+                val remote = mailRemoteFactory.create(account)
+                val result = remote.fetchMessages(folder, folder.syncVersion, limit = 100)
+                result.onSuccess { fetch ->
+                    if (fetch.messages.isNotEmpty()) {
+                        mailRepository.saveMessages(fetch.messages.map { it.copy(folderId = folder.id) })
+                    }
+                    mailRepository.updateFolderCursor(folder.id, fetch.nextCursor)
+                }.onFailure { throw it }
                 _transient.value = _transient.value.copy(isSyncing = false)
             } catch (e: RecoverableAuthException) {
                 _transient.value = _transient.value.copy(isSyncing = false, recoverableAuthIntent = e.intent)

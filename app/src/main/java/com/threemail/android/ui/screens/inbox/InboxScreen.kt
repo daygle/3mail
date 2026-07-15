@@ -62,8 +62,8 @@ fun InboxScreen(
     onNavigateToSearch: () -> Unit,
     onNavigateToAccounts: () -> Unit,
     onNavigateToSettings: () -> Unit,
-    onNavigateToMessage: (Long) -> Unit,
-    onNavigateToCalendar: () -> Unit
+    onNavigateToCalendar: () -> Unit,
+    onNavigateToMessage: (Long) -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)

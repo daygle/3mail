@@ -12,8 +12,11 @@ A modern, full-featured Android mail client supporting IMAP and Gmail (OAuth2).
 - Two-way sync of read/star flags and delete/archive/move actions (local + IMAP server)
 - Conversation threading derived from `References`/`In-Reply-To` headers
 - Drafts saved to the server's Drafts folder
-- Configurable signature, sync frequency, notifications, and theme in Settings
-- Incremental UID-based background sync with WorkManager
+- Native Gmail sync via the Gmail REST API (labels as folders, server-side threads, label-based read/star), with IMAP/SMTP for all other accounts — selected automatically per account behind a `MailRemote` abstraction
+- Rich-text compose: bold/italic/lists/links toolbar, sent as multipart/alternative (plain + HTML)
+- Built-in Google Calendar: agenda view of upcoming events and create/delete events
+- Configurable signature, sync frequency, notifications, theme, and empty-trash-on-open in Settings
+- Incremental background sync with WorkManager (UID cursor for IMAP, internalDate cursor for Gmail)
 - Notifications for new mail
 - Full-text search across cached messages
 - Encrypted credential storage (Android Keystore via EncryptedSharedPreferences)

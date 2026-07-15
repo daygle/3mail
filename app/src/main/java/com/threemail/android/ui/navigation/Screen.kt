@@ -28,5 +28,4 @@ sealed class Screen(val route: String) {
         fun createRoute(accountId: Long, eventId: Long = -1L): String =
             "calendar_event/$accountId/$eventId"
     }
-
 }

@@ -1,6 +1,10 @@
 package com.threemail.android.data.remote.imap
 
 import com.sun.mail.imap.IMAPFolder
+import com.threemail.android.data.remote.MessageBody
+import com.threemail.android.data.remote.MimeBuilder
+import com.threemail.android.data.remote.OutgoingMessage
+import com.threemail.android.data.remote.RemoteFetch
 import com.threemail.android.data.remote.gmail.RecoverableAuthException
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.AccountType
@@ -13,10 +17,7 @@ import com.threemail.android.util.ThreadUtil
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.util.Date
 import java.util.Properties
-import javax.activation.DataHandler
-import javax.activation.FileDataSource
 import javax.mail.Address
 import javax.mail.AuthenticationFailedException
 import javax.mail.Flags
@@ -30,22 +31,7 @@ import javax.mail.Store
 import javax.mail.Transport
 import javax.mail.UIDFolder
 import javax.mail.internet.InternetAddress
-import javax.mail.internet.MimeBodyPart
 import javax.mail.internet.MimeMessage
-import javax.mail.internet.MimeMultipart
-
-/** Body + attachments extracted from a single message. */
-data class MessageBody(
-    val html: String?,
-    val plain: String?,
-    val attachments: List<Attachment>
-)
-
-/** Result of an incremental fetch, carrying the highest UID seen for cursoring. */
-data class FetchResult(
-    val messages: List<MailMessage>,
-    val maxUid: Long
-)
 
 class ImapClient(
     private val account: Account,
@@ -186,7 +172,7 @@ class ImapClient(
      * Incrementally fetches messages with UID greater than [sinceUid]. Returns the
      * new messages plus the highest UID observed so callers can persist a cursor.
      */
-    suspend fun fetchMessagesSince(folderServerId: String, sinceUid: Long, limit: Int = 100): Result<FetchResult> =
+    suspend fun fetchMessagesSince(folderServerId: String, sinceUid: Long, limit: Int = 100): Result<RemoteFetch> =
         try {
             withFolder(folderServerId, Folder.READ_ONLY) { folder ->
                 val fetched = folder.getMessagesByUID(sinceUid + 1, UIDFolder.LASTUID)
@@ -196,7 +182,7 @@ class ImapClient(
                     ?: emptyList()
                 val mapped = fetched.map { it.toHeaderMessage(folder) }
                 val maxUid = mapped.maxOfOrNull { it.uid } ?: sinceUid
-                FetchResult(mapped, maxUid)
+                RemoteFetch(mapped, maxUid)
             }.let { Result.success(it) }
         } catch (e: RecoverableAuthException) {
             throw e
@@ -296,7 +282,7 @@ class ImapClient(
                     val end = minOf(start + chunkSize, messages.size)
                     val chunk = (start until end).map { messages[it] }.toTypedArray()
                     if (chunk.isNotEmpty()) {
-                        folder.setFlags(chunk, Flags.Flag.DELETED, true)
+                        folder.setFlags(chunk, Flags(Flags.Flag.DELETED), true)
                         total += chunk.size
                     }
                     start = end
@@ -340,20 +326,11 @@ class ImapClient(
             Result.failure(e)
         }
 
-    suspend fun sendMessage(
-        to: List<EmailAddress>,
-        cc: List<EmailAddress>,
-        bcc: List<EmailAddress>,
-        subject: String,
-        body: String,
-        attachments: List<Attachment>,
-        inReplyTo: String? = null,
-        references: String? = null
-    ): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun sendMessage(message: OutgoingMessage): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val message = buildMimeMessage(to, cc, bcc, subject, body, attachments, inReplyTo, references)
+            val mime = MimeBuilder.build(account.email, account.displayName, message)
             val password = credential()
-            Transport.send(message, account.email, password)
+            Transport.send(mime, account.email, password)
             Result.success(Unit)
         } catch (e: RecoverableAuthException) {
             throw e
@@ -363,15 +340,7 @@ class ImapClient(
     }
 
     /** Appends a message to the Drafts folder without sending it. */
-    suspend fun appendDraft(
-        draftsServerId: String,
-        to: List<EmailAddress>,
-        cc: List<EmailAddress>,
-        bcc: List<EmailAddress>,
-        subject: String,
-        body: String,
-        attachments: List<Attachment>
-    ): Result<Unit> =
+    suspend fun appendDraft(draftsServerId: String, message: OutgoingMessage): Result<Unit> =
         try {
             withContext(Dispatchers.IO) {
                 val store = connectStore()
@@ -380,10 +349,10 @@ class ImapClient(
                     if (!drafts.exists()) drafts.create(Folder.HOLDS_MESSAGES)
                     drafts.open(Folder.READ_WRITE)
                     try {
-                        val message = buildMimeMessage(to, cc, bcc, subject, body, attachments, null, null).apply {
+                        val mime = MimeBuilder.build(account.email, account.displayName, message).apply {
                             setFlag(Flags.Flag.DRAFT, true)
                         }
-                        drafts.appendMessages(arrayOf(message))
+                        drafts.appendMessages(arrayOf(mime))
                     } finally {
                         runCatching { drafts.close(false) }
                     }
@@ -401,43 +370,6 @@ class ImapClient(
     private suspend fun credential(): String = when (account.accountType) {
         AccountType.GMAIL -> tokenProvider() ?: throw IllegalStateException("Gmail account requires OAuth access token")
         AccountType.IMAP -> account.password ?: throw IllegalStateException("IMAP account requires password")
-    }
-
-    private fun buildMimeMessage(
-        to: List<EmailAddress>,
-        cc: List<EmailAddress>,
-        bcc: List<EmailAddress>,
-        subject: String,
-        body: String,
-        attachments: List<Attachment>,
-        inReplyTo: String?,
-        references: String?
-    ): MimeMessage = MimeMessage(session).apply {
-        setFrom(InternetAddress(account.email, account.displayName))
-        setRecipients(Message.RecipientType.TO, to.map { InternetAddress(it.address, it.name) }.toTypedArray())
-        setRecipients(Message.RecipientType.CC, cc.map { InternetAddress(it.address, it.name) }.toTypedArray())
-        setRecipients(Message.RecipientType.BCC, bcc.map { InternetAddress(it.address, it.name) }.toTypedArray())
-        setSubject(subject)
-        inReplyTo?.let { setHeader("In-Reply-To", "<${it.trim('<', '>')}>") }
-        references?.let { setHeader("References", it) }
-        if (attachments.isEmpty()) {
-            setText(body, "utf-8")
-        } else {
-            val multipart = MimeMultipart()
-            multipart.addBodyPart(MimeBodyPart().apply { setText(body, "utf-8") })
-            attachments.forEach { attachment ->
-                val path = attachment.localPath ?: return@forEach
-                val file = File(path)
-                if (!file.exists()) return@forEach
-                val part = MimeBodyPart().apply {
-                    dataHandler = DataHandler(FileDataSource(file))
-                    fileName = attachment.fileName
-                }
-                multipart.addBodyPart(part)
-            }
-            setContent(multipart)
-        }
-        sentDate = Date()
     }
 
     // region parsing
@@ -463,7 +395,8 @@ class ImapClient(
             isRead = isSet(Flags.Flag.SEEN),
             isStarred = isSet(Flags.Flag.FLAGGED),
             isDraft = isSet(Flags.Flag.DRAFT),
-            uid = uid
+            uid = uid,
+            remoteId = uid.toString()
         )
     }
 

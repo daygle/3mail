@@ -98,7 +98,8 @@ class CalendarViewModel @Inject constructor(
             if (filtered.isEmpty()) {
                 flowOf(emptyMap())
             } else {
-                merge(filtered.map { acc -> calendarRepository.getEventsInRange(acc.id, startMs, endMsExclusive) })
+                filtered.map { acc -> calendarRepository.getEventsInRange(acc.id, startMs, endMsExclusive) }
+                    .merge()
                     .map { all -> projectAllToVisibleGrid(all, windowStart, windowEnd) }
             }
         }
