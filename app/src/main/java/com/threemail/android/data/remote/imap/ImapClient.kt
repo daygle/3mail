@@ -1,11 +1,15 @@
 package com.threemail.android.data.remote.imap
 
 import com.sun.mail.imap.IMAPFolder
+import com.sun.mail.imap.IMAPStore
 import com.threemail.android.data.remote.MessageBody
 import com.threemail.android.data.remote.MimeBuilder
 import com.threemail.android.data.remote.OutgoingMessage
 import com.threemail.android.data.remote.RemoteFetch
 import com.threemail.android.data.remote.gmail.RecoverableAuthException
+import com.threemail.android.data.remote.idle.IdleEvent
+import com.threemail.android.data.remote.idle.IdleFolderOps
+import com.threemail.android.data.remote.idle.IdleLoop
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.AccountType
 import com.threemail.android.domain.model.Attachment
@@ -15,6 +19,8 @@ import com.threemail.android.domain.model.MailFolder
 import com.threemail.android.domain.model.MailMessage
 import com.threemail.android.util.ThreadUtil
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Properties
@@ -112,6 +118,71 @@ class ImapClient(
         } finally {
             runCatching { store.close() }
         }
+    }
+
+    /**
+     * Returns true if the connected account's IMAP server advertised IDLE
+     * (RFC 2177) in its CAPABILITY response. IDLE push is only attempted on
+     * servers that confirm support — otherwise we silently fall back to the
+     * periodic worker-based sync.
+     *
+     * Uses [Store.hasCapability] against the connected [Store] directly so we
+     * don't pay for a per-account INBOX open just to inspect capabilities.
+     */
+    suspend fun supportsIdle(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            connectStore().use { store ->
+                // `hasCapability` lives on `IMAPStore`, not the base `Store`,
+                // so cast safely. `connectStore()` always returns an
+                // `IMAPStore` today; the null branch keeps us safe if a
+                // non-IMAP adapter is ever swapped in.
+                (store as? IMAPStore)?.hasCapability("IDLE") ?: false
+            }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Subscribes to the IMAP IDLE notification stream on [folderServerId]
+     * (typically INBOX). The returned flow emits when the server reports new
+     * mail. The connection is owned by the collector — cancelling collection
+     * tears the folder + store down cleanly.
+     *
+     * This is the IMAP-side counterpart to Gmail's REST push and is meant to
+     * be driven by a long-lived foreground service so the OS doesn't kill it.
+     *
+     * Cleanup contract: any [Exception] thrown inside the `try { ... }` block
+     * (folder lookup AND folder open AND the IDLE loop) routes through the
+     * `finally { ... }`, which closes the folder + store. The escape hatch
+     * for "folder not present at all" still runs the store close via
+     * `runCatching` so we never leak the IMAP connection.
+     */
+    fun idle(folderServerId: String): Flow<IdleEvent> = kotlinx.coroutines.flow.flow {
+        val store = connectStore()
+        val folder: IMAPFolder = try {
+            store.getFolder(folderServerId) as IMAPFolder
+        } catch (e: Exception) {
+            runCatching { store.close() }
+            emit(IdleEvent.Disconnected("Folder not found: $folderServerId"))
+            return@flow
+        }
+        try {
+            folder.open(Folder.READ_ONLY)
+            IdleLoop(folder.asIdleOps()).events().collect { emit(it) }
+        } finally {
+            runCatching { folder.close(false) }
+            runCatching { store.close() }
+        }
+    }.flowOn(Dispatchers.IO)
+    // Defensive: production callers (ImapIdleService.scope) already use IO,
+    // but tests or unusual callers don't have to remember to wrap with IO themselves.
+
+    /** Wrap a real [IMAPFolder] as the abstraction the IDLE loop drives. */
+    private fun IMAPFolder.asIdleOps(): IdleFolderOps = object : IdleFolderOps {
+        override fun idle() = this@asIdleOps.idle()
+        override fun messageCount(): Int = this@asIdleOps.messageCount
+        override fun close() { runCatching { this@asIdleOps.close(false) } }
     }
 
     // endregion

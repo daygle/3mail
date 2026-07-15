@@ -91,11 +91,39 @@ class SyncScheduler @Inject constructor(
         WorkManager.getInstance(context).cancelUniqueWork(CALENDAR_SYNC_WORK_NAME)
     }
 
+    /**
+     * Enqueues a [MailSyncWorker] that targets a single account. Used by the
+     * IMAP IDLE push service when a new-mail notification arrives so the UI
+     * updates without waiting for the next periodic tick.
+     *
+     * Uses [ExistingWorkPolicy.REPLACE] keyed by account ID so two consecutive
+     * push events from the same account collapse — we don't need to spam the
+     * server with redundant refreshes.
+     */
+    fun enqueueImmediateSync(accountId: Long) {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val request = OneTimeWorkRequestBuilder<MailSyncWorker>()
+            .setConstraints(constraints)
+            .setInputData(workDataOf(KEY_ACCOUNT_ID to accountId))
+            .build()
+
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            "$IMMEDIATE_SYNC_PREFIX$accountId",
+            ExistingWorkPolicy.REPLACE,
+            request
+        )
+    }
+
     companion object {
         private const val SYNC_WORK_NAME = "threemail_periodic_sync"
         private const val CALENDAR_SYNC_WORK_NAME = "threemail_calendar_periodic_sync"
         private const val TRASH_LAUNCH_WORK_NAME = "threemail_trash_cleanup_launch"
         private const val TRASH_QUIT_WORK_NAME = "threemail_trash_cleanup_quit"
+        private const val IMMEDIATE_SYNC_PREFIX = "threemail_immediate_sync_"
         const val KEY_TRIGGER: String = "triggerKey"
+        const val KEY_ACCOUNT_ID: String = "accountId"
     }
 }

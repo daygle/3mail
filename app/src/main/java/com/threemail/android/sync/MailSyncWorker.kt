@@ -28,7 +28,13 @@ class MailSyncWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result {
         return try {
-            val accounts = accountRepository.getAccounts().first()
+            val targetAccountId = inputData.getLong(SyncScheduler.KEY_ACCOUNT_ID, -1L).takeIf { it > 0 }
+            val allAccounts = accountRepository.getAccounts().first()
+            val accounts = if (targetAccountId != null) {
+                allAccounts.filter { it.id == targetAccountId }
+            } else {
+                allAccounts
+            }
             val notificationsEnabled = settingsRepository.settings.first().notificationsEnabled
             var newMessages = 0
 

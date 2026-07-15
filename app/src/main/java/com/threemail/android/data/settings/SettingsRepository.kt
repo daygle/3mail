@@ -20,7 +20,8 @@ data class AppSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val useDynamicColor: Boolean = true,
     val emptyTrashOnLaunch: Boolean = false,
-    val emptyTrashOnQuit: Boolean = false
+    val emptyTrashOnQuit: Boolean = false,
+    val pushEnabled: Boolean = true
 )
 
 @Singleton
@@ -36,6 +37,7 @@ class SettingsRepository @Inject constructor(
         val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
         val EMPTY_TRASH_ON_LAUNCH = booleanPreferencesKey("empty_trash_on_launch")
         val EMPTY_TRASH_ON_QUIT = booleanPreferencesKey("empty_trash_on_quit")
+        val PUSH_ENABLED = booleanPreferencesKey("push_enabled")
     }
 
     val settings: Flow<AppSettings> = dataStore.data.map { prefs ->
@@ -46,7 +48,8 @@ class SettingsRepository @Inject constructor(
             themeMode = prefs[Keys.THEME]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: ThemeMode.SYSTEM,
             useDynamicColor = prefs[Keys.DYNAMIC_COLOR] ?: true,
             emptyTrashOnLaunch = prefs[Keys.EMPTY_TRASH_ON_LAUNCH] ?: false,
-            emptyTrashOnQuit = prefs[Keys.EMPTY_TRASH_ON_QUIT] ?: false
+            emptyTrashOnQuit = prefs[Keys.EMPTY_TRASH_ON_QUIT] ?: false,
+            pushEnabled = prefs[Keys.PUSH_ENABLED] ?: true
         )
     }
 
@@ -57,4 +60,5 @@ class SettingsRepository @Inject constructor(
     suspend fun setDynamicColor(enabled: Boolean) = dataStore.edit { it[Keys.DYNAMIC_COLOR] = enabled }
     suspend fun setEmptyTrashOnLaunch(enabled: Boolean) = dataStore.edit { it[Keys.EMPTY_TRASH_ON_LAUNCH] = enabled }
     suspend fun setEmptyTrashOnQuit(enabled: Boolean) = dataStore.edit { it[Keys.EMPTY_TRASH_ON_QUIT] = enabled }
+    suspend fun setPushEnabled(enabled: Boolean) = dataStore.edit { it[Keys.PUSH_ENABLED] = enabled }
 }

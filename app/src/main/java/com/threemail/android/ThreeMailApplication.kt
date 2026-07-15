@@ -7,14 +7,19 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.work.Configuration
+import com.threemail.android.data.local.dao.MessageDao
+import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.settings.SettingsRepository
+import com.threemail.android.notifications.LauncherBadge
 import com.threemail.android.notifications.NotificationHelper
+import com.threemail.android.push.PushController
 import com.threemail.android.sync.SyncScheduler
 import com.threemail.android.sync.TrashCleanupWorker
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -34,6 +39,18 @@ class ThreeMailApplication : Application(), Configuration.Provider {
     @Inject
     lateinit var settingsRepository: SettingsRepository
 
+    @Inject
+    lateinit var accountRepository: AccountRepository
+
+    @Inject
+    lateinit var pushController: PushController
+
+    @Inject
+    lateinit var messageDao: MessageDao
+
+    @Inject
+    lateinit var launcherBadge: LauncherBadge
+
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     /**
@@ -49,6 +66,7 @@ class ThreeMailApplication : Application(), Configuration.Provider {
         syncScheduler.schedulePeriodicSync()
         syncScheduler.schedulePeriodicCalendarSync()
         registerTrashCleanup()
+        registerPushAndBadge()
     }
 
     override val workManagerConfiguration: Configuration
@@ -88,6 +106,23 @@ class ThreeMailApplication : Application(), Configuration.Provider {
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to enqueue trash cleanup", e)
             }
+        }
+    }
+
+    /**
+     * Registers IMAP IDLE push for every IMAP account (de-duped by the service)
+     * and starts observing the unread inbox count for the launcher badge.
+     *
+     * Both flows survive process death: the push service is `START_STICKY` and
+     * re-derives its subscriptions from the DB on every cold start; the badge
+     * Flow absorbs the most recent count as soon as Room emits.
+     */
+    private fun registerPushAndBadge() {
+        runCatching { pushController.refresh() }
+            .onFailure { Log.w(TAG, "Push refresh failed to enqueue", it) }
+        appScope.launch {
+            messageDao.observeTotalUnreadAcrossInboxes()
+                .collectLatest { count -> launcherBadge.setCount(count) }
         }
     }
 

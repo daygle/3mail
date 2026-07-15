@@ -30,7 +30,12 @@ interface MessageDao {
     @Query("SELECT * FROM messages WHERE accountId = :accountId AND threadId = :threadId ORDER BY date DESC")
     fun getByThread(accountId: Long, threadId: String): Flow<List<MessageEntity>>
 
-    @Query("SELECT * FROM messages WHERE (subject LIKE '%' || :query || '%' OR bodyPreview LIKE '%' || :query || '%' OR fromJson LIKE '%' || :query || '%') ORDER BY date DESC")
+    @Query(
+        "SELECT messages.* FROM messages " +
+            "JOIN messages_fts ON messages.id = messages_fts.rowid " +
+            "WHERE messages_fts MATCH :query " +
+            "ORDER BY messages.date DESC"
+    )
     fun search(query: String): Flow<List<MessageEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -74,4 +79,19 @@ interface MessageDao {
 
     @Query("SELECT COUNT(*) FROM messages WHERE folderId = :folderId AND isRead = 0")
     fun getUnreadCount(folderId: Long): Flow<Int>
+
+    /**
+     * Aggregate unread count across the inbox folders of every account.
+     *
+     * Backed by a JOIN on the `folders` table so the count is reactive: any
+     * `insert`/`delete` and read-flag flip on a folder with `type = 'INBOX'`
+     * re-emits. Powering the launcher badge from this query keeps the count
+     * accurate without polling.
+     */
+    @Query(
+        "SELECT COUNT(*) FROM messages m " +
+            "JOIN folders f ON m.folderId = f.id " +
+            "WHERE f.type = 'INBOX' AND m.isRead = 0"
+    )
+    fun observeTotalUnreadAcrossInboxes(): Flow<Int>
 }

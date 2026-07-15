@@ -52,6 +52,11 @@
                 tools:node="remove" />
         </provider>
 
+        <service
+            android:name=".push.ImapIdleService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
     </application>
 
 </manifest>

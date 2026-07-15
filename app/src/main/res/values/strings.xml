@@ -57,7 +57,50 @@
     <string name="trash_cleanup_failure_title">Trash cleanup failed</string>
     <string name="trash_cleanup_failure_body">%1$d account(s) could not be emptied. Check connectivity and try again.</string>
 
+    <!-- Compose toolbar / dialogs -->
+    <string name="format_bold">Bold</string>
+    <string name="format_italic">Italic</string>
+    <string name="format_bullet_list">Bulleted list</string>
+    <string name="format_numbered_list">Numbered list</string>
+    <string name="link_insert">Insert link</string>
+    <string name="link_url">URL</string>
+    <string name="link_insert_action">Insert</string>
+    <string name="cc_bcc_show">Cc/Bcc</string>
+    <string name="cc_bcc_hide">Hide</string>
+    <string name="attach">Attach</string>
+    <string name="save_draft">Save draft</string>
+    <string name="save_and_close">Save &amp; close</string>
+    <string name="draft_saved">Draft saved</string>
+    <string name="remove_attachment">Remove</string>
+
+    <!-- Message detail -->
+    <string name="open_with">Open with</string>
+    <string name="loading_message">Loading message…</string>
+    <string name="loading_attachment">Loading</string>
+    <string name="error_no_account_selected">No account selected</string>
+    <string name="error_no_drafts_folder">No drafts folder available</string>
+    <string name="error_generic">Something went wrong</string>
+
+    <!-- Account management -->
+    <string name="add_account_imap_label">Or add an IMAP account manually</string>
+    <string name="display_name">Display name</string>
+    <string name="remove_account">Remove account</string>
+    <string name="remove_account_title">Remove account?</string>
+    <string name="remove_account_body">This signs %1$s out of 3mail and clears its locally cached mail and calendar. Your messages stay on the server.</string>
+    <string name="remove">Remove</string>
+
+    <!-- Push / badge -->
+    <string name="push_channel_name">Mail sync</string>
+    <string name="push_channel_description">Background notifications while 3mail watches for new mail.</string>
+    <string name="idle_service_title">Watching for new mail</string>
+    <string name="idle_service_subtitle">Watching %1$d account(s) for new mail.</string>
+    <string name="unread_badge_channel_name">Unread count badge</string>
+    <string name="unread_badge_channel_description">Surfaces your unread inbox count on the launcher icon.</string>
+    <string name="unread_badge_title">Unread inbox</string>
+    <string name="unread_badge_subtitle">%1$d unread message(s)</string>
+
     <!-- Calendar -->
+
     <string name="calendar_no_account_title">No Google account connected</string>
     <string name="calendar_no_account_subtitle">Sign in with Google to see your events here.</string>
     <string name="calendar_no_events_title">Nothing scheduled</string>

@@ -9,12 +9,28 @@ import com.threemail.android.data.local.dao.AccountDao
 import com.threemail.android.data.local.dao.CalendarEventDao
 import com.threemail.android.data.local.dao.FolderDao
 import com.threemail.android.data.local.dao.MessageDao
+import com.threemail.android.notifications.BadgeNotifier
+import com.threemail.android.notifications.SystemBadgeNotifier
+import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class AppBindingsModule {
+
+    /**
+     * Bind [BadgeNotifier] to the production [SystemBadgeNotifier]; tests
+     * replace this with an in-memory fake via Hilt's testing APIs.
+     */
+    @Binds
+    @Singleton
+    abstract fun bindBadgeNotifier(impl: SystemBadgeNotifier): BadgeNotifier
+}
 
 @Module
 @InstallIn(SingletonComponent::class)

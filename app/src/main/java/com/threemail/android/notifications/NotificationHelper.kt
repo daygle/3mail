@@ -21,6 +21,21 @@ class NotificationHelper @Inject constructor(
 
         const val TRASH_CHANNEL_ID = "trash_cleanup_channel"
         const val TRASH_NOTIFICATION_ID = 1002
+
+        /**
+         * Channel that powers the launcher icon's unread count.
+         * - IMPORTANCE_LOW + setShowBadge(true) so launchers (Pixel, Samsung)
+         *   display the count without buzzing.
+         * - Most launchers ignore FLAG_ONGOING_EVENT when computing badge
+         *   counts, which is why the count notification is NOT setOngoing(true).
+         *   It stays "sticky" only because we re-post the same ID whenever
+         *   the unread count changes.
+         */
+        const val BADGE_CHANNEL_ID = "unread_badge_channel"
+        const val BADGE_NOTIFICATION_ID = 1003
+
+        /** Channel for the IMAP IDLE foreground service. */
+        const val PUSH_CHANNEL_ID = "push_channel"
     }
 
     fun createNotificationChannels() {
@@ -40,6 +55,22 @@ class NotificationHelper @Inject constructor(
                 this.description = trashDescription
             }
             notificationManager.createNotificationChannel(trashChannel)
+
+            val badgeName = context.getString(R.string.unread_badge_channel_name)
+            val badgeDescription = context.getString(R.string.unread_badge_channel_description)
+            val badgeChannel = NotificationChannel(BADGE_CHANNEL_ID, badgeName, NotificationManager.IMPORTANCE_LOW).apply {
+                this.description = badgeDescription
+                setShowBadge(true)
+            }
+            notificationManager.createNotificationChannel(badgeChannel)
+
+            val pushName = context.getString(R.string.push_channel_name)
+            val pushDescription = context.getString(R.string.push_channel_description)
+            val pushChannel = NotificationChannel(PUSH_CHANNEL_ID, pushName, NotificationManager.IMPORTANCE_LOW).apply {
+                this.description = pushDescription
+                setShowBadge(false)
+            }
+            notificationManager.createNotificationChannel(pushChannel)
         }
     }
 
