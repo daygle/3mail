@@ -18,5 +18,6 @@ data class AccountEntity(
     val isActive: Boolean = true,
     val syncEnabled: Boolean = true,
     val calendarSyncEnabled: Boolean = true,
+    val pushEnabled: Boolean = true,
     val createdAt: Long = System.currentTimeMillis()
 )

@@ -41,6 +41,16 @@ class AccountRepository @Inject constructor(
         accountDao.delete(account.toEntity())
     }
 
+    /**
+     * Flips the per-account IDLE push flag without round-tripping through the
+     * full Account object. Callers (e.g. AccountViewModel) are expected to
+     * notify the push system separately so an open IDLE connection can be torn
+     * down or brought up without waiting for the next refresh tick.
+     */
+    suspend fun setPushEnabled(id: Long, enabled: Boolean) {
+        accountDao.setPushEnabled(id, enabled)
+    }
+
     private fun AccountEntity.toDomain(): Account = Account(
         id = id,
         email = email,
@@ -53,7 +63,8 @@ class AccountRepository @Inject constructor(
         password = if (accountType == AccountType.IMAP) credentialStore.getPassword(email) else null,
         isActive = isActive,
         syncEnabled = syncEnabled,
-        calendarSyncEnabled = calendarSyncEnabled
+        calendarSyncEnabled = calendarSyncEnabled,
+        pushEnabled = pushEnabled
     )
 
     private fun Account.toEntity(): AccountEntity = AccountEntity(
@@ -67,6 +78,7 @@ class AccountRepository @Inject constructor(
         password = null,
         isActive = isActive,
         syncEnabled = syncEnabled,
-        calendarSyncEnabled = calendarSyncEnabled
+        calendarSyncEnabled = calendarSyncEnabled,
+        pushEnabled = pushEnabled
     )
 }

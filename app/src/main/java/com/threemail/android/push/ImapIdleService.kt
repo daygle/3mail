@@ -106,7 +106,8 @@ class ImapIdleService : Service() {
                 .filter {
                     it.accountType == AccountType.IMAP &&
                         it.isActive &&
-                        it.syncEnabled
+                        it.syncEnabled &&
+                        it.pushEnabled
                 }
             registered.clear()
             registered.addAll(candidates.map { it.id })

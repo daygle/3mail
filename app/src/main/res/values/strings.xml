@@ -88,6 +88,8 @@
     <string name="remove_account_title">Remove account?</string>
     <string name="remove_account_body">This signs %1$s out of 3mail and clears its locally cached mail and calendar. Your messages stay on the server.</string>
     <string name="remove">Remove</string>
+    <string name="account_push_label">Push for new mail</string>
+    <string name="account_push_subtitle">Get notified the moment a new message arrives on this account.</string>
 
     <!-- Push / badge -->
     <string name="push_channel_name">Mail sync</string>

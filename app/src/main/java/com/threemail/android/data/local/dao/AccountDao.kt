@@ -24,6 +24,9 @@ interface AccountDao {
     @Query("SELECT * FROM accounts WHERE email = :email LIMIT 1")
     suspend fun getByEmail(email: String): AccountEntity?
 
+    @Query("UPDATE accounts SET pushEnabled = :enabled WHERE id = :id")
+    suspend fun setPushEnabled(id: Long, enabled: Boolean)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(account: AccountEntity): Long
 
