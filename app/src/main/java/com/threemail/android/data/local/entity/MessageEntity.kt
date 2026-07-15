@@ -23,6 +23,7 @@ import androidx.room.PrimaryKey
     ],
     indices = [
         Index(value = ["accountId", "folderId", "messageId"], unique = true),
+        Index(value = ["folderId"]),
         Index(value = ["accountId", "threadId"]),
         Index(value = ["date"]),
         Index(value = ["isRead"])

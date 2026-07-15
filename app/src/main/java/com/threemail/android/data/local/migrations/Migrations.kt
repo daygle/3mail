@@ -32,6 +32,30 @@ val MIGRATION_5_6: Migration = object : Migration(5, 6) {
 }
 
 /**
+ * Adds a non-unique index on `messages.folderId` so the FK enforcement scans
+ * Room runs when a row in `folders` is updated or deleted can use it. The
+ * existing unique composite `(accountId, folderId, messageId)` cannot satisfy
+ * this — composite indexes only help lookups whose leading column matches, and
+ * the enforced scan filters purely by `folderId`.
+ *
+ * `CREATE INDEX IF NOT EXISTS` is safe because:
+ *  - Fresh installs: the index is already created by Room from the @Index
+ *    annotation, so this statement is a no-op.
+ *  - Resumed migrations: a partially-applied state won't crash on retry.
+ *
+ * The index name is Room's default convention (`index_<table>_<column>`) so
+ * `MigrationTestHelper` will see the post-migration schema match the
+ * generated v7 schema and update `room_master_table` cleanly.
+ */
+val MIGRATION_6_7: Migration = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_messages_folderId ON messages(folderId)"
+        )
+    }
+}
+
+/**
  * Idempotently creates the FTS4 virtual table, the keep-in-sync triggers and an
  * initial backfill.  All statements use IF NOT EXISTS so a partial state can be
  * resumed without crashing; the backfill is a no-op on empty `messages`.

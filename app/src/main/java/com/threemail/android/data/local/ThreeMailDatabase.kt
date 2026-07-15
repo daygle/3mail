@@ -18,6 +18,7 @@ import com.threemail.android.data.local.entity.MessageSearchEntity
 import com.threemail.android.data.local.migrations.FtsTriggers
 import com.threemail.android.data.local.migrations.MIGRATION_4_5
 import com.threemail.android.data.local.migrations.MIGRATION_5_6
+import com.threemail.android.data.local.migrations.MIGRATION_6_7
 
 @Database(
     entities = [
@@ -27,7 +28,7 @@ import com.threemail.android.data.local.migrations.MIGRATION_5_6
         CalendarEventEntity::class,
         MessageSearchEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = true
 )
 @TypeConverters(FolderTypeConverter::class)
@@ -63,7 +64,7 @@ abstract class ThreeMailDatabase : RoomDatabase() {
                     ThreeMailDatabase::class.java,
                     "threemail_database"
                 )
-                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .addCallback(freshInstallCallback)
                     .build()
                     .also { INSTANCE = it }
