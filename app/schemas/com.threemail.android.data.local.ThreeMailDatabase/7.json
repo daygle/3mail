@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 7,
-    "identityHash": "37b0b888ec5b35b1efada33cbce6f882",
+    "identityHash": "f0451f2562c3a0b5bc701d84607ec4df",
     "entities": [
       {
         "tableName": "accounts",
@@ -330,24 +330,15 @@
         },
         "indices": [
           {
-            "name": "index_messages_accountId_folderId_messageId",
+            "name": "index_messages_folderId_accountId_messageId",
             "unique": true,
             "columnNames": [
-              "accountId",
               "folderId",
+              "accountId",
               "messageId"
             ],
             "orders": [],
-            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_messages_accountId_folderId_messageId` ON `${TABLE_NAME}` (`accountId`, `folderId`, `messageId`)"
-          },
-          {
-            "name": "index_messages_folderId",
-            "unique": false,
-            "columnNames": [
-              "folderId"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_messages_folderId` ON `${TABLE_NAME}` (`folderId`)"
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_messages_folderId_accountId_messageId` ON `${TABLE_NAME}` (`folderId`, `accountId`, `messageId`)"
           },
           {
             "name": "index_messages_accountId_threadId",
@@ -627,7 +618,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '37b0b888ec5b35b1efada33cbce6f882')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f0451f2562c3a0b5bc701d84607ec4df')"
     ]
   }
 }

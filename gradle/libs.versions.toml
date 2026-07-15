@@ -1,6 +1,6 @@
 [versions]
-agp = "8.13.2"
-kotlin = "2.0.0"
+agp = "9.3.0"
+kotlin = "2.2.10"
 coreKtx = "1.13.1"
 junit = "4.13.2"
 junitVersion = "1.2.1"
@@ -11,7 +11,7 @@ composeBom = "2024.09.00"
 apacheCommonsNet = "3.9.0"
 javaMail = "1.6.7"
 room = "2.6.1"
-hilt = "2.51.1"
+hilt = "2.60.1"
 hiltNavigationCompose = "1.2.0"
 navigationCompose = "2.7.7"
 datastore = "1.1.1"
@@ -25,6 +25,7 @@ coil = "2.7.0"
 securityCrypto = "1.1.0-alpha06"
 splashscreen = "1.0.1"
 robolectric = "4.12.2"
+ksp = "2.2.10-1.0.29"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -93,6 +94,6 @@ robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
-ksp = { id = "com.google.devtools.ksp", version = "2.0.0-1.0.24" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
