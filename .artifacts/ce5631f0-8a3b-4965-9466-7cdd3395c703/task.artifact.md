@@ -1,5 +1,6 @@
-- `[ ]` Fix `FtsUtil` truncation logic and test
-- `[ ]` Add Robolectric dependency to project
-- `[ ]` Update `PushControllerTest` to use Robolectric
-- `[ ]` Verify all tests pass
-- `[ ]` Commit and push fixes
+- `[x]` Update `libs.versions.toml` with compatible KSP and Hilt versions
+- `[x]` Enable `android.newDsl` and `android.builtInKotlin` in `gradle.properties`
+- `[x]` Remove redundant `kotlin-android` plugin from build scripts
+- `[x]` Migrate `kotlinOptions` to `kotlin.compilerOptions` in `app/build.gradle.kts`
+- `[x]` Perform Gradle Sync and Build verification
+- `[x]` Commit and push all changes (upgrade + fixes) to GitHub
