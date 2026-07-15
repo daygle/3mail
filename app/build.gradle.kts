@@ -42,6 +42,11 @@ android {
     buildFeatures {
         compose = true
     }
+    ksp {
+        // Persist Room generated schemas so v4->v5 migration tests can assert
+        // the actual schema JSON produced by Room and catch drift early.
+        arg("room.schemaLocation", "$projectDir/schemas")
+    }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1,LICENSE.md,LICENSE.txt,NOTICE.md,NOTICE.txt}"
@@ -103,6 +108,7 @@ dependencies {
 
     // Testing
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

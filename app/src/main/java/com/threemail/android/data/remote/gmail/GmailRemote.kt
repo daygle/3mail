@@ -248,6 +248,7 @@ class GmailRemote(
         "SPAM" -> FolderType.SPAM
         "STARRED" -> FolderType.STARRED
         "IMPORTANT" -> FolderType.IMPORTANT
+        "ALL_MAIL" -> FolderType.ALL_MAIL
         else -> FolderType.CUSTOM
     }
 

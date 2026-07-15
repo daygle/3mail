@@ -10,7 +10,9 @@ import com.threemail.android.domain.model.EmailAddress
 import com.threemail.android.domain.model.FolderType
 import com.threemail.android.domain.model.MailFolder
 import com.threemail.android.domain.model.MailMessage
+import com.threemail.android.util.FtsUtil
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import org.json.JSONArray
 import org.json.JSONObject
@@ -97,8 +99,11 @@ class MailRepository @Inject constructor(
         messageDao.updateStarred(id, isStarred)
     }
 
-    fun searchMessages(query: String): Flow<List<MailMessage>> =
-        messageDao.search(query).map { list -> list.map { it.toDomain() } }
+    fun searchMessages(query: String): Flow<List<MailMessage>> {
+        val match = FtsUtil.sanitize(query)
+        if (match.isEmpty()) return flowOf(emptyList())
+        return messageDao.search(match).map { list -> list.map { it.toDomain() } }
+    }
 
     private fun FolderEntity.toDomain(): MailFolder = MailFolder(
         id = id,

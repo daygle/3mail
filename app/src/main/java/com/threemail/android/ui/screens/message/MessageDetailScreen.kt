@@ -1,6 +1,9 @@
 package com.threemail.android.ui.screens.message
 
+import android.annotation.SuppressLint
 import android.content.Intent
+import android.net.Uri
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.background
@@ -44,13 +47,18 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -60,6 +68,7 @@ import com.threemail.android.R
 import com.threemail.android.domain.model.Attachment
 import com.threemail.android.ui.components.LoadingIndicator
 import com.threemail.android.ui.theme.avatarColorFor
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,7 +94,7 @@ fun MessageDetailScreen(
                 setDataAndType(uri, context.contentResolver.getType(uri) ?: "*/*")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            runCatching { context.startActivity(Intent.createChooser(intent, "Open with")) }
+            runCatching { context.startActivity(Intent.createChooser(intent, context.getString(R.string.open_with))) }
             viewModel.onFileOpened()
         }
     }
@@ -200,20 +209,13 @@ fun MessageDetailScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 CircularProgressIndicator(modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.size(8.dp))
-                                Text("Loading message…", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(stringResource(R.string.loading_message), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                         !message.bodyHtml.isNullOrBlank() -> {
-                            AndroidView(
-                                modifier = Modifier.fillMaxWidth(),
-                                factory = { ctx ->
-                                    WebView(ctx).apply {
-                                        webViewClient = WebViewClient()
-                                        settings.loadsImagesAutomatically = true
-                                        settings.blockNetworkImage = true // privacy: block remote trackers by default
-                                        loadDataWithBaseURL(null, message.bodyHtml!!, "text/html", "utf-8", null)
-                                    }
-                                }
+                            HtmlEmailContent(
+                                html = message.bodyHtml!!,
+                                modifier = Modifier.fillMaxWidth()
                             )
                         }
                         else -> Text(
@@ -228,6 +230,85 @@ fun MessageDetailScreen(
     }
 }
 
+/**
+ * A WebView locked down to render HTML mail bodies safely.
+ *
+ * - JavaScript is explicitly disabled (lint-safe: we set to false, the safe direction).
+ * - File and content access are disabled.
+ * - Mixed content is blocked.
+ * - DOM storage is disabled.
+ * - Remote image loads are blocked until user explicitly enables them.
+ * - Link taps are intercepted and routed to the system browser via [launchExternal].
+ *
+ * Extends [WebView] directly (rather than wrapping one) so it slots into
+ * [AndroidView]'s `reified T : View` factory without losing the [loadHtml] helper.
+ */
+class SafeWebView(
+    context: android.content.Context,
+    private val launchExternal: (Uri) -> Unit = { uri ->
+        val intent = Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { context.startActivity(intent) }
+    }
+) : WebView(context) {
+    init {
+        settings.javaScriptEnabled = false
+        settings.allowFileAccess = false
+        settings.allowContentAccess = false
+        settings.allowFileAccessFromFileURLs = false
+        settings.allowUniversalAccessFromFileURLs = false
+        settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
+        settings.domStorageEnabled = false
+        settings.loadsImagesAutomatically = false
+        // Block remote trackers by default; user-controlled load-images toggle could enable this.
+        settings.blockNetworkImage = true
+        webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(
+                view: WebView?,
+                request: WebResourceRequest?
+            ): Boolean {
+                val target = request?.url ?: return false
+                if (target.scheme == "http" || target.scheme == "https" || target.scheme == "mailto") {
+                    launchExternal(target)
+                }
+                return true // never navigate the WebView itself
+            }
+        }
+    }
+
+    fun loadHtml(html: String) {
+        loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
+    }
+}
+
+/**
+ * Compose-hosted [WebView] that destroys itself when the composable leaves the
+ * composition. Without this, navigating away from [MessageDetailScreen] would
+ * leak the WebView (and its surface + CookieManager + JS bridge handles).
+ */
+@Composable
+private fun HtmlEmailContent(
+    html: String,
+    modifier: Modifier = Modifier
+) {
+    var webView: SafeWebView? by remember { mutableStateOf(null) }
+    AndroidView(
+        modifier = modifier,
+        factory = { ctx -> SafeWebView(ctx).also { webView = it } },
+        update = { it.loadHtml(html) }
+    )
+    DisposableEffect(Unit) {
+        onDispose {
+            webView?.let { wv ->
+                wv.stopLoading()
+                wv.loadUrl("about:blank")
+                wv.clearHistory()
+                wv.destroy()
+            }
+            webView = null
+        }
+    }
+}
+
 @Composable
 private fun AttachmentRow(
     attachments: List<Attachment>,
@@ -236,7 +317,11 @@ private fun AttachmentRow(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            "${attachments.size} attachment${if (attachments.size > 1) "s" else ""}",
+            text = pluralStringResource(
+                R.plurals.attachments_count,
+                attachments.size,
+                attachments.size
+            ),
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

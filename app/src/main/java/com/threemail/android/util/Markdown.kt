@@ -17,6 +17,22 @@ object Markdown {
         return "<html><body style=\"font-family:sans-serif;font-size:14px;line-height:1.5\">$html</body></html>"
     }
 
+    /**
+     * Escapes a URL for safe embedding as an HTML attribute value. Also normalizes
+     * the scheme to http/https so attackers can't insert `javascript:` (already
+     * filtered by [LINK], but defense in depth).
+     */
+    internal fun escapeUrl(url: String): String {
+        val safe = url
+            .replace("&", "&amp;")
+            .replace("\"", "&quot;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+        return if (!safe.lowercase().startsWith("http://") && !safe.lowercase().startsWith("https://") && !safe.lowercase().startsWith("mailto:")) {
+            "https://$safe"
+        } else safe
+    }
+
     private fun renderBlock(block: String): String {
         if (block.isEmpty()) return ""
         val lines = block.split("\n")
@@ -31,7 +47,7 @@ object Markdown {
 
     private fun inline(raw: String): String {
         var text = escape(raw)
-        text = LINK.replace(text) { m -> "<a href=\"${m.groupValues[2]}\">${m.groupValues[1]}</a>" }
+        text = LINK.replace(text) { m -> "<a href=\"${escapeUrl(m.groupValues[2])}\">${escape(m.groupValues[1])}</a>" }
         text = BOLD.replace(text) { m -> "<strong>${m.groupValues[1]}</strong>" }
         text = ITALIC.replace(text) { m -> "<em>${m.groupValues[1]}</em>" }
         return text

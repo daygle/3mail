@@ -30,9 +30,7 @@ class ComposeViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val mailRemoteFactory: MailRemoteFactory,
     savedStateHandle: SavedStateHandle
-) : ViewModel() {
-
-    data class UiState(
+) : ViewModel() {        data class UiState(
         val accounts: List<Account> = emptyList(),
         val selectedAccount: Account? = null,
         val to: String = "",
@@ -46,6 +44,7 @@ class ComposeViewModel @Inject constructor(
         val isSavingDraft: Boolean = false,
         val isSent: Boolean = false,
         val isDraftSaved: Boolean = false,
+        val shouldClose: Boolean = false,
         val error: String? = null,
         val recoverableAuthIntent: Intent? = null
     )
@@ -140,7 +139,7 @@ class ComposeViewModel @Inject constructor(
 
     fun send() {
         val account = _uiState.value.selectedAccount ?: run {
-            _uiState.value = _uiState.value.copy(error = "No account selected")
+            _uiState.value = _uiState.value.copy(error = noAccountMessage())
             return
         }
         _uiState.value = _uiState.value.copy(isSending = true, error = null, recoverableAuthIntent = null)
@@ -175,14 +174,25 @@ class ComposeViewModel @Inject constructor(
     }
 
     fun saveDraft() {
-        val account = _uiState.value.selectedAccount ?: return
+        saveDraftInternal(closeAfter = false)
+    }
+
+    fun saveAndClose() {
+        saveDraftInternal(closeAfter = true)
+    }
+
+    private fun saveDraftInternal(closeAfter: Boolean) {
+        val account = _uiState.value.selectedAccount ?: run {
+            _uiState.value = _uiState.value.copy(error = noAccountMessage())
+            return
+        }
         _uiState.value = _uiState.value.copy(isSavingDraft = true, error = null)
         viewModelScope.launch {
             try {
                 val folders = mailRepository.getFoldersOnce(account.id)
                 val drafts = folders.firstOrNull { it.type == FolderType.DRAFTS }
                 if (drafts == null) {
-                    _uiState.value = _uiState.value.copy(isSavingDraft = false, error = "No drafts folder available")
+                    _uiState.value = _uiState.value.copy(isSavingDraft = false, error = noDraftsFolderMessage())
                     return@launch
                 }
                 val remote = mailRemoteFactory.create(account)
@@ -199,7 +209,11 @@ class ComposeViewModel @Inject constructor(
                         attachments = _uiState.value.attachments
                     )
                 ).onSuccess {
-                    _uiState.value = _uiState.value.copy(isSavingDraft = false, isDraftSaved = true)
+                    _uiState.value = _uiState.value.copy(
+                        isSavingDraft = false,
+                        isDraftSaved = true,
+                        shouldClose = closeAfter
+                    )
                 }.onFailure {
                     _uiState.value = _uiState.value.copy(isSavingDraft = false, error = it.message)
                 }
@@ -211,7 +225,14 @@ class ComposeViewModel @Inject constructor(
         }
     }
 
+    private fun noAccountMessage(): String = "No account selected"
+    private fun noDraftsFolderMessage(): String = "No drafts folder available"
+
     fun retryAfterRecoverableAuth() {
         send()
+    }
+
+    fun consumeCloseSignal() {
+        _uiState.value = _uiState.value.copy(shouldClose = false)
     }
 }

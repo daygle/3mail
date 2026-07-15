@@ -94,8 +94,10 @@ class MailActions @Inject constructor(
         sourceFolder: MailFolder? = null,
         block: suspend (MailRemote, MailFolder) -> Result<Unit>
     ): Result<Unit> {
-        val account = accountRepository.getAccountById(message.accountId) ?: return Result.success(Unit)
-        val folder = sourceFolder ?: mailRepository.getFolderById(message.folderId) ?: return Result.success(Unit)
+        val account = accountRepository.getAccountById(message.accountId)
+            ?: return Result.success(Unit)
+        val folder = sourceFolder ?: mailRepository.getFolderById(message.folderId)
+            ?: return Result.success(Unit)
         val remote = mailRemoteFactory.create(account)
         return block(remote, folder)
     }

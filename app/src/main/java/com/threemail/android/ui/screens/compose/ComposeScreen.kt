@@ -72,8 +72,18 @@ fun ComposeScreen(
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
-    LaunchedEffect(state.isSent, state.isDraftSaved) {
-        if (state.isSent || state.isDraftSaved) onNavigateBack()
+    // Auto-close after Send OR after the explicit "Save & close" path. Saving a
+    // draft does NOT auto-close so the user can keep editing without re-entering
+    // recipients. Both keys are observed in a single effect so we cannot
+    // double-navigate within one frame.
+    LaunchedEffect(state.isSent, state.shouldClose) {
+        when {
+            state.isSent -> onNavigateBack()
+            state.shouldClose -> {
+                viewModel.consumeCloseSignal()
+                onNavigateBack()
+            }
+        }
     }
 
     val recoverableAuthLauncher = rememberLauncherForActivityResult(
@@ -105,11 +115,30 @@ fun ComposeScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { attachmentPicker.launch("*/*") }) {
-                        Icon(Icons.Default.AttachFile, contentDescription = "Attach")
+                    IconButton(
+                        onClick = { attachmentPicker.launch("*/*") },
+                        enabled = !state.isSending && !state.isSavingDraft
+                    ) {
+                        Icon(Icons.Default.AttachFile, contentDescription = stringResource(R.string.attach))
                     }
-                    IconButton(onClick = { viewModel.saveDraft() }, enabled = !state.isSavingDraft) {
-                        Icon(Icons.Default.Save, contentDescription = "Save draft")
+                    IconButton(
+                        onClick = { viewModel.saveAndClose() },
+                        enabled = !state.isSavingDraft && !state.isSent
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Save,
+                            contentDescription = stringResource(R.string.save_and_close)
+                        )
+                    }
+                    IconButton(
+                        onClick = { viewModel.saveDraft() },
+                        enabled = !state.isSavingDraft && !state.isSent
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Save,
+                            contentDescription = stringResource(R.string.save_draft),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                     IconButton(onClick = { viewModel.send() }, enabled = !state.isSending) {
                         if (state.isSending) {
@@ -157,7 +186,7 @@ fun ComposeScreen(
                 singleLine = true,
                 trailingIcon = {
                     TextButton(onClick = { viewModel.toggleCcBcc() }) {
-                        Text(if (state.showCcBcc) "Hide" else "Cc/Bcc")
+                        Text(if (state.showCcBcc) stringResource(R.string.cc_bcc_hide) else stringResource(R.string.cc_bcc_show))
                         Icon(Icons.Default.ExpandMore, contentDescription = null)
                     }
                 }
@@ -200,10 +229,27 @@ fun ComposeScreen(
                             selected = false,
                             onClick = { viewModel.removeAttachment(attachment) },
                             label = { Text(attachment.fileName, maxLines = 1) },
-                            trailingIcon = { Icon(Icons.Default.Close, contentDescription = "Remove", Modifier.size(16.dp)) }
+                            trailingIcon = { Icon(Icons.Default.Close, contentDescription = stringResource(R.string.remove_attachment), Modifier.size(16.dp)) }
                         )
                     }
                 }
+            }
+
+            // Inline confirmation that the draft was saved.
+            if (state.isDraftSaved) {
+                Text(
+                    text = stringResource(R.string.draft_saved),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            } else if (state.isSavingDraft) {
+                Text(
+                    text = stringResource(R.string.syncing),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
             }
 
             var bodyValue by remember { mutableStateOf(TextFieldValue(state.body)) }
@@ -225,19 +271,19 @@ fun ComposeScreen(
             Spacer(Modifier.height(8.dp))
             Row {
                 IconButton(onClick = { apply(RichTextFormatter::bold) }) {
-                    Icon(Icons.Default.FormatBold, contentDescription = "Bold")
+                    Icon(Icons.Default.FormatBold, contentDescription = stringResource(R.string.format_bold))
                 }
                 IconButton(onClick = { apply(RichTextFormatter::italic) }) {
-                    Icon(Icons.Default.FormatItalic, contentDescription = "Italic")
+                    Icon(Icons.Default.FormatItalic, contentDescription = stringResource(R.string.format_italic))
                 }
                 IconButton(onClick = { apply(RichTextFormatter::bulletList) }) {
-                    Icon(Icons.AutoMirrored.Filled.FormatListBulleted, contentDescription = "Bulleted list")
+                    Icon(Icons.AutoMirrored.Filled.FormatListBulleted, contentDescription = stringResource(R.string.format_bullet_list))
                 }
                 IconButton(onClick = { apply(RichTextFormatter::numberedList) }) {
-                    Icon(Icons.Default.FormatListNumbered, contentDescription = "Numbered list")
+                    Icon(Icons.Default.FormatListNumbered, contentDescription = stringResource(R.string.format_numbered_list))
                 }
                 IconButton(onClick = { showLinkDialog = true }) {
-                    Icon(Icons.Default.Link, contentDescription = "Insert link")
+                    Icon(Icons.Default.Link, contentDescription = stringResource(R.string.link_insert))
                 }
             }
 
@@ -273,17 +319,17 @@ private fun LinkDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     var url by remember { mutableStateOf("https://") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Insert link") },
+        title = { Text(stringResource(R.string.link_insert)) },
         text = {
             OutlinedTextField(
                 value = url,
                 onValueChange = { url = it },
-                label = { Text("URL") },
+                label = { Text(stringResource(R.string.link_url)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
         },
-        confirmButton = { TextButton(onClick = { onConfirm(url) }) { Text("Insert") } },
+        confirmButton = { TextButton(onClick = { onConfirm(url) }) { Text(stringResource(R.string.link_insert_action)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
     )
 }
