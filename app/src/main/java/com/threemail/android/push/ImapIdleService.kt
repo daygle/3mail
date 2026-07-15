@@ -118,7 +118,7 @@ class ImapIdleService : Service() {
                 return@launch
             }
             promoteToForeground(candidates.size)
-            candidates.forEach(::ensureAccountPush)
+            candidates.forEach { ensureAccountPush(it.id) }
         }
     }
 
