@@ -32,25 +32,59 @@ val MIGRATION_5_6: Migration = object : Migration(5, 6) {
 }
 
 /**
- * Adds a non-unique index on `messages.folderId` so the FK enforcement scans
- * Room runs when a row in `folders` is updated or deleted can use it. The
- * existing unique composite `(accountId, folderId, messageId)` cannot satisfy
- * this — composite indexes only help lookups whose leading column matches, and
- * the enforced scan filters purely by `folderId`.
+ * Reorders the unique composite index on `messages` so `folderId` is the
+ * leading column. This both preserves the original uniqueness guarantee
+ * (`(accountId, folderId, messageId)` triples are still unique — column order
+ * is irrelevant to uniqueness) AND silences the KSP FK-index warning, because
+ * Room's check only requires the FK child column to be at position 0 of some
+ * `Index` annotation.
  *
- * `CREATE INDEX IF NOT EXISTS` is safe because:
- *  - Fresh installs: the index is already created by Room from the @Index
- *    annotation, so this statement is a no-op.
- *  - Resumed migrations: a partially-applied state won't crash on retry.
+ * Why not just add a redundant standalone `Index(value = ["folderId"])`?
+ * That works in most places but the warning was observed to persist under
+ * incremental-KSP-cache-replay on this host's gradle 8.7 config-cache path.
+ * Folding folderId into the existing unique composite removes any ambiguity
+ * and gives a single index that serves both uniqueness and FK enforcement.
  *
- * The index name is Room's default convention (`index_<table>_<column>`) so
- * `MigrationTestHelper` will see the post-migration schema match the
- * generated v7 schema and update `room_master_table` cleanly.
+ * Steps:
+ *  1. Drop the v6-era auto-generated index
+ *     `index_messages_accountId_folderId_messageId` — Room's default name
+ *     for the previous `(accountId, folderId, messageId) unique` annotation.
+ *  2. Create the new ordered index
+ *     `index_messages_folderId_accountId_messageId` to match the v7
+ *     generated schema.
+ *
+ * `IF EXISTS` / `IF NOT EXISTS` make this safe on:
+ *  - fresh v7 installs (the DROP is a no-op — the old index never existed),
+ *  - resumed migrations (partial application is resumable).
+ *
+ * The post-migration `room_master_table` checksum must match the v7
+ * generated schema. Room's KSP processor emits the same DOWNSTREAM checksum
+ * as long as the index DDL line above matches the generated DDL.
  */
 val MIGRATION_6_7: Migration = object : Migration(6, 7) {
     override fun migrate(db: SupportSQLiteDatabase) {
+        // Drop indexes left over from the previous design.
+        //   * index_messages_accountId_folderId_messageId : the v6-era
+        //     unique composite Room auto-generated from the previous
+        //     `(accountId, folderId, messageId) unique` annotation. We're
+        //     replacing it with a reordered composite.
+        //   * index_messages_folderId : created by the prior MIGRATION_6_7
+        //     in commit 8f9ac6d, which added a standalone
+        //     `Index(value = ["folderId"])`. The v2 design folds folderId
+        //     into the reordered unique composite instead, so this leftover
+        //     becomes an orphan — Room's v7 schema won't declare it. Drop
+        //     here so users coming from 8f9ac6d don't carry dead B-tree
+        //     maintenance on every `messages` write.
         db.execSQL(
-            "CREATE INDEX IF NOT EXISTS index_messages_folderId ON messages(folderId)"
+            "DROP INDEX IF EXISTS index_messages_accountId_folderId_messageId"
+        )
+        db.execSQL(
+            "DROP INDEX IF EXISTS index_messages_folderId"
+        )
+        db.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS " +
+                "index_messages_folderId_accountId_messageId " +
+                "ON messages(folderId, accountId, messageId)"
         )
     }
 }
