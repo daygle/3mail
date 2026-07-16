@@ -88,10 +88,15 @@ class SyncScheduler @Inject constructor(
 
     /**
      * Enqueues a [SendMailWorker] to drain the outbox. Called after Compose
-     * queues a message. Uses [ExistingWorkPolicy.APPEND_OR_RUN] so a new
-     * message always guarantees a subsequent drain without cancelling an
-     * in-flight send, and a network constraint + backoff so a failed send
-     * retries once connectivity returns.
+     * queues a message.
+     *
+     * Uses [ExistingWorkPolicy.APPEND] so a new message always gets its own
+     * drain after any in-flight send completes, rather than being stranded if a
+     * send is already running (which [ExistingWorkPolicy.KEEP] would allow).
+     * The worker never returns [androidx.work.ListenableWorker.Result.failure]
+     * - only success or retry - so APPEND never cascades a cancellation onto
+     * the appended work. A network constraint + backoff makes a failed send
+     * retry once connectivity returns.
      */
     fun enqueueSendMail() {
         val constraints = Constraints.Builder()
@@ -105,7 +110,7 @@ class SyncScheduler @Inject constructor(
 
         WorkManager.getInstance(context).enqueueUniqueWork(
             SEND_MAIL_WORK_NAME,
-            ExistingWorkPolicy.APPEND_OR_RUN,
+            ExistingWorkPolicy.APPEND,
             request
         )
     }
