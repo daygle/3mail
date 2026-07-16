@@ -96,4 +96,50 @@ class MigrationsTest {
             db.close()
         }
     }
+
+    @Test
+    fun `migration 8 to 9 creates the outbox table with expected columns`() {
+        val db = openV7Database()
+        try {
+            MIGRATION_8_9.migrate(db)
+
+            val columns = mutableSetOf<String>()
+            db.query("PRAGMA table_info(outbox_messages)").use { cursor ->
+                val nameIdx = cursor.getColumnIndexOrThrow("name")
+                while (cursor.moveToNext()) {
+                    columns.add(cursor.getString(nameIdx))
+                }
+            }
+
+            assertTrue("outbox table should exist with an accountId column", columns.contains("accountId"))
+            assertTrue("outbox table should carry the subject", columns.contains("subject"))
+            // `references` is reserved, so the column is named referencesHeader to
+            // match Room's generated schema for OutboxMessageEntity.
+            assertTrue("references stored as referencesHeader", columns.contains("referencesHeader"))
+            assertTrue("attempt bookkeeping column present", columns.contains("attemptCount"))
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun `migration 8 to 9 outbox accepts an insert`() {
+        val db = openV7Database()
+        try {
+            MIGRATION_8_9.migrate(db)
+
+            db.execSQL(
+                "INSERT INTO outbox_messages " +
+                    "(accountId, toJson, ccJson, bccJson, subject, textBody, attachmentsJson, createdAt) " +
+                    "VALUES (1, '[]', '[]', '[]', 'hi', 'body', '[]', 123)"
+            )
+
+            db.query("SELECT COUNT(*) FROM outbox_messages").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(1, cursor.getInt(0))
+            }
+        } finally {
+            db.close()
+        }
+    }
 }
