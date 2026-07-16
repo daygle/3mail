@@ -237,34 +237,33 @@ class ImapClient(
      * Connect handshake + capability read. The IMAP server's CAPABILITY is
      * listed in either the initial greeting (`* OK [CAPABILITY ...]`) or in
      * the reply to an explicit CAPABILITY command; JavaMail's IMAPStore
-     * caches the greeting-time list in [IMAPStore.capabilities] (exposed
-     * via [IMAPStore.hasCapability]).
+     * caches the greeting-time list internally and exposes per-keyword
+     * lookup via [IMAPStore.hasCapability].
      *
      * We don't issue an explicit CAPABILITY command ourselves: the greeting
      * announcement is universal among RFC 3501 servers and reading from
-     * the cached list avoids burning an extra round-trip on every test.
+     * the cached store avoids burning an extra round-trip on every test.
      * Servers that omit CAPABILITY from the greeting (rare) still connect
      * successfully - the returned list will be empty, which the caller
      * handles by NOT auto-upgrading.
      *
-     * Returns RemoteCapabilities.emptyList on a non-IMAP store (cast
-     * failure is silent). The connect still counts as a success in that
-     * case since [Store.connect] returned without throwing.
+     * Returns [RemoteCapabilities] with an empty list on a non-IMAP store
+     * (cast failure is silent). The connect still counts as a success in
+     * that case since [Store.connect] returned without throwing.
+     *
+     * Implementation note: IMAPStore.capabilities is a `protected Map`
+     * field on JavaMail, so it cannot be read from outside the
+     * `com.sun.mail.imap` package. The public `hasCapability(String)`
+     * method is the supported cross-package probe, so we walk a curated
+     * list of keywords we actually branch on.
      */
     suspend fun testConnection(): Result<RemoteCapabilities> = withContext(Dispatchers.IO) {
         try {
             val store = connectStore()
             try {
-                // IMAPStore.capabilities is a `Map<String, String>` where the
-                // key is the CAPABILITY keyword (e.g. "STARTTLS") and the
-                // value is any associated parameter (e.g. AUTH=PLAIN). We
-                // keep only the keywords since callers only ask yes/no
-                // questions like "does this server advertise STARTTLS?".
-                val capabilities = (store as? IMAPStore)
-                    ?.capabilities
-                    ?.keys
-                    ?.toList()
-                    .orEmpty()
+                val imapStore = store as? IMAPStore
+                val capabilities = PROBED_CAPABILITIES
+                    .filter { keyword -> imapStore?.hasCapability(keyword) == true }
                 Result.success(RemoteCapabilities(capabilities))
             } finally {
                 runCatching { store.close() }
@@ -650,4 +649,35 @@ class ImapClient(
     }
 
     // endregion
+
+    private companion object {
+        /**
+         * Capability keywords surfaced via [IMAPStore.hasCapability]. Picked
+         * because each maps to a code branch somewhere in the app:
+         *
+         *  - `STARTTLS`       drives opportunistic Security.NONE -> STARTTLS upgrade
+         *  - `IDLE`           mirrors the [supportsIdle] probe for the push pipeline
+         *  - `AUTH=OAUTH2` /
+         *    `AUTH=OAUTHBEARER` exposes OAuth-capable servers to the
+         *                      provider picker
+         *  - `LOGINDISABLED`  forces the password field into an OAuth-only mode
+         *  - `UTF8=ACCEPT` / `MOVE` / `CONDSTORE` / `OBJECTID` are modern
+         *    IMAP extensions that future account-detail UI can surface
+         *  - `AUTH=PLAIN` is included only so the Gmail/IMAP bridge can
+         *    log it during a failed connection - we never send credentials
+         *    without TLS in this codebase.
+         */
+        val PROBED_CAPABILITIES = listOf(
+            "STARTTLS",
+            "IDLE",
+            "AUTH=PLAIN",
+            "AUTH=OAUTH2",
+            "AUTH=OAUTHBEARER",
+            "LOGINDISABLED",
+            "UTF8=ACCEPT",
+            "MOVE",
+            "CONDSTORE",
+            "OBJECTID"
+        )
+    }
 }

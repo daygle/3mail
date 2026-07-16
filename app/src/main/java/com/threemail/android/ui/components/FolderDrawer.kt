@@ -210,7 +210,19 @@ fun FolderDrawerContent(
                         // per-row "row height" used to compute the drop
                         // index matches whatever's currently laid out
                         // (long folder names wrap, padding differs, etc.).
-                        var rowHeightPx by remember { mutableStateOf(48.dp.toPx()) }
+                        // The default is `0f` because `Dp.toPx()` is
+                        // `@Composable` and cannot be called inside the
+                        // `remember { ... }` lambda (which is not a
+                        // composable context) - any non-zero literal
+                        // would be density-dependent pixels (e.g. `48f`
+                        // on a 3x display is ~16dp, far from the ~48dp
+                        // the original `48.dp.toPx()` produced). Using
+                        // `0f` lets the `rowHeightPx > 0f` guard in
+                        // `onDragEnd` be the single source of truth: a
+                        // drag that fires before `onSizeChanged` reports
+                        // the real measured height is treated as a
+                        // no-op rather than snapping to a wrong index.
+                        var rowHeightPx by remember { mutableStateOf(0f) }
                         val haptics = LocalHapticFeedback.current
                         val dragInfo = remember { mutableStateOf<DragInfo?>(null) }
                         // derivedStateOf so the boolean only flips on drag
