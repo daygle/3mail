@@ -1,0 +1,23 @@
+version: 2
+updates:
+  # Gradle dependencies (declared via the version catalog in gradle/libs.versions.toml
+  # and the module build files).
+  - package-ecosystem: gradle
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      androidx:
+        patterns:
+          - "androidx.*"
+      google:
+        patterns:
+          - "com.google.*"
+
+  # GitHub Actions used by the CI workflow.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
