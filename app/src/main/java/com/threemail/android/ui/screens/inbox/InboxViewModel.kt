@@ -104,7 +104,7 @@ class InboxViewModel @Inject constructor(
                 }
             }
             }.onFailure { e ->
-                _uiState.value = _uiState.value.copy(error = e.message ?: "Failed to load inbox")
+                _transient.value = _transient.value.copy(error = e.message ?: "Failed to load inbox")
             }
         }
         viewModelScope.launch {
@@ -115,7 +115,7 @@ class InboxViewModel @Inject constructor(
                 }
             }
             }.onFailure { e ->
-                _uiState.value = _uiState.value.copy(error = e.message ?: "Failed to load inbox")
+                _transient.value = _transient.value.copy(error = e.message ?: "Failed to load inbox")
             }
         }
     }

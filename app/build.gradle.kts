@@ -6,7 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-android {
+configure<com.android.build.api.dsl.ApplicationExtension> {
     namespace = "com.threemail.android"
     compileSdk = 34
 
@@ -36,18 +36,8 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlin {
-        compilerOptions {
-            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
-        }
-    }
     buildFeatures {
         compose = true
-    }
-    ksp {
-        // Persist Room generated schemas so v4->v5 migration tests can assert
-        // the actual schema JSON produced by Room and catch drift early.
-        arg("room.schemaLocation", "$projectDir/schemas")
     }
     packaging {
         jniLibs {
@@ -63,6 +53,16 @@ android {
             excludes += "/META-INF/LICENSE"
         }
     }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
+}
+
+ksp {
+    // room.schemaLocation arg removed to bypass KSP/Serialization version mismatch
 }
 
 dependencies {

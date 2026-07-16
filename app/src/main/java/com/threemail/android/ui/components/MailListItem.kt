@@ -47,26 +47,21 @@ fun MailListItem(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface)
+            .background(
+                if (message.isRead) MaterialTheme.colorScheme.surface 
+                else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.1f)
+            )
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.Top
     ) {
-        // Unread accent dot.
-        Box(
-            modifier = Modifier
-                .padding(top = 18.dp, end = 8.dp)
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(if (message.isRead) Color.Transparent else MaterialTheme.colorScheme.primary)
-        )
-
         // Sender avatar with deterministic color + initial.
         Box(
             modifier = Modifier
+                .padding(top = 2.dp)
                 .size(44.dp)
                 .clip(CircleShape)
-                .background(avatarColor),
+                .background(if (message.isRead) avatarColor.copy(alpha = 0.8f) else avatarColor),
             contentAlignment = Alignment.Center
         ) {
             Text(
