@@ -77,6 +77,23 @@ ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
 
+// Force kotlinx-serialization 1.6.3 across every Gradle configuration
+// (implementation, ksp, test, etc.). Room 2.8.4's compiled
+// FieldBundle/EntityBundle/DatabaseBundle/SchemaBundle serializer classes
+// were generated against a pre-1.7.0 GeneratedSerializer interface; KSP and
+// other plugins transitively pull 1.7.x into the ksp classpath, which adds
+// typeParametersSerializers() to the runtime interface and triggers
+// AbstractMethodError at compile-time. Pinning 1.6.3 across all configurations
+// keeps the runtime interface byte-for-byte compatible with Room's
+// pre-compiled serializers. Lift this once Room upstream ships an AAR
+// compiled against >= 1.7.0.
+configurations.all {
+    resolutionStrategy.force(
+        "org.jetbrains.kotlinx:kotlinx-serialization-core:1.6.3",
+        "org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3"
+    )
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.core.splashscreen)
