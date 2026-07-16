@@ -104,7 +104,7 @@ dependencies {
     // Hilt
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
-    implementation(libs.androidx.hilt.navigation.compose)
+    implementation(libs.androidx.hilt.lifecycle.viewmodel.compose)
     implementation(libs.androidx.hilt.work)
     ksp(libs.androidx.hilt.compiler)
 
@@ -125,8 +125,8 @@ dependencies {
     // Image loading
     implementation(libs.io.coil.kt.compose)
 
-    // Encrypted credential storage
-    implementation(libs.androidx.security.crypto)
+    // Encrypted credential storage uses the platform Android Keystore directly
+    // (see CredentialStore.kt); no androidx.security:security-crypto needed.
     implementation(libs.androidx.credentials.core)
     implementation(libs.androidx.credentials.play.auth)
     // Provides com.google.android.libraries.identity.googleid.{GetGoogleIdOption, GoogleIdTokenCredential}

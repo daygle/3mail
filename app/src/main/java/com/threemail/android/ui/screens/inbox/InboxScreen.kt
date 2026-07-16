@@ -40,7 +40,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -195,15 +198,35 @@ private fun SwipeableMailRow(
     onClick: () -> Unit,
     onToggleStar: () -> Unit
 ) {
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            when (value) {
-                SwipeToDismissBoxValue.StartToEnd -> { onArchive(); true }
-                SwipeToDismissBoxValue.EndToStart -> { onDelete(); true }
-                SwipeToDismissBoxValue.Settled -> false
+    // `rememberSwipeToDismissBoxState` (and its `confirmValueChange`
+    // parameter) is deprecated in Compose Material3. The team recommends
+    // driving swipe-to-dismiss with the lower-level `AnchoredDraggable` API
+    // and a curated anchor set, but that refactor is out of scope for this
+    // change. In the meantime we suppress the deprecation and react to the
+    // dismiss through a `LaunchedEffect` instead of through the deprecated
+    // callback. `SwipeToDismissBox` (the consumer composable) is NOT
+    // deprecated, so the row composable itself stays clean.
+    @Suppress("DEPRECATION")
+    val dismissState = rememberSwipeToDismissBoxState()
+
+    // The viewmodel mutates `state.messages` synchronously when archive /
+    // delete succeeds, but on failure (e.g. offline, optimistic-only
+    // mutation) the row can stay alive long enough for the user to swipe it
+    // a *second* time — re-triggering a destructive action. The guard below
+    // ensures each row instance handles the gesture exactly once. The flag
+    // is keyed against this row's stable `message.id`, so a different row
+    // gets a fresh boolean.
+    var handled by remember { mutableStateOf(false) }
+    LaunchedEffect(dismissState.currentValue) {
+        if (!handled && dismissState.currentValue != SwipeToDismissBoxValue.Settled) {
+            handled = true
+            when (dismissState.currentValue) {
+                SwipeToDismissBoxValue.StartToEnd -> onArchive()
+                SwipeToDismissBoxValue.EndToStart -> onDelete()
+                SwipeToDismissBoxValue.Settled -> Unit
             }
         }
-    )
+    }
 
     SwipeToDismissBox(
         state = dismissState,
