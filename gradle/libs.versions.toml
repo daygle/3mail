@@ -26,6 +26,7 @@ credentials = "1.6.0"
 googleid = "1.2.0"
 splashscreen = "1.2.0"
 robolectric = "4.12.2"
+androidxTestCore = "1.6.1"
 ksp = "2.3.10"
 
 [libraries]
@@ -112,6 +113,10 @@ androidx-googleid = { group = "com.google.android.libraries.identity.googleid", 
 # Splash screen
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashscreen" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+# ApplicationProvider for the Robolectric JVM tests (FolderDaoTest,
+# AddAccountViewModelTest). Robolectric does not put androidx.test:core on the
+# compile classpath, so it must be declared explicitly.
+androidx-test-core = { group = "androidx.test", name = "core", version.ref = "androidxTestCore" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
