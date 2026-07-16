@@ -29,12 +29,11 @@ jobs:
       - name: Configure Android SDK path
         run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
 
-      # No gradle-wrapper.jar is committed, so install Gradle and run it directly
-      # (version kept in sync with gradle/wrapper/gradle-wrapper.properties).
+      # gradle-wrapper.jar is committed, but we specify the version here to match.
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.14.5"
+          gradle-version: "9.6.1"
 
       - name: Run unit tests
         run: gradle testDebugUnitTest --stacktrace
