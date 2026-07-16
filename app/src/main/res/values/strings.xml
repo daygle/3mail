@@ -134,4 +134,16 @@
     <!-- Composer: inline images & contact autocomplete -->
     <string name="insert_image">Insert image</string>
     <string name="inline">inline</string>
+
+    <!-- Drawer footer labels -->
+    <string name="footer_refresh">Refresh</string>
+    <string name="footer_manage_folders">Manage Folders</string>
+
+    <!-- Favorite folders (drawer's pinned / starred section) -->
+    <string name="favorites">Favorites</string>
+    <!-- Pre-uppercased so the section header doesn't depend on locale-specific
+         case folding (e.g. Turkish i, German ß). -->
+    <string name="favorites_header" translatable="false">FAVORITES</string>
+    <string name="favorites_add">Add to favorites</string>
+    <string name="favorites_remove">Remove from favorites</string>
 </resources>

@@ -12,6 +12,7 @@ import com.threemail.android.domain.model.MailFolder
 import com.threemail.android.domain.model.MailMessage
 import com.threemail.android.util.FtsUtil
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -26,11 +27,30 @@ class MailRepository @Inject constructor(
     private val messageDao: MessageDao
 ) {
 
+    /**
+     * Folder list joined with the user's locally-tracked favorite set. Any
+     * favorite toggle that hits `folder_favorites` causes `combine` to re-emit,
+     * so the drawer's Favorites section and star icons update without a server
+     * round-trip.
+     */
     fun getFolders(accountId: Long): Flow<List<MailFolder>> =
-        folderDao.getByAccount(accountId).map { list -> list.map { it.toDomain() } }
+        combine(
+            folderDao.getByAccount(accountId),
+            folderDao.getFavoritesByAccount(accountId)
+        ) { folders, favorites ->
+            val favoriteIds = favorites.mapTo(HashSet(folders.size)) { it.serverId }
+            folders.map { entity ->
+                entity.toDomain(isFavorite = entity.serverId in favoriteIds)
+            }
+        }
 
-    suspend fun getFolderByServerId(accountId: Long, serverId: String): MailFolder? =
-        folderDao.getByServerId(accountId, serverId)?.toDomain()
+    suspend fun getFolderByServerId(accountId: Long, serverId: String): MailFolder? {
+        val entity = folderDao.getByServerId(accountId, serverId) ?: return null
+        // Read a one-shot snapshot so a single-row lookup doesn't silently
+        // return isFavorite=false when the folder is actually starred.
+        val favoriteIds = folderDao.getFavoritesByAccountOnce(accountId).mapTo(HashSet()) { it.serverId }
+        return entity.toDomain(isFavorite = entity.serverId in favoriteIds)
+    }
 
     suspend fun saveFolders(folders: List<MailFolder>): List<MailFolder> {
         // Preserve the id and sync cursor of folders we already know about, so
@@ -48,10 +68,37 @@ class MailRepository @Inject constructor(
     }
 
     suspend fun getFoldersOnce(accountId: Long): List<MailFolder> =
-        folderDao.getByAccountOnce(accountId).map { it.toDomain() }
+        folderDao.getByAccountOnce(accountId).map { entity ->
+            // One-shot variant: isFavorite defaults to false here because the
+            // existing call sites are non-reactive (e.g. message actions) and
+            // have no need to surface the star state. Callers that need the
+            // favorite flag should subscribe to getFolders() instead.
+            entity.toDomain()
+        }
 
-    suspend fun getFolderById(id: Long): MailFolder? =
-        folderDao.getById(id)?.toDomain()
+    suspend fun getFolderById(id: Long): MailFolder? {
+        val entity = folderDao.getById(id) ?: return null
+        val favoriteIds = folderDao.getFavoritesByAccountOnce(entity.accountId)
+            .mapTo(HashSet()) { it.serverId }
+        return entity.toDomain(isFavorite = entity.serverId in favoriteIds)
+    }
+
+    /**
+     * Toggle a folder's favorite state. INSERT OR IGNORE / DELETE keep the
+     * side table consistent without races.
+     */
+    suspend fun setFolderFavorite(accountId: Long, serverId: String, isFavorite: Boolean) {
+        if (isFavorite) {
+            folderDao.addFavorite(
+                com.threemail.android.data.local.entity.FolderFavoriteEntity(
+                    accountId = accountId,
+                    serverId = serverId
+                )
+            )
+        } else {
+            folderDao.removeFavorite(accountId, serverId)
+        }
+    }
 
     suspend fun updateFolderCursor(folderId: Long, maxUid: Long) {
         folderDao.updateSyncVersion(folderId, maxUid)
@@ -118,7 +165,7 @@ class MailRepository @Inject constructor(
         return messageDao.search(match).map { list -> list.map { it.toDomain() } }
     }
 
-    private fun FolderEntity.toDomain(): MailFolder = MailFolder(
+    private fun FolderEntity.toDomain(isFavorite: Boolean = false): MailFolder = MailFolder(
         id = id,
         accountId = accountId,
         serverId = serverId,
@@ -126,7 +173,8 @@ class MailRepository @Inject constructor(
         type = type,
         messageCount = messageCount,
         unreadCount = unreadCount,
-        syncVersion = syncVersion
+        syncVersion = syncVersion,
+        isFavorite = isFavorite
     )
 
     private fun MailFolder.toEntity(): FolderEntity = FolderEntity(

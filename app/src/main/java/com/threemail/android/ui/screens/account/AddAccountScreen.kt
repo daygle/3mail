@@ -2,6 +2,7 @@ package com.threemail.android.ui.screens.account
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,10 +12,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -35,9 +39,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.passwordContentType
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.threemail.android.R
 import com.threemail.android.domain.model.AccountType
+import com.threemail.android.domain.model.Security
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -124,7 +133,16 @@ fun AddAccountScreen(
                 value = state.password,
                 onValueChange = viewModel::updatePassword,
                 label = { Text(stringResource(R.string.password)) },
-                modifier = Modifier.fillMaxWidth()
+                // Mask the secret in place and ask the IME for the dedicated
+                // password keyboard so users on devices without strong default
+                // autofill still see the right key set.
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                // Declare this field as a password to the Android autofill
+                // framework so password managers offer credentials on tap.
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics { passwordContentType() }
             )
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
@@ -155,10 +173,41 @@ fun AddAccountScreen(
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = state.useEncryption, onCheckedChange = viewModel::updateUseEncryption)
-                Text(stringResource(R.string.use_encryption))
+            Text(
+                text = stringResource(R.string.security),
+                style = MaterialTheme.typography.titleMedium
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Three exclusive chips map directly to the Security enum so
+                // there is no invalid intermediate state at the UI layer.
+                Security.entries.forEach { mode ->
+                    val labelRes = when (mode) {
+                        Security.NONE -> R.string.security_none
+                        Security.STARTTLS -> R.string.security_starttls
+                        Security.SSL_TLS -> R.string.security_ssl_tls
+                    }
+                    FilterChip(
+                        selected = state.security == mode,
+                        onClick = { viewModel.updateSecurity(mode) },
+                        label = { Text(stringResource(labelRes)) }
+                    )
+                }
             }
+            Spacer(modifier = Modifier.height(4.dp))
+            val securitySubtitleRes = when (state.security) {
+                Security.NONE -> R.string.security_none_subtitle
+                Security.STARTTLS -> R.string.security_starttls_subtitle
+                Security.SSL_TLS -> R.string.security_ssl_tls_subtitle
+            }
+            Text(
+                text = stringResource(securitySubtitleRes),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Spacer(modifier = Modifier.height(16.dp))
             Button(
                 onClick = { viewModel.save() },

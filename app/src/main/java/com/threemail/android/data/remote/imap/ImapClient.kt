@@ -12,6 +12,7 @@ import com.threemail.android.data.remote.idle.IdleFolderOps
 import com.threemail.android.data.remote.idle.IdleLoop
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.AccountType
+import com.threemail.android.domain.model.Security
 import com.threemail.android.domain.model.Attachment
 import com.threemail.android.domain.model.EmailAddress
 import com.threemail.android.domain.model.FolderType
@@ -45,31 +46,59 @@ class ImapClient(
 
     private val session: Session by lazy { createSession() }
 
+    /**
+     * The IMAP protocol name mirrors `account.security`: SSL_TLS uses
+     * `imaps` (implicit TLS from byte 0), everything else uses plain `imap`
+     * (JavaMail upgrades via STARTTLS if the Session's properties say so).
+     *
+     * Routing every [connectStore] lookup through this field is what keeps
+     * STARTTLS and NONE from accidentally re-opening the store on the SSL
+     * provider just because the legacy code path was written for IMAPS only.
+     */
+    private val imapProtocol: String = if (account.security == Security.SSL_TLS) "imaps" else "imap"
+
     private fun createSession(): Session {
         val isGmail = account.accountType == AccountType.GMAIL
+        // Translate the domain Security enum into the on-the-wire flags:
+        //   SSL_TLS  → use the `imaps` protocol on port 993 (implicit TLS from byte 0)
+        //   STARTTLS → use the `imap` protocol on port 143, then upgrade via STARTTLS
+        //   NONE     → cleartext `imap` on port 143
+        // SMTP semantics lag IMAP by convention - 587 + STARTTLS is overwhelmingly
+        // the default for modern submission - so any non-NONE security asks for
+        // and requires STARTTLS on the SMTP side too.
+        val isSsl = account.security == Security.SSL_TLS
+        val isStartTls = account.security == Security.STARTTLS
+        val smtpStartTls = account.security != Security.NONE
+        val protocol = if (isSsl) "imaps" else "imap"
+
         val props = Properties().apply {
-            setProperty("mail.store.protocol", "imaps")
-            setProperty("mail.imaps.host", account.incomingServer ?: getDefaultServer())
-            setProperty("mail.imaps.port", account.incomingPort.toString())
-            setProperty("mail.imaps.ssl.enable", account.useEncryption.toString())
-            setProperty("mail.imaps.starttls.enable", "true")
+            setProperty("mail.store.protocol", protocol)
+            setProperty("mail.$protocol.host", account.incomingServer ?: getDefaultServer())
+            setProperty("mail.$protocol.port", account.incomingPort.toString())
+            setProperty("mail.$protocol.ssl.enable", isSsl.toString())
+            // STARTTLS only applies to the cleartext `imap` protocol; setting
+            // it on `imaps` is a no-op so we set it once, gated by mode.
+            setProperty("mail.imap.starttls.enable", isStartTls.toString())
+            // Strict mode for STARTTLS: refuse to silently downgrade to
+            // cleartext if the server doesn't advertise STARTTLS in its banner.
+            if (isStartTls) {
+                setProperty("mail.imap.starttls.required", "true")
+            }
+
             setProperty("mail.smtp.auth", "true")
-            setProperty("mail.smtp.starttls.enable", "true")
+            setProperty("mail.smtp.starttls.enable", smtpStartTls.toString())
             setProperty("mail.smtp.host", getSmtpServer())
             setProperty("mail.smtp.port", getSmtpPort().toString())
             // Verify the server certificate actually matches the hostname we
             // connected to. JavaMail defaults this to false, which accepts any
             // valid cert for ANY host and leaves the connection open to a
             // man-in-the-middle. Always on for both protocols.
-            setProperty("mail.imaps.ssl.checkserveridentity", "true")
+            setProperty("mail.$protocol.ssl.checkserveridentity", "true")
             setProperty("mail.smtp.ssl.checkserveridentity", "true")
-            // When the user expects an encrypted connection, refuse to fall
-            // back to plaintext: require STARTTLS to succeed rather than
-            // silently downgrading if the server doesn't offer it.
-            if (account.useEncryption) {
-                setProperty("mail.imaps.starttls.required", "true")
+            if (smtpStartTls) {
                 setProperty("mail.smtp.starttls.required", "true")
             }
+
             if (isGmail) {
                 setProperty("mail.imaps.auth.mechanisms", "XOAUTH2")
                 setProperty("mail.smtp.auth.mechanisms", "XOAUTH2")
@@ -101,7 +130,7 @@ class ImapClient(
     // region connection helpers
 
     private suspend fun connectStore(): Store {
-        val store = session.getStore("imaps")
+        val store = session.getStore(imapProtocol)
         val server = account.incomingServer ?: getDefaultServer()
         when (account.accountType) {
             AccountType.GMAIL -> {

@@ -97,6 +97,7 @@ fun InboxScreen(
                     viewModel.selectFolder(folder)
                     scope.launch { drawerState.close() }
                 },
+                onToggleFavorite = { folder -> viewModel.toggleFavorite(folder) },
                 onManageAccounts = {
                     scope.launch { drawerState.close() }
                     onNavigateToAccounts()

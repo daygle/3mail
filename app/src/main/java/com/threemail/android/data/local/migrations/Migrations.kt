@@ -136,6 +136,64 @@ val MIGRATION_8_9: Migration = object : Migration(8, 9) {
 }
 
 /**
+ * Adds per-account STARTTLS support. The legacy `useEncryption` boolean
+ * covered only implicit SSL/TLS on the IMAPS port; STARTTLS-on-143 is what
+ * most self-hosted providers expose, and without a column for it users had
+ * to either accept cleartext or use a port the server didn't listen on.
+ *
+ * Adding the column (rather than replacing `useEncryption` with a TEXT enum)
+ * is deliberate: SQLite column-type swaps force a table-rebuild migration
+ * which drops and re-creates every index, FK, and trigger, and risks losing
+ * cascading data. The [com.threemail.android.data.repository.AccountRepository]
+ * mapper translates the (useEncryption, useStartTls) pair back into the
+ * domain [com.threemail.android.domain.model.Security] enum and enforces the
+ * "exactly one of the two is true" invariant in Kotlin, which is where it
+ * belongs.
+ *
+ * Existing rows keep `useStartTls = 0` so behaviour is preserved: a row
+ * that was on SSL/TLS still maps to `Security.SSL_TLS`, and a row that was
+ * cleartext still maps to `Security.NONE`.
+ */
+val MIGRATION_9_10: Migration = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "ALTER TABLE accounts ADD COLUMN useStartTls INTEGER NOT NULL DEFAULT 0"
+        )
+    }
+}
+
+/**
+ * Adds the `folder_favorites` side table for locally-tracked favorite folders.
+ * Stored as a side table rather than an `isFavorite` column on `folders`
+ * because [com.threemail.android.data.local.dao.FolderDao.insertAll] uses
+ * [androidx.room.OnConflictStrategy.REPLACE], which would silently reset a
+ * column-based flag to the freshly-fetched `false` default on every server
+ * folder refresh.
+ *
+ * The composite primary key `(accountId, serverId)` matches the unique index
+ * on [com.threemail.android.data.local.entity.FolderEntity], so the natural
+ * cross-table identifier lines up. The `ON DELETE CASCADE` on the account FK
+ * ensures removing an account (which already cascades its folders) also clears
+ * its favorite entries. There is intentionally NO FK to `folders`: a server
+ * sync that removes a folder row should not erase the user's favorite intent,
+ * which simply re-attaches the next time the folder comes back.
+ */
+val MIGRATION_10_11: Migration = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `folder_favorites` (" +
+                "`accountId` INTEGER NOT NULL, " +
+                "`serverId` TEXT NOT NULL, " +
+                "PRIMARY KEY(`accountId`, `serverId`), " +
+                "FOREIGN KEY(`accountId`) REFERENCES `accounts`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_folder_favorites_accountId` ON `folder_favorites`(`accountId`)"
+        )
+    }
+}
+
+/**
  * Idempotently creates the FTS4 virtual table, the keep-in-sync triggers and an
  * initial backfill.  All statements use IF NOT EXISTS so a partial state can be
  * resumed without crashing; the backfill is a no-op on empty `messages`.

@@ -14,6 +14,7 @@ import com.threemail.android.data.local.dao.OutboxDao
 import com.threemail.android.data.local.entity.AccountEntity
 import com.threemail.android.data.local.entity.CalendarEventEntity
 import com.threemail.android.data.local.entity.FolderEntity
+import com.threemail.android.data.local.entity.FolderFavoriteEntity
 import com.threemail.android.data.local.entity.MessageEntity
 import com.threemail.android.data.local.entity.MessageSearchEntity
 import com.threemail.android.data.local.entity.OutboxMessageEntity
@@ -23,17 +24,20 @@ import com.threemail.android.data.local.migrations.MIGRATION_5_6
 import com.threemail.android.data.local.migrations.MIGRATION_6_7
 import com.threemail.android.data.local.migrations.MIGRATION_7_8
 import com.threemail.android.data.local.migrations.MIGRATION_8_9
+import com.threemail.android.data.local.migrations.MIGRATION_9_10
+import com.threemail.android.data.local.migrations.MIGRATION_10_11
 
 @Database(
     entities = [
         AccountEntity::class,
         FolderEntity::class,
+        FolderFavoriteEntity::class,
         MessageEntity::class,
         CalendarEventEntity::class,
         MessageSearchEntity::class,
         OutboxMessageEntity::class
     ],
-    version = 9,
+    version = 11,
     // exportSchema intentionally OFF: Room 2.8.4 ships pre-generated
     // SchemaBundle/FieldBundle/EntityBundle/DatabaseBundle serializer classes
     // whose compiled ABI is incompatible with the serialization-core version
@@ -81,7 +85,7 @@ abstract class ThreeMailDatabase : RoomDatabase() {
                     ThreeMailDatabase::class.java,
                     "threemail_database"
                 )
-                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                     .addCallback(freshInstallCallback)
                     .build()
                     .also { INSTANCE = it }

@@ -63,7 +63,15 @@ class AccountRepository @Inject constructor(
         incomingPort = incomingPort,
         outgoingServer = outgoingServer,
         outgoingPort = outgoingPort,
-        useEncryption = useEncryption,
+        // Reconcile the (useEncryption, useStartTls) pair into a single
+        // domain Security enum. STARTTLS wins so a user who explicitly turned
+        // it on cannot silently fall back to SSL_TLS just because the legacy
+        // column was also true.
+        security = when {
+            useStartTls -> Security.STARTTLS
+            useEncryption -> Security.SSL_TLS
+            else -> Security.NONE
+        },
         // Hydrate the password from the encrypted store; the DB column stays null.
         password = if (accountType == AccountType.IMAP) credentialStore.getPassword(email) else null,
         isActive = isActive,
@@ -81,7 +89,12 @@ class AccountRepository @Inject constructor(
         incomingPort = incomingPort,
         outgoingServer = outgoingServer,
         outgoingPort = outgoingPort,
-        useEncryption = useEncryption,
+        // Map the single Security enum back onto the on-disk (useEncryption,
+        // useStartTls) pair. The previous boolean column is preserved for the
+        // legacy migration backfill; new writes always set exactly one of
+        // the two to true (or both false for Security.NONE).
+        useEncryption = security == Security.SSL_TLS,
+        useStartTls = security == Security.STARTTLS,
         password = null,
         isActive = isActive,
         syncEnabled = syncEnabled,

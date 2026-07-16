@@ -180,6 +180,21 @@ class InboxViewModel @Inject constructor(
         viewModelScope.launch { mailActions.archive(message) }
     }
 
+    /**
+     * Toggle the favorite flag for a folder. Writes through the repository so
+     * the joined `folder + folder_favorites` flow re-emits and the drawer's
+     * favorites section + star icons update without a server round-trip.
+     */
+    fun toggleFavorite(folder: MailFolder) {
+        viewModelScope.launch {
+            mailRepository.setFolderFavorite(
+                accountId = folder.accountId,
+                serverId = folder.serverId,
+                isFavorite = !folder.isFavorite
+            )
+        }
+    }
+
     companion object {
         /**
          * Page size for the initial folder fetch. Lets `getByFolderPaged` cap the row
