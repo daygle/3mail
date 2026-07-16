@@ -50,6 +50,10 @@ android {
         arg("room.schemaLocation", "$projectDir/schemas")
     }
     packaging {
+        jniLibs {
+            keepDebugSymbols += "**/libandroidx.graphics.path.so"
+            keepDebugSymbols += "**/libdatastore_shared_counter.so"
+        }
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1,LICENSE.md,LICENSE.txt,NOTICE.md,NOTICE.txt}"
             // The Google API / JavaMail jars ship overlapping metadata files.
