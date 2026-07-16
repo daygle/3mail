@@ -30,7 +30,8 @@ fun ThreeMailNavHost(navController: NavHostController) {
                 onNavigateToCalendar = { navController.navigate(Screen.Calendar.route) },
                 onNavigateToMessage = { messageId ->
                     navController.navigate(Screen.MessageDetail.createRoute(messageId))
-                }
+                },
+                onNavigateToAddAccount = { navController.navigate(Screen.AddAccount.route) }
             )
         }
         composable(

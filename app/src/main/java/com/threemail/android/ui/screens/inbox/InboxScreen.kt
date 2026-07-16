@@ -67,7 +67,8 @@ fun InboxScreen(
     onNavigateToAccounts: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToCalendar: () -> Unit,
-    onNavigateToMessage: (Long) -> Unit
+    onNavigateToMessage: (Long) -> Unit,
+    onNavigateToAddAccount: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -156,7 +157,9 @@ fun InboxScreen(
                 when {
                     state.accounts.isEmpty() -> EmptyState(
                         title = stringResource(R.string.no_accounts),
-                        subtitle = stringResource(R.string.add_account_prompt)
+                        subtitle = stringResource(R.string.add_account_prompt),
+                        actionLabel = stringResource(R.string.empty_state_add_account),
+                        onAction = onNavigateToAddAccount
                     )
                     state.messages.isEmpty() && state.isSyncing -> LoadingIndicator()
                     state.messages.isEmpty() -> EmptyState(
