@@ -6,7 +6,7 @@ import com.threemail.android.data.security.CredentialStore
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.AccountType
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -16,8 +16,11 @@ class AccountRepository @Inject constructor(
     private val credentialStore: CredentialStore
 ) {
 
-    fun getAccounts(): Flow<List<Account>> =
-        accountDao.getAll().map { list -> list.map { it.toDomain() } }
+    fun getAccounts(): Flow<List<Account>> = flow {
+        accountDao.getAll().collect { list ->
+            emit(list.map { it.toDomain() })
+        }
+    }
 
     suspend fun getAccountById(id: Long): Account? =
         accountDao.getById(id)?.toDomain()

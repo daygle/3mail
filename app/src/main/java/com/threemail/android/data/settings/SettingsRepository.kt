@@ -7,7 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -40,17 +40,21 @@ class SettingsRepository @Inject constructor(
         val PUSH_ENABLED = booleanPreferencesKey("push_enabled")
     }
 
-    val settings: Flow<AppSettings> = dataStore.data.map { prefs ->
-        AppSettings(
-            signature = prefs[Keys.SIGNATURE] ?: "",
-            syncIntervalMinutes = prefs[Keys.SYNC_INTERVAL] ?: 15L,
-            notificationsEnabled = prefs[Keys.NOTIFICATIONS] ?: true,
-            themeMode = prefs[Keys.THEME]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: ThemeMode.SYSTEM,
-            useDynamicColor = prefs[Keys.DYNAMIC_COLOR] ?: true,
-            emptyTrashOnLaunch = prefs[Keys.EMPTY_TRASH_ON_LAUNCH] ?: false,
-            emptyTrashOnQuit = prefs[Keys.EMPTY_TRASH_ON_QUIT] ?: false,
-            pushEnabled = prefs[Keys.PUSH_ENABLED] ?: true
-        )
+    val settings: Flow<AppSettings> = flow {
+        dataStore.data.collect { prefs ->
+            emit(
+                AppSettings(
+                    signature = prefs[Keys.SIGNATURE] ?: "",
+                    syncIntervalMinutes = prefs[Keys.SYNC_INTERVAL] ?: 15L,
+                    notificationsEnabled = prefs[Keys.NOTIFICATIONS] ?: true,
+                    themeMode = prefs[Keys.THEME]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: ThemeMode.SYSTEM,
+                    useDynamicColor = prefs[Keys.DYNAMIC_COLOR] ?: true,
+                    emptyTrashOnLaunch = prefs[Keys.EMPTY_TRASH_ON_LAUNCH] ?: false,
+                    emptyTrashOnQuit = prefs[Keys.EMPTY_TRASH_ON_QUIT] ?: false,
+                    pushEnabled = prefs[Keys.PUSH_ENABLED] ?: true
+                )
+            )
+        }
     }
 
     suspend fun setSignature(value: String) = dataStore.edit { it[Keys.SIGNATURE] = value }
