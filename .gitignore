@@ -4,6 +4,7 @@ build/
 local.properties
 .kotlin/
 .freebuff/
+.artifacts/
 
 # Android Studio / IntelliJ
 .idea/

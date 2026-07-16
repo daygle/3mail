@@ -29,7 +29,7 @@ import com.threemail.android.data.local.migrations.MIGRATION_6_7
         MessageSearchEntity::class
     ],
     version = 7,
-    exportSchema = true
+    exportSchema = false
 )
 @TypeConverters(FolderTypeConverter::class)
 abstract class ThreeMailDatabase : RoomDatabase() {

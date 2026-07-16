@@ -1,7 +1,9 @@
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.kotlin.compose)
 }
 
 android {
@@ -102,6 +104,9 @@ dependencies {
 
     // Image loading
     implementation(libs.io.coil.kt.compose)
+
+    // Serialization (Required for Room 2.7+ compatibility with Kotlin 2.x)
+    implementation(libs.serialization.json)
 
     // Encrypted credential storage
     implementation(libs.androidx.security.crypto)
