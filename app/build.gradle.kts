@@ -9,7 +9,11 @@ plugins {
 
 configure<com.android.build.api.dsl.ApplicationExtension> {
     namespace = "com.threemail.android"
-    compileSdk = 35
+    // Bumped to 37: several androidx libraries (hilt 1.4.0, lifecycle 2.11.0,
+    // core 1.19.0, activity/navigationevent 1.13/1.0) declare minCompileSdk=36
+    // or 37 in their AAR metadata. compileSdk is decoupled from targetSdk
+    // (still 35, no new runtime behaviour) and minSdk (still 26).
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.threemail.android"
