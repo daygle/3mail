@@ -119,6 +119,9 @@ dependencies {
     implementation(libs.androidx.security.crypto)
     implementation(libs.androidx.credentials.core)
     implementation(libs.androidx.credentials.play.auth)
+    // Provides com.google.android.libraries.identity.googleid.{GetGoogleIdOption, GoogleIdTokenCredential}
+    // for the Google's Credential Manager sign-in flow. Not bundled with credentials-play-services-auth.
+    implementation(libs.androidx.googleid)
 
     // Testing
     testImplementation(libs.junit)

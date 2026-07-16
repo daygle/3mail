@@ -18,12 +18,11 @@ import javax.inject.Singleton
 
 @Singleton
 class GoogleAuthHelper @Inject constructor(
-    @ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context
 ) {
 
     companion object {
         const val GMAIL_SCOPE = "https://mail.google.com/"
-        const val CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar"
     }
 
     private val credentialManager = CredentialManager.create(context)
@@ -77,19 +76,6 @@ class GoogleAuthHelper @Inject constructor(
             val intent = e.intent ?: throw IllegalStateException("Google consent required but no intent was provided", e)
             throw RecoverableAuthException(intent, "Google consent required for mail access")
         }
-    }
-
-    /** Legacy support for single-account calls. */
-    @Throws(RecoverableAuthException::class)
-    suspend fun getAccessToken(): String {
-        // This is now problematic as we don't track the "last signed in account" globally via SDK.
-        // We should ideally pass the email everywhere.
-        // For now, if this is called, it might fail if we don't have a way to know which email to use.
-        throw UnsupportedOperationException("Call getAccessToken(email) instead")
-    }
-
-    fun signOut() {
-        // CredentialManager sign-out is handled by clearing local app state.
     }
 }
 
