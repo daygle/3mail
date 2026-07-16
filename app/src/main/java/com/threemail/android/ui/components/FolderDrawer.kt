@@ -169,12 +169,12 @@ fun FolderDrawerContent(
             Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                 FooterItem(
                     icon = Icons.Default.Refresh,
-                    label = "Sync account",
+                    label = "Refresh",
                     onClick = onSync
                 )
                 FooterItem(
                     icon = Icons.Default.FolderOpen,
-                    label = "Manage folders",
+                    label = "Manage Folders",
                     onClick = onManageAccounts
                 )
                 FooterItem(
