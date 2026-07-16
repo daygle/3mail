@@ -86,6 +86,30 @@ class SyncScheduler @Inject constructor(
         )
     }
 
+    /**
+     * Enqueues a [SendMailWorker] to drain the outbox. Called after Compose
+     * queues a message. Uses [ExistingWorkPolicy.APPEND_OR_RUN] so a new
+     * message always guarantees a subsequent drain without cancelling an
+     * in-flight send, and a network constraint + backoff so a failed send
+     * retries once connectivity returns.
+     */
+    fun enqueueSendMail() {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val request = OneTimeWorkRequestBuilder<SendMailWorker>()
+            .setConstraints(constraints)
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+            .build()
+
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            SEND_MAIL_WORK_NAME,
+            ExistingWorkPolicy.APPEND_OR_RUN,
+            request
+        )
+    }
+
     fun cancelPeriodicSync() {
         WorkManager.getInstance(context).cancelUniqueWork(SYNC_WORK_NAME)
         WorkManager.getInstance(context).cancelUniqueWork(CALENDAR_SYNC_WORK_NAME)
@@ -123,6 +147,7 @@ class SyncScheduler @Inject constructor(
         private const val TRASH_LAUNCH_WORK_NAME = "threemail_trash_cleanup_launch"
         private const val TRASH_QUIT_WORK_NAME = "threemail_trash_cleanup_quit"
         private const val IMMEDIATE_SYNC_PREFIX = "threemail_immediate_sync_"
+        private const val SEND_MAIL_WORK_NAME = "threemail_send_mail"
         const val KEY_TRIGGER: String = "triggerKey"
         const val KEY_ACCOUNT_ID: String = "accountId"
     }

@@ -10,7 +10,9 @@ import com.threemail.android.data.remote.gmail.RecoverableAuthException
 import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.repository.ContactRepository
 import com.threemail.android.data.repository.MailRepository
+import com.threemail.android.data.repository.OutboxRepository
 import com.threemail.android.data.settings.SettingsRepository
+import com.threemail.android.sync.SyncScheduler
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.Attachment
 import com.threemail.android.domain.model.Contact
@@ -41,6 +43,8 @@ class ComposeViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val mailRemoteFactory: MailRemoteFactory,
     private val contactRepository: ContactRepository,
+    private val outboxRepository: OutboxRepository,
+    private val syncScheduler: SyncScheduler,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -310,9 +314,12 @@ class ComposeViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(isSending = true, error = null, recoverableAuthIntent = null)
         viewModelScope.launch {
             try {
-                val remote = mailRemoteFactory.create(account)
                 val body = _uiState.value.body
-                val result = remote.send(
+                // Persist to the outbox and let SendMailWorker deliver it. The
+                // send now survives network loss and process death instead of
+                // being lost if the immediate SMTP/Gmail call fails.
+                outboxRepository.enqueue(
+                    account.id,
                     OutgoingMessage(
                         to = AddressParser.parse(_uiState.value.to),
                         cc = AddressParser.parse(_uiState.value.cc),
@@ -325,13 +332,8 @@ class ComposeViewModel @Inject constructor(
                         references = references
                     )
                 )
-                result.onSuccess {
-                    _uiState.value = _uiState.value.copy(isSending = false, isSent = true)
-                }.onFailure {
-                    _uiState.value = _uiState.value.copy(isSending = false, error = it.message)
-                }
-            } catch (e: RecoverableAuthException) {
-                _uiState.value = _uiState.value.copy(isSending = false, recoverableAuthIntent = e.intent)
+                syncScheduler.enqueueSendMail()
+                _uiState.value = _uiState.value.copy(isSending = false, isSent = true)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isSending = false, error = e.message)
             }

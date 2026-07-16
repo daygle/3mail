@@ -105,6 +105,37 @@ val MIGRATION_7_8: Migration = object : Migration(7, 8) {
 }
 
 /**
+ * Adds the `outbox_messages` table backing the offline send queue. Compose
+ * persists outgoing mail here and [com.threemail.android.sync.SendMailWorker]
+ * drains it, so a send survives network loss / process death.
+ *
+ * `IF NOT EXISTS` keeps the migration resumable and a no-op on a fresh v9
+ * install (where Room creates the table from the entity anyway).
+ */
+val MIGRATION_8_9: Migration = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS outbox_messages (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "accountId INTEGER NOT NULL, " +
+                "toJson TEXT NOT NULL, " +
+                "ccJson TEXT NOT NULL, " +
+                "bccJson TEXT NOT NULL, " +
+                "subject TEXT NOT NULL, " +
+                "textBody TEXT NOT NULL, " +
+                "htmlBody TEXT, " +
+                "attachmentsJson TEXT NOT NULL, " +
+                "inReplyTo TEXT, " +
+                "referencesHeader TEXT, " +
+                "createdAt INTEGER NOT NULL, " +
+                "attemptCount INTEGER NOT NULL DEFAULT 0, " +
+                "lastAttemptAt INTEGER, " +
+                "lastError TEXT)"
+        )
+    }
+}
+
+/**
  * Idempotently creates the FTS4 virtual table, the keep-in-sync triggers and an
  * initial backfill.  All statements use IF NOT EXISTS so a partial state can be
  * resumed without crashing; the backfill is a no-op on empty `messages`.
