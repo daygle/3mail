@@ -2,9 +2,7 @@
 
 A modern, full-featured Android mail client supporting IMAP (push) and Gmail (OAuth2), with a built-in Google Calendar tab.
 
-[![Android CI](https://github.com/<user>/3mail/actions/workflows/android.yml/badge.svg)](.github/workflows/android.yml)
-
-<!-- Replace `<user>` with the GitHub owner to make the badge live. -->
+[![Android CI](https://github.com/daygle/3mail/actions/workflows/android.yml/badge.svg)](https://github.com/daygle/3mail/actions/workflows/android.yml)
 
 
 ## Features
@@ -33,7 +31,7 @@ A modern, full-featured Android mail client supporting IMAP (push) and Gmail (OA
 
 - **Kotlin** 2.2.10 + **Jetpack Compose** (Compose BOM 2024.09.00)
 - **Hilt** 2.60.1 for dependency injection (with `hilt-work` and `hilt-navigation-compose`)
-- **Room** 2.8.4 (local database, schemas versioned under `app/schemas/`)
+- **Room** 2.8.4 (local database; migrations in `Migrations.kt`. Schema JSON export is currently disabled - see the note in `app/build.gradle.kts` - so `app/schemas/` holds the last exported versions, 5-7, rather than the live schema)
 - **WorkManager** 2.9.0 for background sync
 - **DataStore** 1.1.1 (preferences)
 - **JavaMail (`android-mail`)** 1.6.7 + Apache Commons Net for IMAP / SMTP
@@ -53,7 +51,7 @@ A modern, full-featured Android mail client supporting IMAP (push) and Gmail (OA
 
 ## Architecture
 
-- `data/local` - Room database, DAOs, entities, and `Migrations.kt` (schemas checked in under `app/schemas/`).
+- `data/local` - Room database, DAOs, entities, and `Migrations.kt` (last exported schema JSON under `app/schemas/`; export is currently disabled, see `app/build.gradle.kts`).
 - `data/remote/imap` - JavaMail-backed IMAP client (`ImapClient`, `ImapClientFactory`, `ImapRemote`).
 - `data/remote/gmail` - Gmail REST API client, OAuth helper, recoverable-auth handling.
 - `data/remote/calendar` - Google Calendar API client.
@@ -66,13 +64,14 @@ A modern, full-featured Android mail client supporting IMAP (push) and Gmail (OA
 - `ui/components` & `ui/theme` - shared Compose widgets + Material 3 theme/typography/color.
 - `ui/navigation` - nav graph (`ThreeMailNavHost`, `Screen`).
 - `sync` - `MailSyncWorker`, `CalendarSyncWorker`, `TrashCleanupWorker`, `SyncScheduler`.
-- `push` - `PushController` + `ImapIdleService` (foreground IDLE service).
+- `push` - `PushController`, `ImapIdleService` (foreground IDLE service), and `BootReceiver` (re-arms push after reboot).
 - `notifications` - channels, helpers, launcher badge.
 - `di` - Hilt `AppModule`.
 
 ## Security Notes
 
 - IMAP passwords are stored via `EncryptedSharedPreferences` backed by an Android Keystore master key (see `data/security/CredentialStore.kt`), not as plaintext columns in the database.
+- IMAP/SMTP connections verify the server's TLS certificate against the hostname (`ssl.checkserveridentity`), which JavaMail leaves off by default, and require STARTTLS to succeed (rather than silently downgrading to plaintext) whenever encryption is enabled for the account. See `data/remote/imap/ImapClient.kt`.
 - Gmail uses OAuth2 access tokens fetched on demand; app passwords are no longer recommended by Google.
 - HTML message bodies load with remote images blocked by default to limit tracking pixels.
 - Encrypted credential prefs (`threemail_credentials.xml`) are excluded from cloud backup AND device transfer via `res/xml/backup_rules.xml` and `data_extraction_rules.xml`. Cloud backup of EncryptedSharedPreferences without the per-device Android Keystore master key would silently fail to decrypt and force re-auth on restore.

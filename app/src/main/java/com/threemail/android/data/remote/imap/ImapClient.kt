@@ -34,7 +34,6 @@ import javax.mail.Multipart
 import javax.mail.Part
 import javax.mail.Session
 import javax.mail.Store
-import javax.mail.Transport
 import javax.mail.UIDFolder
 import javax.mail.internet.InternetAddress
 import javax.mail.internet.MimeMessage
@@ -58,6 +57,19 @@ class ImapClient(
             setProperty("mail.smtp.starttls.enable", "true")
             setProperty("mail.smtp.host", getSmtpServer())
             setProperty("mail.smtp.port", getSmtpPort().toString())
+            // Verify the server certificate actually matches the hostname we
+            // connected to. JavaMail defaults this to false, which accepts any
+            // valid cert for ANY host and leaves the connection open to a
+            // man-in-the-middle. Always on for both protocols.
+            setProperty("mail.imaps.ssl.checkserveridentity", "true")
+            setProperty("mail.smtp.ssl.checkserveridentity", "true")
+            // When the user expects an encrypted connection, refuse to fall
+            // back to plaintext: require STARTTLS to succeed rather than
+            // silently downgrading if the server doesn't offer it.
+            if (account.useEncryption) {
+                setProperty("mail.imaps.starttls.required", "true")
+                setProperty("mail.smtp.starttls.required", "true")
+            }
             if (isGmail) {
                 setProperty("mail.imaps.auth.mechanisms", "XOAUTH2")
                 setProperty("mail.smtp.auth.mechanisms", "XOAUTH2")
@@ -400,8 +412,20 @@ class ImapClient(
     suspend fun sendMessage(message: OutgoingMessage): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val mime = MimeBuilder.build(account.email, account.displayName, message)
-            val password = credential()
-            Transport.send(mime, account.email, password)
+            val credential = credential()
+            // Send through this client's configured session rather than
+            // Transport.send(mime, ...): the latter uses the message's own
+            // session, which MimeBuilder creates with empty Properties, so the
+            // SMTP host, STARTTLS, and ssl.checkserveridentity settings would
+            // all be ignored. Connect the "smtp" transport explicitly so those
+            // properties (and TLS verification) actually apply.
+            val transport = session.getTransport("smtp")
+            try {
+                transport.connect(getSmtpServer(), getSmtpPort(), account.email, credential)
+                transport.sendMessage(mime, mime.allRecipients)
+            } finally {
+                runCatching { transport.close() }
+            }
             Result.success(Unit)
         } catch (e: RecoverableAuthException) {
             throw e

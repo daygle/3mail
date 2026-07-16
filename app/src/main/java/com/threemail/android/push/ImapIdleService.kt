@@ -184,7 +184,16 @@ class ImapIdleService : Service() {
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
         } else 0
-        ServiceCompat.startForeground(this, PUSH_NOTIFICATION_ID, notification, type)
+        try {
+            ServiceCompat.startForeground(this, PUSH_NOTIFICATION_ID, notification, type)
+        } catch (e: Exception) {
+            // Android 15+ can reject starting a dataSync foreground service from
+            // a backgrounded entry point (e.g. the BOOT_COMPLETED receiver).
+            // Stand down rather than crash; push resumes next time the app is
+            // foregrounded and calls refresh().
+            Log.w(TAG, "Unable to enter foreground for push; standing down", e)
+            stopSelf()
+        }
     }
 
     private fun buildPushNotification(activeCount: Int): Notification {

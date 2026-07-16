@@ -41,6 +41,22 @@ jobs:
       - name: Assemble debug APK
         run: gradle assembleDebug --stacktrace
 
+      # Runs Android lint but does not gate the build yet: the project has no
+      # baseline, so pre-existing findings shouldn't turn CI red on the first
+      # run. Flip continue-on-error off (or add a lint baseline) once the
+      # report is clean.
+      - name: Android lint
+        continue-on-error: true
+        run: gradle lintDebug --stacktrace
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: app/build/reports/lint-results-*.*
+          if-no-files-found: ignore
+
       - name: Upload debug APK
         if: success()
         uses: actions/upload-artifact@v4
