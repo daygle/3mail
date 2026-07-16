@@ -71,8 +71,18 @@ class AddAccountViewModelTest {
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         val context = ApplicationProvider.getApplicationContext<Context>()
+        // Run Room's suspend DAO calls on the calling thread. Without this the
+        // query/transaction work hops onto Room's background executor, which is
+        // NOT driven by the test dispatcher (save() launches on viewModelScope,
+        // not runTest's scheduler), so the insert races the assertions and the
+        // `isSaved` / persisted-row checks fire before the write completes.
+        // A direct executor makes each suspend DAO call finish synchronously
+        // under UnconfinedTestDispatcher, making the terminal state observable.
+        val directExecutor = java.util.concurrent.Executor { it.run() }
         database = Room.inMemoryDatabaseBuilder(context, ThreeMailDatabase::class.java)
             .allowMainThreadQueries()
+            .setQueryExecutor(directExecutor)
+            .setTransactionExecutor(directExecutor)
             .build()
         // Real CredentialStore so the security->useStartTls mapper on
         // AccountRepository sees the real AndroidKeyStore-backed
