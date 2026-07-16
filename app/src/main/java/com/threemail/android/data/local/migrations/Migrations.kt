@@ -90,6 +90,21 @@ val MIGRATION_6_7: Migration = object : Migration(6, 7) {
 }
 
 /**
+ * Adds per-account outgoing (SMTP submission) server + port columns. Before
+ * this, the SMTP host was guessed from the incoming server (with a
+ * `smtp.gmail.com` fallback), so generic IMAP providers whose SMTP host didn't
+ * follow the naming convention couldn't send mail. Existing rows migrate with
+ * `outgoingServer = NULL` (keep the guess) and the standard submission port
+ * `587`, so behaviour is unchanged for accounts that were already working.
+ */
+val MIGRATION_7_8: Migration = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE accounts ADD COLUMN outgoingServer TEXT DEFAULT NULL")
+        db.execSQL("ALTER TABLE accounts ADD COLUMN outgoingPort INTEGER NOT NULL DEFAULT 587")
+    }
+}
+
+/**
  * Idempotently creates the FTS4 virtual table, the keep-in-sync triggers and an
  * initial backfill.  All statements use IF NOT EXISTS so a partial state can be
  * resumed without crashing; the backfill is a no-op on empty `messages`.

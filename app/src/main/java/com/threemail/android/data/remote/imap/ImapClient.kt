@@ -78,14 +78,18 @@ class ImapClient(
         return Session.getInstance(props)
     }
 
-    private fun getSmtpServer(): String = when {
+    // Prefer the explicitly configured outgoing server; only fall back to a
+    // best-effort guess when the account doesn't specify one (e.g. rows created
+    // before outgoing config existed, or the well-known providers below).
+    private fun getSmtpServer(): String = account.outgoingServer?.takeIf { it.isNotBlank() } ?: when {
         account.email.endsWith("@gmail.com") -> "smtp.gmail.com"
         account.email.endsWith("@outlook.com") || account.email.endsWith("@hotmail.com") -> "smtp.office365.com"
         account.email.endsWith("@icloud.com") -> "smtp.mail.me.com"
-        else -> account.incomingServer?.replace("imap", "smtp") ?: "smtp.gmail.com"
+        else -> account.incomingServer?.replace("imap", "smtp")
+            ?: throw IllegalArgumentException("No outgoing (SMTP) server configured for ${account.email}")
     }
 
-    private fun getSmtpPort(): Int = if (account.useEncryption) 587 else 25
+    private fun getSmtpPort(): Int = account.outgoingPort
 
     private fun getDefaultServer(): String = when {
         account.email.endsWith("@gmail.com") -> "imap.gmail.com"
