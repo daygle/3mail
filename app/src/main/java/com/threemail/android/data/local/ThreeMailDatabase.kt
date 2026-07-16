@@ -29,7 +29,18 @@ import com.threemail.android.data.local.migrations.MIGRATION_6_7
         MessageSearchEntity::class
     ],
     version = 7,
-    exportSchema = true
+    // exportSchema intentionally OFF: Room 2.8.4 ships pre-generated
+    // SchemaBundle/FieldBundle/EntityBundle/DatabaseBundle serializer classes
+    // whose compiled ABI is incompatible with the serialization-core version
+    // that lands on the KSP 2.2.10-2.0.2 daemon classpath. Setting this to
+    // true causes an AbstractMethodError at kspDebugKotlin time on every
+    // classloader / AGP / KSP combination tried across rounds 3-6 (4e6a3df,
+    // 98d09d7, 9d38566, 4eedb87). Migrations still work because they are
+    // version-number-keyed and don't depend on the JSON export history. To
+    // re-enable in the future, upgrade Room to a release that re-compiles
+    // its bundled serializer classes against a serialization ABI matching
+    // whatever version the chosen KSP / Kotlin combo ships on the daemon.
+    exportSchema = false
 )
 @TypeConverters(FolderTypeConverter::class)
 abstract class ThreeMailDatabase : RoomDatabase() {

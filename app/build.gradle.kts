@@ -63,35 +63,17 @@ kotlin {
     }
 }
 
+// The Room Gradle plugin (alias(libs.plugins.androidx.room) in plugins {})
+// MANDATES a schemaDirectory extension at configuration time even when no
+// Room database declares exportSchema=true (Utils.kt:52). We disable
+// exportSchema in ThreeMailDatabase.kt because Room 2.8.4's bundled
+// serializer classes are ABI-incompatible with the serialization-core
+// KSP 2.2.10-2.0.2 puts on its daemon classpath, causing an
+// AbstractMethodError at kspDebugKotlin time. The directory is unused but
+// the extension is required; keep it stable so a future Room upgrade can
+// simply flip exportSchema back to true.
 room {
     schemaDirectory("$projectDir/schemas")
-}
-
-ksp {
-    // Belt-and-suspenders schemaLocation:
-    //  * room { schemaDirectory(...) } above is MANDATORY at project config
-    //    (the androidx.room Gradle plugin fails config without it: Utils.kt:52).
-    //  * ksp.arg below is a defensive copy because KSP v1 + AGP 9.3 sometimes
-    //    fails to forward the plugin-injected arg into the KSP task itself.
-    // TODO: drop the ksp.arg once ksp.useKSP2=true is viable on Windows.
-    arg("room.schemaLocation", "$projectDir/schemas")
-}
-
-// Force kotlinx-serialization 1.6.3 across every Gradle configuration
-// (implementation, ksp, test, etc.). Room 2.8.4's compiled
-// FieldBundle/EntityBundle/DatabaseBundle/SchemaBundle serializer classes
-// were generated against a pre-1.7.0 GeneratedSerializer interface; KSP and
-// other plugins transitively pull 1.7.x into the ksp classpath, which adds
-// typeParametersSerializers() to the runtime interface and triggers
-// AbstractMethodError at compile-time. Pinning 1.6.3 across all configurations
-// keeps the runtime interface byte-for-byte compatible with Room's
-// pre-compiled serializers. Lift this once Room upstream ships an AAR
-// compiled against >= 1.7.0.
-configurations.all {
-    resolutionStrategy.force(
-        "org.jetbrains.kotlinx:kotlinx-serialization-core:1.6.3",
-        "org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3"
-    )
 }
 
 dependencies {
@@ -138,9 +120,6 @@ dependencies {
 
     // Image loading
     implementation(libs.io.coil.kt.compose)
-
-    // Serialization (Required for Room 2.7+ compatibility with Kotlin 2.x)
-    implementation(libs.serialization.json)
 
     // Encrypted credential storage
     implementation(libs.androidx.security.crypto)

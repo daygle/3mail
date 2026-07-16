@@ -28,7 +28,6 @@ googleid = "1.1.0"
 splashscreen = "1.0.1"
 robolectric = "4.12.2"
 ksp = "2.2.10-2.0.2"
-kotlinxSerialization = "1.6.3"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -99,7 +98,6 @@ androidx-googleid = { group = "com.google.android.libraries.identity.googleid", 
 # Splash screen
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashscreen" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
