@@ -1,6 +1,9 @@
-- `[x]` Update `libs.versions.toml` with compatible KSP and Hilt versions
+- `[x]` Update `libs.versions.toml` with compatible KSP and Hilt versions (Updated KSP to 2.2.10-2.0.2)
 - `[x]` Enable `android.newDsl` and `android.builtInKotlin` in `gradle.properties`
 - `[x]` Remove redundant `kotlin-android` plugin from build scripts
 - `[x]` Migrate `kotlinOptions` to `kotlin.compilerOptions` in `app/build.gradle.kts`
 - `[x]` Perform Gradle Sync and Build verification
 - `[x]` Commit and push all changes (upgrade + fixes) to GitHub
+- `[x]` Delete `.freebuff/` and `.kotlin/` folders
+- `[x]` Stop tracking `.idea/` in Git
+- `[x]` Update `.gitignore` with comprehensive rules
