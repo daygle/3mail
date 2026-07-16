@@ -1,17 +1,21 @@
-# Gradle
+# Build and cache
 .gradle/
 build/
 local.properties
+.kotlin/
+.freebuff/
 
-# Android Studio
+# Android Studio / IntelliJ
 .idea/
 *.iml
 .navigation/
 captures/
 .externalNativeBuild/
 .cxx/
+*.jks
+*.keystore
 
-# OS
+# OS specific
 .DS_Store
 Thumbs.db
 
@@ -19,3 +23,8 @@ Thumbs.db
 *.apk
 *.ap_
 *.aab
+
+# Artifacts/Log files
+*.log
+*.swp
+*.bak
