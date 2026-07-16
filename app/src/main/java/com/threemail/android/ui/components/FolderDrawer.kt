@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.ManageAccounts
-import androidx.compose.material.icons.filled.Outbox
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
@@ -161,22 +160,6 @@ fun FolderDrawerContent(
                             .padding(NavigationDrawerItemDefaults.ItemPadding)
                             .padding(vertical = 2.dp)
                     )
-                }
-
-                // Add Outbox as shown in screenshot if not in folders
-                if (folders.none { it.type == FolderType.SENT }) {
-                    item {
-                        NavigationDrawerItem(
-                            icon = { Icon(Icons.Default.Outbox, contentDescription = null) },
-                            label = { Text("Outbox") },
-                            selected = false,
-                            onClick = { /* TODO */ },
-                            shape = CircleShape,
-                            modifier = Modifier
-                                .padding(NavigationDrawerItemDefaults.ItemPadding)
-                                .padding(vertical = 2.dp)
-                        )
-                    }
                 }
             }
 
