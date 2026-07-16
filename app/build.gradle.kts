@@ -8,7 +8,7 @@ plugins {
 
 configure<com.android.build.api.dsl.ApplicationExtension> {
     namespace = "com.threemail.android"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.threemail.android"
