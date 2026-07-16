@@ -27,7 +27,7 @@
     <string name="no_messages">No messages</string>
     <string name="no_accounts">No accounts added</string>
     <string name="add_account_prompt">Add an email account to get started</string>
-    <string name="empty_state_add_account">Add account</string>
+    <string name="empty_state_add_account">Add Account</string>
     <string name="generic_error">Something went wrong</string>
     <string name="retry">Retry</string>
     <string name="new_message">New message</string>
