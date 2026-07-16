@@ -2,7 +2,6 @@ package com.threemail.android
 
 import android.app.Application
 import android.util.Log
-import androidx.hilt.work.HiltWorkerFactory
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -14,6 +13,7 @@ import com.threemail.android.notifications.LauncherBadge
 import com.threemail.android.notifications.NotificationHelper
 import com.threemail.android.push.PushController
 import com.threemail.android.sync.SyncScheduler
+import com.threemail.android.sync.ThreeMailWorkerFactory
 import com.threemail.android.sync.TrashCleanupWorker
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
@@ -27,9 +27,34 @@ import javax.inject.Inject
 @HiltAndroidApp
 class ThreeMailApplication : Application(), Configuration.Provider {
 
+    /**
+     * Custom factory that owns the (worker class) -> (deps) dispatch for
+     * every [androidx.work.CoroutineWorker] in the app. Hilt's own
+     * [androidx.hilt.work.HiltWorkerFactory] is unusable on this project's
+     * toolchain (KSP 2.3.10 + androidx.hilt 1.4.0), so we wire workers
+     * by hand. See [ThreeMailWorkerFactory] for the long version.
+     */
     @Inject
-    lateinit var workerFactory: HiltWorkerFactory
+    lateinit var workerFactory: ThreeMailWorkerFactory
 
+    /**
+     * `by lazy` rather than a getter: WorkManager can initialize itself
+     * from a different process (e.g. [androidx.work.impl.background.systemalarm.RescheduleReceiver]
+     * firing on a background thread after a kill-restart) and the lazy
+     * initialization guarantees we only build the `Configuration` once
+     * after [workerFactory] has been injected - rather than risking a
+     * half-injected state where the getter fires before Hilt's
+     * [android.app.Application.onCreate] hooks run.
+     *
+     * `by lazy` directly in the override slot is safe: the `Lazy<T>`
+     * delegate is hidden behind the property getter; callers see only
+     * the built `Configuration`.
+     */
+    override val workManagerConfiguration: Configuration by lazy {
+        Configuration.Builder()
+            .setWorkerFactory(workerFactory)
+            .build()
+    }
     @Inject
     lateinit var syncScheduler: SyncScheduler
 
@@ -68,11 +93,6 @@ class ThreeMailApplication : Application(), Configuration.Provider {
         registerTrashCleanup()
         registerPushAndBadge()
     }
-
-    override val workManagerConfiguration: Configuration
-        get() = Configuration.Builder()
-            .setWorkerFactory(workerFactory)
-            .build()
 
     private fun registerTrashCleanup() {
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {

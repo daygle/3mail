@@ -27,6 +27,7 @@ import com.threemail.android.data.local.migrations.MIGRATION_8_9
 import com.threemail.android.data.local.migrations.MIGRATION_9_10
 import com.threemail.android.data.local.migrations.MIGRATION_10_11
 import com.threemail.android.data.local.migrations.MIGRATION_11_12
+import com.threemail.android.data.local.migrations.MIGRATION_12_13
 
 @Database(
     entities = [
@@ -38,7 +39,7 @@ import com.threemail.android.data.local.migrations.MIGRATION_11_12
         MessageSearchEntity::class,
         OutboxMessageEntity::class
     ],
-    version = 12,
+    version = 13,
     // exportSchema intentionally OFF: Room 2.8.4 ships pre-generated
     // SchemaBundle/FieldBundle/EntityBundle/DatabaseBundle serializer classes
     // whose compiled ABI is incompatible with the serialization-core version
@@ -86,8 +87,19 @@ abstract class ThreeMailDatabase : RoomDatabase() {
                     ThreeMailDatabase::class.java,
                     "threemail_database"
                 )
-                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
                     .addCallback(freshInstallCallback)
+                    // Whitelist destructive fallback to exactly the two
+                    // legacy versions this migration rescue actually applies
+                    // to. v12 is the broken-indexes state shipped by the
+                    // pre-fix 8f9ac6d path; v11 is its immediate predecessor.
+                    // If [MIGRATION_12_13] itself fails on a v12 DB we drop
+                    // the cache rather than leaving the user stuck in a
+                    // crash loop. A broader `fallbackToDestructiveMigrationOnDowngrade()`
+                    // would also nuke every well-formed v13 cache if a
+                    // tester installs a debug build over a field build -
+                    // not worth losing their locally-fetched messages.
+                    .fallbackToDestructiveMigrationFrom(11, 12)
                     .build()
                     .also { INSTANCE = it }
             }

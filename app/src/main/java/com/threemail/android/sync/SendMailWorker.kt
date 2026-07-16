@@ -1,15 +1,12 @@
 package com.threemail.android.sync
 
 import android.content.Context
-import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.threemail.android.data.remote.MailRemoteFactory
 import com.threemail.android.data.remote.gmail.RecoverableAuthException
 import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.repository.OutboxRepository
-import dagger.assisted.Assisted
-import dagger.assisted.AssistedInject
 
 /**
  * Drains the outbox queue. Runs whenever Compose enqueues a message (and on
@@ -21,11 +18,14 @@ import dagger.assisted.AssistedInject
  * the worker asks to be retried, unless the message has exceeded [MAX_ATTEMPTS]
  * - at which point it stays in the outbox with its last error rather than
  * retrying forever (e.g. a permanently bad recipient).
+ *
+ * Manually constructed by [ThreeMailWorkerFactory]. See that class doc for
+ * the rationale (androidx.hilt 1.4.0 silently skips generating @HiltWorker
+ * AssistedFactory bindings under KSP2).
  */
-@HiltWorker
-class SendMailWorker @AssistedInject constructor(
-    @Assisted context: Context,
-    @Assisted params: WorkerParameters,
+class SendMailWorker(
+    context: Context,
+    params: WorkerParameters,
     private val outboxRepository: OutboxRepository,
     private val accountRepository: AccountRepository,
     private val mailRemoteFactory: MailRemoteFactory

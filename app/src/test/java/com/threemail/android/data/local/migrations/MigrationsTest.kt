@@ -6,6 +6,7 @@ import androidx.sqlite.db.SupportSQLiteOpenHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -334,6 +335,257 @@ class MigrationsTest {
                 "all pre-existing favorites receive position=0 from DEFAULT",
                 listOf("A" to 0, "B" to 0, "C" to 0),
                 preMigrationBackfilled
+            )
+        } finally {
+            db.close()
+        }
+    }
+
+    /**
+     * Open a v12-shaped `messages` table with no indices attached - each
+     * test then seeds the specific index layout it cares about (broken
+     * state for the production-crash repro, partial-correct state for the
+     * idempotency check). Other tables are absent on purpose; this helper
+     * only exercises the messages-table index paths of [MIGRATION_12_13].
+     */
+    private fun openV12MessagesSchema(): SupportSQLiteDatabase {
+        val context = RuntimeEnvironment.getApplication() as Context
+        return openWithCallback(context, 12) {
+            "CREATE TABLE messages (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "accountId INTEGER NOT NULL, " +
+                "folderId INTEGER NOT NULL, " +
+                "messageId TEXT NOT NULL, " +
+                "threadId TEXT, " +
+                "date INTEGER NOT NULL, " +
+                "isRead INTEGER NOT NULL DEFAULT 0)"
+        }
+    }
+
+    /**
+     * Reads `PRAGMA index_list('messages')` and asserts that
+     * `indexName` is in the result with `unique = 1`. SQLite's
+     * index_list returns the `unique` column as a 1/0 integer; a
+     * regression where the migration accidentally wrote
+     * `CREATE INDEX` instead of `CREATE UNIQUE INDEX` would re-trigger
+     * the production `Migration didn't properly handle` crash, so this
+     * assertion catches that regression even when the index *name* is
+     * identical and well-formed.
+     */
+    private fun indexIsUnique(db: SupportSQLiteDatabase, indexName: String): Boolean {
+        db.query("PRAGMA index_list('messages')").use { cursor ->
+            val nameIdx = cursor.getColumnIndexOrThrow("name")
+            val uniqueIdx = cursor.getColumnIndexOrThrow("unique")
+            while (cursor.moveToNext()) {
+                if (cursor.getString(nameIdx) == indexName) {
+                    return cursor.getInt(uniqueIdx) == 1
+                }
+            }
+        }
+        return false
+    }
+
+    private fun messageIndexNames(db: SupportSQLiteDatabase): Set<String> {
+        val names = mutableSetOf<String>()
+        db.query(
+            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='messages'"
+        ).use { cursor ->
+            val nameIdx = cursor.getColumnIndexOrThrow("name")
+            while (cursor.moveToNext()) {
+                names.add(cursor.getString(nameIdx))
+            }
+        }
+        return names
+    }
+
+    private fun indexColumns(db: SupportSQLiteDatabase, indexName: String): List<String> {
+        val cols = mutableListOf<String>()
+        db.query("PRAGMA index_info('$indexName')").use { cursor ->
+            val nameIdx = cursor.getColumnIndexOrThrow("name")
+            while (cursor.moveToNext()) {
+                cols.add(cursor.getString(nameIdx))
+            }
+        }
+        return cols
+    }
+
+    /**
+     * Drives the v12 -> v13 repair on a database whose `messages` table
+     * carries the broken 5-index layout that real users on the old
+     * 8f9ac6d-era code shipped with. The migration must:
+     *  - drop the orphan standalone `index_messages_folderId`
+     *  - drop the v6-era auto-generated unique
+     *    `index_messages_accountId_folderId_messageId`
+     *  - create the new unique composite
+     *    `index_messages_folderId_accountId_messageId` with columns in
+     *    that exact order so Room's expected fingerprint matches.
+     */
+    @Test
+    fun `migration 12 to 13 cleans up broken messages indices from 8f9ac6d-era installs`() {
+        val db = openV12MessagesSchema()
+        try {
+            // Seed the broken state:
+            //   * the v6-era unique composite on (accountId, folderId, messageId) -
+            //     Room auto-generated this from the previous entity's
+            //     `Index(value = ["accountId","folderId","messageId"], unique=true)`
+            //   * the v7-era standalone `Index(value = ["folderId"])` that the
+            //     pre-fix MIGRATION_6_7 added without dropping the old.
+            //   * the three auto-generated non-unique indices (accountId+threadId,
+            //     date, isRead) that Room emits unchanged.
+            db.execSQL(
+                "CREATE UNIQUE INDEX index_messages_accountId_folderId_messageId " +
+                    "ON messages(accountId, folderId, messageId)"
+            )
+            db.execSQL(
+                "CREATE INDEX index_messages_accountId_threadId " +
+                    "ON messages(accountId, threadId)"
+            )
+            db.execSQL("CREATE INDEX index_messages_date ON messages(date)")
+            db.execSQL("CREATE INDEX index_messages_folderId ON messages(folderId)")
+            db.execSQL("CREATE INDEX index_messages_isRead ON messages(isRead)")
+
+            // Sanity: the test environment is the broken layout the user
+            // hits in production. Without MIGRATION_12_13 the post-
+            // migration schema check would fail with five indices
+            // including the orphan folderId and the wrong-order unique.
+            assertEquals(
+                "pre-migration setup must be the broken-v12 layout",
+                setOf(
+                    "index_messages_accountId_folderId_messageId",
+                    "index_messages_accountId_threadId",
+                    "index_messages_date",
+                    "index_messages_folderId",
+                    "index_messages_isRead"
+                ),
+                messageIndexNames(db)
+            )
+
+            MIGRATION_12_13.migrate(db)
+
+            // Post-migration: the orphan and the old column-order unique
+            // are gone, and the new ordered unique is in place.
+            assertEquals(
+                "post-migration indices match the current entity's Room-generated fingerprint",
+                setOf(
+                    "index_messages_folderId_accountId_messageId",
+                    "index_messages_accountId_threadId",
+                    "index_messages_date",
+                    "index_messages_isRead"
+                ),
+                messageIndexNames(db)
+            )
+
+            // The composite UNIQUE index has columns in folderId-leading
+            // order - any other order would still satisfy uniqueness
+            // (column order is irrelevant to uniqueness constraints) but
+            // would NOT match Room's expected fingerprint and would
+            // silently re-throw the IllegalStateException. The actual
+            // uniqueness behaviour is verified by the duplicate-insert
+            // rejection below; here we only assert the structural
+            // column-ordering invariant that Room's
+            // `room_master_table` checksum actually checks.
+            assertEquals(
+                "the new unique composite's column ordering must match Room's expected DDL",
+                listOf("folderId", "accountId", "messageId"),
+                indexColumns(db, "index_messages_folderId_accountId_messageId")
+            )
+
+            // Unique still works: two rows that differ in some column
+            // other than the composite key insert cleanly, two rows
+            // that conflict on (folderId, accountId, messageId) don't.
+            db.execSQL(
+                "INSERT INTO messages (accountId, folderId, messageId, date, isRead) " +
+                    "VALUES (1, 10, 'm1', 1000, 0)"
+            )
+            db.execSQL(
+                "INSERT INTO messages (accountId, folderId, messageId, date, isRead) " +
+                    "VALUES (1, 11, 'm1', 2000, 0)"
+            )
+            db.query("SELECT COUNT(*) FROM messages").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(2, cursor.getInt(0))
+            }
+            // Tighten the rejection assertion: catch only `RuntimeException`
+            // (which is what Robolectric's SQLite throws) and require the
+            // message to mention the UNIQUE / constraint signal so a
+            // completely-unrelated throw (FK violation, table missing,
+            // etc.) cannot silently satisfy the test. Using a bare
+            // `try { fail() } catch (Exception) {}` would let a
+            // regression where the index gets dropped leave the test
+            // green because the failing insert would still throw.
+            var rejected = false
+            var rejectionReason = ""
+            try {
+                db.execSQL(
+                    "INSERT INTO messages (accountId, folderId, messageId, date, isRead) " +
+                        "VALUES (1, 10, 'm1', 3000, 0)"
+                )
+            } catch (e: RuntimeException) {
+                rejected = true
+                rejectionReason = (e.cause?.message ?: e.message ?: "<no message>")
+            }
+            assertTrue(
+                "unique composite must reject a duplicate " +
+                    "(folderId=10, accountId=1, messageId='m1'); " +
+                    "rejected=$rejected reason=\"$rejectionReason\"",
+                rejected && (
+                    rejectionReason.contains("UNIQUE", ignoreCase = true) ||
+                        rejectionReason.contains("constraint failed", ignoreCase = true) ||
+                        rejectionReason.contains("unique", ignoreCase = true)
+                    )
+            )
+        } finally {
+            db.close()
+        }
+    }
+
+    /**
+     * Idempotency + CREATE-stem check: running [MIGRATION_12_13] on a
+     * database that has every v13 index EXCEPT the new unique composite
+     * exercises the `CREATE UNIQUE INDEX IF NOT EXISTS` branch and
+     * tolerates the empty `DROP INDEX IF EXISTS` steps without parade.
+     * Also asserts the *column order* of the resulting unique
+     * composite: a regression that creates it as
+     * `(accountId, folderId, messageId)` would still pass the
+     * name-only check, but Room's `room_master_table` checksum
+     * specifically compares the column sequence, so the wrong order
+     * re-triggers the production crash.
+     */    @Test
+    fun `migration 12 to 13 creates the new unique composite even when the rest of v13 is already in place`() {
+        val db = openV12MessagesSchema()
+        try {
+            // Seed three of the four v13 indices, leaving out
+            // `index_messages_folderId_accountId_messageId` so the
+            // CREATE branch has to fire.
+            db.execSQL(
+                "CREATE INDEX index_messages_accountId_threadId " +
+                    "ON messages(accountId, threadId)"
+            )
+            db.execSQL("CREATE INDEX index_messages_date ON messages(date)")
+            db.execSQL("CREATE INDEX index_messages_isRead ON messages(isRead)")
+
+            MIGRATION_12_13.migrate(db)
+
+            assertEquals(
+                "idempotent migration produces the correct v13 layout",
+                setOf(
+                    "index_messages_folderId_accountId_messageId",
+                    "index_messages_accountId_threadId",
+                    "index_messages_date",
+                    "index_messages_isRead"
+                ),
+                messageIndexNames(db)
+            )
+            assertEquals(
+                "the new unique composite's column ordering must match Room's expected DDL " +
+                    "(folderId leading satisfies the FK-index requirement AND the checksum)",
+                listOf("folderId", "accountId", "messageId"),
+                indexColumns(db, "index_messages_folderId_accountId_messageId")
+            )
+            assertTrue(
+                "the new composite must be UNIQUE - " +
+                    "a regression to plain CREATE INDEX would re-trigger the production crash",
+                indexIsUnique(db, "index_messages_folderId_accountId_messageId")
             )
         } finally {
             db.close()

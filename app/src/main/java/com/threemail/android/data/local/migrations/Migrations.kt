@@ -225,6 +225,71 @@ val MIGRATION_11_12: Migration = object : Migration(11, 12) {
 }
 
 /**
+ * Repair migration for users whose `messages` table carries the broken-v7
+ * index layout that predates the fix in [MIGRATION_6_7].
+ *
+ * Background: a previous commit (8f9ac6d era) shipped a `MIGRATION_6_7`
+ * that *added* a standalone `Index(value = ["folderId"])` without
+ * dropping the v6 auto-generated unique composite on
+ * `(accountId, folderId, messageId)`. That revision reached users on
+ * `v7` with **both** indices coexisting plus the legacy column-order
+ * composite. The followup fixed `MIGRATION_6_7` to drop both, but
+ * [androidx.room.migration.Migration]s only fire for the
+ * (oldVersion, newVersion) pair they declare, so users who already
+ * passed v7 — including anyone who jumped from v7 straight to v11 /
+ * v12 — carry the broken state forward. None of MIGRATION_7_8 through
+ * MIGRATION_11_12 touch `messages` indices, so opening the DB at
+ * v12 against the current Room schema re-validates with the entity's
+ * 4-index layout and aborts with
+ * `Migration didn't properly handle: messages`.
+ *
+ * Strategy: idempotent drop + create. Every statement tolerates either
+ * the broken (5-index) state or the already-correct (4-index) state
+ * — it is safe to re-run if the user later downgrades and re-upgrades,
+ * and safe for users on a fresh v13 install (the `IF EXISTS` /
+ * `IF NOT EXISTS` clauses turn into no-ops).
+ *
+ * Order matters only for safety: drop the old unique composite
+ * (`accountId, folderId, messageId`) and the orphan `folderId`
+ * standalone before creating the new ordered composite. SQLite
+ * enforces foreign keys on the **parent** table (`folders.id`) — an
+ * index on the **child** table's `folderId` is purely a perf
+ * optimization — so dropping a child-column index never violates FK
+ * constraints, and the new unique composite subsumes the FK-rowid
+ * coverage that Room requires.
+ *
+ * The Room-generated DDL for v13 expects exactly:
+ *  - `index_messages_folderId_accountId_messageId` UNIQUE
+ *    on `(folderId, accountId, messageId)`
+ *  - `index_messages_accountId_threadId`
+ *  - `index_messages_date`
+ *  - `index_messages_isRead`
+ * so the post-migration `room_master_table` checksum must match.
+ */
+val MIGRATION_12_13: Migration = object : Migration(12, 13) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "DROP INDEX IF EXISTS index_messages_accountId_folderId_messageId"
+        )
+        db.execSQL(
+            "DROP INDEX IF EXISTS index_messages_folderId"
+        )
+        // In the unlikely case a future schema re-runs this migration
+        // after a corrective prior attempt already created the right
+        // index in the wrong shape, drop it too before re-creating so
+        // the column-ordering invariant is enforced exactly once.
+        db.execSQL(
+            "DROP INDEX IF EXISTS index_messages_folderId_accountId_messageId"
+        )
+        db.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS " +
+                "index_messages_folderId_accountId_messageId " +
+                "ON messages(folderId, accountId, messageId)"
+        )
+    }
+}
+
+/**
  * Idempotently creates the FTS4 virtual table, the keep-in-sync triggers and an
  * initial backfill.  All statements use IF NOT EXISTS so a partial state can be
  * resumed without crashing; the backfill is a no-op on empty `messages`.

@@ -1,7 +1,7 @@
 package com.threemail.android.sync
 
 import android.content.Context
-import androidx.hilt.work.HiltWorker
+import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.threemail.android.data.remote.gmail.RecoverableAuthException
@@ -11,15 +11,16 @@ import com.threemail.android.data.repository.MailRepository
 import com.threemail.android.domain.model.AccountType
 import com.threemail.android.domain.model.FolderType
 import com.threemail.android.notifications.NotificationHelper
-import dagger.assisted.Assisted
-import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.first
-import android.util.Log
 
-@HiltWorker
-class TrashCleanupWorker @AssistedInject constructor(
-    @Assisted context: Context,
-    @Assisted params: WorkerParameters,
+/**
+ * Manually constructed by [ThreeMailWorkerFactory]. See that class
+ * doc for the rationale (androidx.hilt 1.4.0 silently skips
+ * generating @HiltWorker AssistedFactory bindings under KSP2).
+ */
+class TrashCleanupWorker(
+    context: Context,
+    params: WorkerParameters,
     private val accountRepository: AccountRepository,
     private val mailRepository: MailRepository,
     private val mailActions: MailActions,

@@ -1,23 +1,24 @@
 package com.threemail.android.sync
 
 import android.content.Context
-import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.threemail.android.data.remote.calendar.CalendarApiClient
 import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.repository.CalendarRepository
 import com.threemail.android.domain.model.AccountType
-import dagger.assisted.Assisted
-import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.first
 import java.time.LocalDate
 import java.time.ZoneId
 
-@HiltWorker
-class CalendarSyncWorker @AssistedInject constructor(
-    @Assisted context: Context,
-    @Assisted params: WorkerParameters,
+/**
+ * Manually constructed by [ThreeMailWorkerFactory]. See that class
+ * doc for the rationale (androidx.hilt 1.4.0 silently skips
+ * generating @HiltWorker AssistedFactory bindings under KSP2).
+ */
+class CalendarSyncWorker(
+    context: Context,
+    params: WorkerParameters,
     private val accountRepository: AccountRepository,
     private val calendarRepository: CalendarRepository
 ) : CoroutineWorker(context, params) {
