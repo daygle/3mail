@@ -167,27 +167,35 @@ fun FolderDrawerContent(
                         )
                     }
                     items(favoriteFolders, key = { "fav-${it.id}" }) { folder ->
-                        // Disabled row: the affordance is clearly "a shortcut exists here"
-                        // without inviting another tap target in the same drawer. The label
-                        // is dimmed via the disabled* colors so it stays legible but quiet.
-                        NavigationDrawerItem(
-                            icon = {
-                                Icon(
-                                    Icons.Default.Star,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            },
-                            label = { Text(folder.name) },
-                            selected = false,
-                            enabled = false,
-                            onClick = {},
-                            colors = NavigationDrawerItemDefaults.colors(
-                                disabledIconColor = MaterialTheme.colorScheme.primary,
-                                disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                        )
+                        // Non-interactive pinned shortcut. Rendered as a plain
+                        // Row rather than a NavigationDrawerItem because
+                        // NavigationDrawerItem (`enabled` was added in a later
+                        // Material3 than this project pins, and on this version
+                        // the icon stays clickable even with `onClick = {}`)
+                        // and our pinned rows must NOT be tappable: tapping
+                        // them would clear the selection on the same-named
+                        // entry in the main list below, which is confusing.
+                        // The star + dimmed-onSurface color combination is the
+                        // visual contract that says "shortcut, not a button".
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                            Spacer(Modifier.width(20.dp))
+                            Text(
+                                text = folder.name,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                     item(key = "favorites-divider") {
                         HorizontalDivider(

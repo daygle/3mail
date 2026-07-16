@@ -16,7 +16,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.CircularProgressIndicator
@@ -24,7 +23,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -39,8 +37,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.passwordContentType
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -135,14 +131,14 @@ fun AddAccountScreen(
                 label = { Text(stringResource(R.string.password)) },
                 // Mask the secret in place and ask the IME for the dedicated
                 // password keyboard so users on devices without strong default
-                // autofill still see the right key set.
+                // autofill still see the right key set. The semantic
+                // `passwordContentType()` hint is omitted: PasswordVisualTransformation
+                // already signals a secret field to TalkBack/IME/autofill for the
+                // Compose releases this project targets, and the symbol isn't
+                // resolvable on the Material3 BOM pinned in libs.versions.toml.
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                // Declare this field as a password to the Android autofill
-                // framework so password managers offer credentials on tap.
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .semantics { passwordContentType() }
+                modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(

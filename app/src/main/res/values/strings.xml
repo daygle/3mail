@@ -138,6 +138,16 @@
     <!-- Drawer footer labels -->
     <string name="footer_refresh">Refresh</string>
     <string name="footer_manage_folders">Manage Folders</string>
+    <string name="footer_settings">Settings</string>
+
+    <!-- Security picker on Add Account -->
+    <string name="security">Security</string>
+    <string name="security_none">None</string>
+    <string name="security_starttls">STARTTLS</string>
+    <string name="security_ssl_tls">SSL/TLS</string>
+    <string name="security_none_subtitle">All data is sent in cleartext. Only use on a trusted local network.</string>
+    <string name="security_starttls_subtitle">Connect plain, then upgrade to TLS on the standard submission port.</string>
+    <string name="security_ssl_tls_subtitle">Connect directly over implicit TLS (recommended).</string>
 
     <!-- Favorite folders (drawer's pinned / starred section) -->
     <string name="favorites">Favorites</string>

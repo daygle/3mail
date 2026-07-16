@@ -5,6 +5,7 @@ import com.threemail.android.data.local.entity.AccountEntity
 import com.threemail.android.data.security.CredentialStore
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.AccountType
+import com.threemail.android.domain.model.Security
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
