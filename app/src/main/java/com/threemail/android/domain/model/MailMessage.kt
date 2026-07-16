@@ -39,5 +39,9 @@ data class Attachment(
     val mimeType: String,
     val size: Long,
     val localPath: String? = null,
-    val remoteId: String? = null
+    val remoteId: String? = null,
+    /** True when this attachment is referenced from the HTML body via a Content-ID (cid:) URI. */
+    val isInline: Boolean = false,
+    /** The local part of a `cid:...@3mail` reference; required when [isInline] is true. */
+    val contentId: String? = null
 )

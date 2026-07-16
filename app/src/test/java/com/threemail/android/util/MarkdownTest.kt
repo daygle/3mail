@@ -41,4 +41,21 @@ class MarkdownTest {
         assertTrue(html.contains("&lt;"))
         assertTrue(html.contains("&amp;"))
     }
+
+    @Test
+    fun `image markdown renders img tag`() {
+        val html = Markdown.toHtml("![alt text](https://example.com/x.png)")
+        assertTrue(html.contains("<img src=\"https://example.com/x.png\""))
+        assertTrue(html.contains("alt=\"alt text\""))
+        // Image syntax must NOT be rendered as a regular link.
+        assertTrue(!html.contains("<a "))
+    }
+
+    @Test
+    fun `image with cid source keeps the cid scheme`() {
+        val html = Markdown.toHtml("![img](cid:abc123@3mail)")
+        assertTrue(html.contains("<img src=\"cid:abc123@3mail\""))
+        // cid: must not be repointed to https://cid:
+        assertTrue(!html.contains("src=\"https://cid:"))
+    }
 }
