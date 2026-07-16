@@ -14,12 +14,17 @@ import javax.inject.Singleton
  * Gmail accounts, IMAP/SMTP for everything else. Call sites depend on this factory
  * and never branch on account type themselves.
  */
+/**
+ * `open` so unit tests in `AddAccountViewModelTest` can subclass it with a
+ * stubbed [MailRemote] without pulling in mockito. Production subclasses
+ * are not expected - Hilt always wires this concrete class.
+ */
 @Singleton
-class MailRemoteFactory @Inject constructor(
+open class MailRemoteFactory @Inject constructor(
     private val imapClientFactory: ImapClientFactory,
     private val gmailApiClient: GmailApiClient
 ) {
-    fun create(account: Account): MailRemote = when (account.accountType) {
+    open fun create(account: Account): MailRemote = when (account.accountType) {
         AccountType.GMAIL -> GmailRemote(account, gmailApiClient)
         AccountType.IMAP -> ImapRemote(imapClientFactory.create(account))
     }

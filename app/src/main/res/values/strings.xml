@@ -148,6 +148,10 @@
     <string name="security_none_subtitle">All data is sent in cleartext. Only use on a trusted local network.</string>
     <string name="security_starttls_subtitle">Connect plain, then upgrade to TLS on the standard submission port.</string>
     <string name="security_ssl_tls_subtitle">Connect directly over implicit TLS (recommended).</string>
+    <!-- Non-blocking banner shown on the Add Account screen when the IMAP
+         handshake surfaced STARTTLS while the user had picked cleartext; we
+         auto-upgrade and explain. Tone is informational, not a warning. -->
+    <string name="security_starttls_auto_upgrade">Server supports STARTTLS — upgraded automatically.</string>
 
     <!-- Favorite folders (drawer's pinned / starred section) -->
     <string name="favorites">Favorites</string>

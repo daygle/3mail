@@ -9,6 +9,7 @@ import com.google.api.services.gmail.model.MessagePart
 import com.google.api.services.gmail.model.ModifyMessageRequest
 import com.threemail.android.data.remote.MailRemote
 import com.threemail.android.data.remote.MessageBody
+import com.threemail.android.data.remote.RemoteCapabilities
 import com.threemail.android.data.remote.MimeBuilder
 import com.threemail.android.data.remote.OutgoingMessage
 import com.threemail.android.data.remote.RemoteFetch
@@ -52,7 +53,15 @@ class GmailRemote(
         }
     }
 
-    override suspend fun testConnection(): Result<Unit> = gmail { it.users().getProfile(USER).execute() }.map { }
+    /**
+     * Gmail authenticates via OAuth XOAUTH2 against the REST API - it never
+     * goes through IMAP, so there is no CAPABILITY list to read here. We
+     * return success with an empty capabilities list to signal "no IMAP
+     * TLS upgrade possible" without making the upstream caller's
+     * auto-upgrade logic Gmail-aware.
+     */
+    override suspend fun testConnection(): Result<RemoteCapabilities> =
+        gmail { it.users().getProfile(USER).execute() }.map { RemoteCapabilities(emptyList()) }
 
     override suspend fun fetchFolders(): Result<List<MailFolder>> = gmail { svc ->
         val labels = svc.users().labels().list(USER).execute().labels ?: emptyList<Label>()

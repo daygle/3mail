@@ -1,8 +1,10 @@
 package com.threemail.android.ui.screens.account
 
+import android.content.Context
 import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.threemail.android.R
 import com.threemail.android.data.remote.MailRemoteFactory
 import com.threemail.android.data.remote.gmail.GoogleAuthHelper
 import com.threemail.android.data.remote.gmail.RecoverableAuthException
@@ -11,6 +13,7 @@ import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.AccountType
 import com.threemail.android.domain.model.Security
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -18,6 +21,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class AddAccountViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val accountRepository: AccountRepository,
     private val googleAuthHelper: GoogleAuthHelper,
     private val mailRemoteFactory: MailRemoteFactory
@@ -44,7 +48,19 @@ class AddAccountViewModel @Inject constructor(
         val error: String? = null,
         val recoverableAuthIntent: Intent? = null,
         val pendingGmailEmail: String = "",
-        val pendingGmailDisplayName: String = ""
+        val pendingGmailDisplayName: String = "",
+        /**
+         * Non-blocking informational banner shown on the Add Account screen
+         * when the IMAP connect handshake surfaced a server capability that
+         * warrants a UX change. Today only one trigger fires this: a STARTTLS
+         * auto-upgrade from Security.NONE, where the user picked cleartext
+         * but the server can do better, so we transparently bump to STARTTLS
+         * and explain the change.
+         *
+         * Cleared by [updateSecurity] so the banner doesn't outlive the
+         * user's choice to manually pick a different chip.
+         */
+        val upgradeBanner: String? = null
     )
 
     private val _uiState = MutableStateFlow(UiState())
@@ -58,29 +74,14 @@ class AddAccountViewModel @Inject constructor(
     fun updateOutgoingServer(value: String) { _uiState.value = _uiState.value.copy(outgoingServer = value) }
     fun updateOutgoingPort(value: String) { _uiState.value = _uiState.value.copy(outgoingPort = value) }
     fun updateSecurity(value: Security) {
-        // Pair the security mode with its typical ports so a user picking
-        // STARTTLS doesn't leave the field at the SSL_TLS default of 993 -
-        // which would connect to nothing on most plain-IMAP-143 servers.
-        // We only auto-reset port fields when the current value still matches
-        // a default for the previous mode; a hand-edited port (e.g. 1430 on
-        // a stub server) is preserved across security changes.
         val state = _uiState.value
-        val currentPort = state.port.toIntOrNull()
-        val port = if (currentPort == null || currentPort == defaultIncomingPort(state.security)) {
-            defaultIncomingPort(value).toString()
-        } else {
-            state.port
-        }
-        val currentOutgoingPort = state.outgoingPort.toIntOrNull()
-        val outgoingPort = if (currentOutgoingPort == null || currentOutgoingPort == defaultOutgoingPort(state.security)) {
-            defaultOutgoingPort(value).toString()
-        } else {
-            state.outgoingPort
-        }
         _uiState.value = state.copy(
             security = value,
-            port = port,
-            outgoingPort = outgoingPort
+            port = securityPort(state.port, state.security, value, ::defaultIncomingPort),
+            outgoingPort = securityPort(state.outgoingPort, state.security, value, ::defaultOutgoingPort),
+            // The user just overrode the auto-upgrade; the banner is no
+            // longer contextually true. Clear it.
+            upgradeBanner = null
         )
     }
     fun updateAccountType(value: AccountType) { _uiState.value = _uiState.value.copy(accountType = value) }
@@ -126,27 +127,97 @@ class AddAccountViewModel @Inject constructor(
         _uiState.value = state.copy(isSaving = true, error = null)
         viewModelScope.launch {
             try {
-                val account = Account(
-                    email = state.email,
-                    displayName = state.displayName.ifBlank { state.email.substringBefore("@") },
-                    accountType = state.accountType,
-                    incomingServer = state.server.ifBlank { null },
-                    incomingPort = state.port.toIntOrNull() ?: defaultIncomingPort(state.security),
-                    outgoingServer = state.outgoingServer.ifBlank { null },
-                    outgoingPort = state.outgoingPort.toIntOrNull() ?: defaultOutgoingPort(state.security),
-                    security = state.security,
-                    password = state.password.ifBlank { null }
-                )
-                val test = mailRemoteFactory.create(account).testConnection()
-                test.onSuccess {
-                    accountRepository.addAccount(account)
+                // First pass: build an Account with the user-picked
+                // security and probe the server. We need a connect to read
+                // the CAPABILITY list before we can decide whether to bump
+                // Security.NONE -> Security.STARTTLS.
+                val provisional = buildAccount(state)
+                val probe = mailRemoteFactory.create(provisional).testConnection()
+                probe.onSuccess { caps ->
+                    // Auto-upgrade: the user picked cleartext, but the
+                    // server can do STARTTLS - transparently bump the UI to
+                    // STARTTLS so the saved Account matches what the
+                    // server can actually serve. We only ever upgrade (never
+                    // downgrade); only NONE -> STARTTLS. SSL_TLS stays put
+                    // because the server can't un-encrypt a connection.
+                    if (state.security == Security.NONE && caps.has("STARTTLS")) {
+                        applySecurityUpgrade(
+                            newSecurity = Security.STARTTLS,
+                            bannerMessage = context.getString(
+                                R.string.security_starttls_auto_upgrade
+                            )
+                        )
+                    }
+                    // Second pass: rebuild the Account from the (possibly
+                    // upgraded) UI state and save. We don't re-probe with
+                    // the upgraded security - the previous CAPABILITY read
+                    // already confirmed STARTTLS works on this server, and
+                    // re-doing the connect costs ~300ms for nothing.
+                    val finalAccount = buildAccount(_uiState.value)
+                    accountRepository.addAccount(finalAccount)
                     _uiState.value = _uiState.value.copy(isSaving = false, isSaved = true)
-                }.onFailure {
-                    _uiState.value = _uiState.value.copy(isSaving = false, error = it.message)
+                }.onFailure { error ->
+                    _uiState.value = _uiState.value.copy(isSaving = false, error = error.message)
                 }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isSaving = false, error = e.message)
             }
+        }
+    }
+
+    /**
+     * Build the [Account] domain object the repository persists. Centralised
+     * so [save] can rebuild it once before the connect probe and again
+     * after the auto-upgrade (since the security + ports may have changed
+     * between the two passes).
+     */
+    private fun buildAccount(state: UiState): Account = Account(
+        email = state.email,
+        displayName = state.displayName.ifBlank { state.email.substringBefore("@") },
+        accountType = state.accountType,
+        incomingServer = state.server.ifBlank { null },
+        incomingPort = state.port.toIntOrNull() ?: defaultIncomingPort(state.security),
+        outgoingServer = state.outgoingServer.ifBlank { null },
+        outgoingPort = state.outgoingPort.toIntOrNull() ?: defaultOutgoingPort(state.security),
+        security = state.security,
+        password = state.password.ifBlank { null }
+    )
+
+    /**
+     * Apply a security change driven by code (the auto-upgrade banner), not
+     * the user. Identical port-reset rules to [updateSecurity] (preserve
+     * hand-edited ports, otherwise reset to the default for the new mode)
+     * so the visible UI is indistinguishable from a manual chip tap.
+     * Sets the banner message explaining the change.
+     */
+    private fun applySecurityUpgrade(newSecurity: Security, bannerMessage: String) {
+        val state = _uiState.value
+        _uiState.value = state.copy(
+            security = newSecurity,
+            port = securityPort(state.port, state.security, newSecurity, ::defaultIncomingPort),
+            outgoingPort = securityPort(state.outgoingPort, state.security, newSecurity, ::defaultOutgoingPort),
+            upgradeBanner = bannerMessage
+        )
+    }
+
+    /**
+     * Port-update rule shared between [updateSecurity] and
+     * [applySecurityUpgrade]: when the field still holds the default port
+     * for the previous security mode (or is unparseable), reset to the
+     * default for the new mode; otherwise leave it alone so a hand-edited
+     * stub-server port isn't clobbered.
+     */
+    private fun securityPort(
+        current: String,
+        previousSecurity: Security,
+        newSecurity: Security,
+        defaultFor: (Security) -> Int
+    ): String {
+        val parsed = current.toIntOrNull()
+        return if (parsed == null || parsed == defaultFor(previousSecurity)) {
+            defaultFor(newSecurity).toString()
+        } else {
+            current
         }
     }
 

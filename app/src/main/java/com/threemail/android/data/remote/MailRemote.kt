@@ -17,7 +17,18 @@ import java.io.File
  */
 interface MailRemote {
 
-    suspend fun testConnection(): Result<Unit>
+    /**
+     * Probe the account's mail server. Returns the parsed CAPABILITY list
+     * alongside a connect-success / connect-failure signal so callers can
+     * honor opportunistic TLS upgrades (e.g. [com.threemail.android.ui.screens.account.AddAccountViewModel]
+     * auto-bumps Security.NONE -> Security.STARTTLS when STARTTLS is in
+     * the banner).
+     *
+     * Result.success is returned iff the connect handshake itself succeeded;
+     * the inner `capabilities` list may still be empty when the server did
+     * not advertise its capabilities.
+     */
+    suspend fun testConnection(): Result<RemoteCapabilities>
 
     suspend fun fetchFolders(): Result<List<MailFolder>>
 

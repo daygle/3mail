@@ -3,6 +3,7 @@ package com.threemail.android.data.remote.imap
 import com.sun.mail.imap.IMAPFolder
 import com.sun.mail.imap.IMAPStore
 import com.threemail.android.data.remote.MessageBody
+import com.threemail.android.data.remote.RemoteCapabilities
 import com.threemail.android.data.remote.MimeBuilder
 import com.threemail.android.data.remote.OutgoingMessage
 import com.threemail.android.data.remote.RemoteFetch
@@ -232,11 +233,42 @@ class ImapClient(
 
     // endregion
 
-    suspend fun testConnection(): Result<Unit> = withContext(Dispatchers.IO) {
+    /**
+     * Connect handshake + capability read. The IMAP server's CAPABILITY is
+     * listed in either the initial greeting (`* OK [CAPABILITY ...]`) or in
+     * the reply to an explicit CAPABILITY command; JavaMail's IMAPStore
+     * caches the greeting-time list in [IMAPStore.capabilities] (exposed
+     * via [IMAPStore.hasCapability]).
+     *
+     * We don't issue an explicit CAPABILITY command ourselves: the greeting
+     * announcement is universal among RFC 3501 servers and reading from
+     * the cached list avoids burning an extra round-trip on every test.
+     * Servers that omit CAPABILITY from the greeting (rare) still connect
+     * successfully - the returned list will be empty, which the caller
+     * handles by NOT auto-upgrading.
+     *
+     * Returns RemoteCapabilities.emptyList on a non-IMAP store (cast
+     * failure is silent). The connect still counts as a success in that
+     * case since [Store.connect] returned without throwing.
+     */
+    suspend fun testConnection(): Result<RemoteCapabilities> = withContext(Dispatchers.IO) {
         try {
             val store = connectStore()
-            runCatching { store.close() }
-            Result.success(Unit)
+            try {
+                // IMAPStore.capabilities is a `Map<String, String>` where the
+                // key is the CAPABILITY keyword (e.g. "STARTTLS") and the
+                // value is any associated parameter (e.g. AUTH=PLAIN). We
+                // keep only the keywords since callers only ask yes/no
+                // questions like "does this server advertise STARTTLS?".
+                val capabilities = (store as? IMAPStore)
+                    ?.capabilities
+                    ?.keys
+                    ?.toList()
+                    .orEmpty()
+                Result.success(RemoteCapabilities(capabilities))
+            } finally {
+                runCatching { store.close() }
+            }
         } catch (e: RecoverableAuthException) {
             throw e
         } catch (e: AuthenticationFailedException) {

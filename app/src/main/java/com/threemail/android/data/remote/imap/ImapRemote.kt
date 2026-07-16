@@ -2,6 +2,7 @@ package com.threemail.android.data.remote.imap
 
 import com.threemail.android.data.remote.MailRemote
 import com.threemail.android.data.remote.MessageBody
+import com.threemail.android.data.remote.RemoteCapabilities
 import com.threemail.android.data.remote.OutgoingMessage
 import com.threemail.android.data.remote.RemoteFetch
 import com.threemail.android.domain.model.Attachment
@@ -14,7 +15,7 @@ class ImapRemote(private val client: ImapClient) : MailRemote {
 
     private fun uid(message: MailMessage): Long = message.remoteId.toLongOrNull() ?: message.uid
 
-    override suspend fun testConnection(): Result<Unit> = client.testConnection()
+    override suspend fun testConnection(): Result<RemoteCapabilities> = client.testConnection()
 
     override suspend fun fetchFolders(): Result<List<MailFolder>> = client.fetchFolders()
 

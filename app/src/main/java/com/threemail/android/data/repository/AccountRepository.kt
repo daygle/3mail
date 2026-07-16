@@ -12,7 +12,13 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class AccountRepository @Inject constructor(
+/**
+ * `open` so unit tests in `AddAccountViewModelTest` can subclass it and
+ * capture the [Account] passed to [addAccount] without pulling in mockito.
+ * Production subclasses are not expected - Hilt always wires this
+ * concrete class.
+ */
+open class AccountRepository @Inject constructor(
     private val accountDao: AccountDao,
     private val credentialStore: CredentialStore
 ) {
@@ -29,18 +35,18 @@ class AccountRepository @Inject constructor(
     suspend fun getAccountByEmail(email: String): Account? =
         accountDao.getByEmail(email)?.toDomain()
 
-    suspend fun addAccount(account: Account): Long {
+    open suspend fun addAccount(account: Account): Long {
         // Persist the password in the encrypted credential store, not the database.
         credentialStore.savePassword(account.email, account.password)
         return accountDao.insert(account.toEntity())
     }
 
-    suspend fun updateAccount(account: Account) {
+    open suspend fun updateAccount(account: Account) {
         credentialStore.savePassword(account.email, account.password)
         accountDao.update(account.toEntity())
     }
 
-    suspend fun deleteAccount(account: Account) {
+    open suspend fun deleteAccount(account: Account) {
         credentialStore.deletePassword(account.email)
         accountDao.delete(account.toEntity())
     }
