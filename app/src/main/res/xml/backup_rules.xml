@@ -4,6 +4,13 @@
 -->
 <full-backup-content>
     <include domain="sharedpref" path="."/>
+    <!--
+        Exclude the encrypted credential prefs specifically: the Android Keystore
+        master key used by EncryptedSharedPreferences isn't transferred to a new
+        device, so a cloud restore of this file would silently fail to decrypt
+        and force the user to re-enter every IMAP password.
+    -->
+    <exclude domain="sharedpref" path="threemail_credentials.xml"/>
     <exclude domain="database" path="."/>
     <exclude domain="file" path="."/>
 </full-backup-content>
