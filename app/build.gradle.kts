@@ -63,14 +63,17 @@ kotlin {
     }
 }
 
+room {
+    schemaDirectory("$projectDir/schemas")
+}
+
 ksp {
-    // Explicit schemaLocation arg for KSP. The androidx.room Gradle plugin's
-    // auto-injection is unreliable on KSP v1 + AGP 9.3 (gradle.properties has
-    // ksp.useKSP2=false), so we plumb the arg directly through KSP to
-    // silence the legacy "schema directory not provided" warning. The plugin
-    // alias `alias(libs.plugins.androidx.room)` stays so Room's compile-time
-    // classes register; we intentionally don't use the `room {  }` extension
-    // DSL here to avoid duplicate arg injection.
+    // Belt-and-suspenders schemaLocation:
+    //  * room { schemaDirectory(...) } above is MANDATORY at project config
+    //    (the androidx.room Gradle plugin fails config without it: Utils.kt:52).
+    //  * ksp.arg below is a defensive copy because KSP v1 + AGP 9.3 sometimes
+    //    fails to forward the plugin-injected arg into the KSP task itself.
+    // TODO: drop the ksp.arg once ksp.useKSP2=true is viable on Windows.
     arg("room.schemaLocation", "$projectDir/schemas")
 }
 
