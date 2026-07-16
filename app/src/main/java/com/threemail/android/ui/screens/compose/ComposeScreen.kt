@@ -1,9 +1,13 @@
 package com.threemail.android.ui.screens.compose
 
+import android.Manifest
+import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -14,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -25,10 +30,14 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FormatBold
 import androidx.compose.material.icons.filled.FormatItalic
 import androidx.compose.material.icons.filled.FormatListNumbered
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -60,9 +69,11 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import com.threemail.android.R
 import com.threemail.android.domain.model.Attachment
+import com.threemail.android.domain.model.Contact
 import com.threemail.android.util.RichTextFormatter
 import com.threemail.android.util.TextEdit
 import java.io.File
+import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -107,6 +118,32 @@ fun ComposeScreen(
         }
     }
 
+    // Photo picker (no permission needed on Android 13+; back-portable to 26 by
+    // androidx.activity). The selected image is copied into the app cache so
+    // JavaMail can attach it by file path, then surfaced in the body via
+    // ![]() (cid:) and registered as an inline Attachment.
+    val inlineImagePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        copyImageForInline(context, uri)?.let { saved ->
+            val contentId = UUID.randomUUID().toString().replace("-", "").take(24)
+            viewModel.addInlineImage(contentId, saved.fileName, saved.mimeType, saved.size, saved.localPath)
+        }
+    }
+
+    // READ_CONTACTS request is triggered from the VM only on the user's first
+    // interaction with To/Cc/Bcc, not eagerly on mount.
+    val contactsPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted -> viewModel.onContactsPermissionResult(granted) }
+
+    LaunchedEffect(state.requestContactsPermission) {
+        if (state.requestContactsPermission) {
+            contactsPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+        }
+    }
+
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
@@ -118,6 +155,16 @@ fun ComposeScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = {
+                            inlineImagePicker.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
+                        enabled = !state.isSending && !state.isSavingDraft
+                    ) {
+                        Icon(Icons.Default.Image, contentDescription = stringResource(R.string.insert_image))
+                    }
                     IconButton(
                         onClick = { attachmentPicker.launch("*/*") },
                         enabled = !state.isSending && !state.isSavingDraft
@@ -196,6 +243,11 @@ fun ComposeScreen(
                     }
                 }
             )
+            ContactSuggestionDropdown(
+                visible = state.activeRecipientField == RecipientField.TO && state.contactSuggestions.isNotEmpty(),
+                suggestions = state.contactSuggestions,
+                onPick = { contact -> viewModel.pickContact(contact, 0) }
+            )
             if (state.showCcBcc) {
                 OutlinedTextField(
                     value = state.cc,
@@ -205,6 +257,11 @@ fun ComposeScreen(
                     keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
                     singleLine = true
                 )
+                ContactSuggestionDropdown(
+                    visible = state.activeRecipientField == RecipientField.CC && state.contactSuggestions.isNotEmpty(),
+                    suggestions = state.contactSuggestions,
+                    onPick = { contact -> viewModel.pickContact(contact, 0) }
+                )
                 OutlinedTextField(
                     value = state.bcc,
                     onValueChange = viewModel::updateBcc,
@@ -212,6 +269,11 @@ fun ComposeScreen(
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
                     singleLine = true
+                )
+                ContactSuggestionDropdown(
+                    visible = state.activeRecipientField == RecipientField.BCC && state.contactSuggestions.isNotEmpty(),
+                    suggestions = state.contactSuggestions,
+                    onPick = { contact -> viewModel.pickContact(contact, 0) }
                 )
             }
             OutlinedTextField(
@@ -233,8 +295,21 @@ fun ComposeScreen(
                         InputChip(
                             selected = false,
                             onClick = { viewModel.removeAttachment(attachment) },
-                            label = { Text(attachment.fileName, maxLines = 1) },
-                            trailingIcon = { Icon(Icons.Default.Close, contentDescription = stringResource(R.string.remove_attachment), Modifier.size(16.dp)) }
+                            label = {
+                                Text(
+                                    if (attachment.isInline)
+                                        "${attachment.fileName} ${stringResource(R.string.inline)}"
+                                    else attachment.fileName,
+                                    maxLines = 1
+                                )
+                            },
+                            trailingIcon = {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = stringResource(R.string.remove_attachment),
+                                    Modifier.size(16.dp)
+                                )
+                            }
                         )
                     }
                 }
@@ -259,7 +334,7 @@ fun ComposeScreen(
 
             var bodyValue by remember { mutableStateOf(TextFieldValue(state.body)) }
             LaunchedEffect(state.body) {
-                // Adopt externally-set body (reply/forward prefill) without clobbering edits.
+                // Adopt externally-set body (reply/forward prefill or inserted inline image) without clobbering the live edit.
                 if (state.body != bodyValue.text) {
                     bodyValue = TextFieldValue(state.body, TextRange(state.body.length))
                 }
@@ -339,11 +414,68 @@ private fun LinkDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     )
 }
 
-/** Copies the picked content Uri into the app cache so JavaMail can attach it by file path. */
-private fun copyToCache(context: android.content.Context, uri: Uri): Attachment? {
+@Composable
+private fun ContactSuggestionDropdown(
+    visible: Boolean,
+    suggestions: List<Contact>,
+    onPick: (Contact) -> Unit
+) {
+    if (!visible) return
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column {
+            suggestions.take(5).forEach { contact ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onPick(contact) }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Person,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        val title = contact.displayName.ifBlank { contact.emails.firstOrNull().orEmpty() }
+                        Text(title, style = MaterialTheme.typography.bodyMedium)
+                        if (contact.displayName.isNotBlank() && contact.emails.isNotEmpty()) {
+                            Text(
+                                contact.emails.first(),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private data class CopiedFile(
+    val fileName: String,
+    val mimeType: String,
+    val size: Long,
+    val localPath: String
+)
+
+/**
+ * Streams the picked content Uri into the named cache subdir and returns
+ * the file metadata. Used both for regular attachments (subdir "outgoing")
+ * and inline images (subdir "inline_images").
+ */
+private fun copyBytes(context: Context, uri: Uri, subdir: String): CopiedFile? {
     return try {
         val resolver = context.contentResolver
-        var name = "attachment"
+        var name = "file"
         var size = 0L
         resolver.query(uri, null, null, null, null)?.use { cursor ->
             val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
@@ -353,18 +485,28 @@ private fun copyToCache(context: android.content.Context, uri: Uri): Attachment?
                 if (sizeIndex >= 0) size = cursor.getLong(sizeIndex)
             }
         }
-        val outDir = File(context.cacheDir, "outgoing").apply { mkdirs() }
+        val outDir = File(context.cacheDir, subdir).apply { mkdirs() }
         val outFile = File(outDir, name)
         resolver.openInputStream(uri)?.use { input ->
             outFile.outputStream().use { output -> input.copyTo(output) }
         } ?: return null
-        Attachment(
+        CopiedFile(
             fileName = name,
             mimeType = resolver.getType(uri) ?: "application/octet-stream",
             size = size,
             localPath = outFile.absolutePath
         )
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         null
     }
 }
+
+/** Copies the picked content Uri to a cache file so JavaMail can attach it by path. */
+private fun copyToCache(context: Context, uri: Uri): Attachment? =
+    copyBytes(context, uri, "outgoing")?.let {
+        Attachment(fileName = it.fileName, mimeType = it.mimeType, size = it.size, localPath = it.localPath)
+    }
+
+/** Copies a picked image to a separate cache subdir reserved for inline references. */
+private fun copyImageForInline(context: Context, uri: Uri): CopiedFile? =
+    copyBytes(context, uri, "inline_images")

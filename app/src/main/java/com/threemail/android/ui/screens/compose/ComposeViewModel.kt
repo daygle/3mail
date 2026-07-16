@@ -8,20 +8,28 @@ import com.threemail.android.data.remote.MailRemoteFactory
 import com.threemail.android.data.remote.OutgoingMessage
 import com.threemail.android.data.remote.gmail.RecoverableAuthException
 import com.threemail.android.data.repository.AccountRepository
+import com.threemail.android.data.repository.ContactRepository
 import com.threemail.android.data.repository.MailRepository
 import com.threemail.android.data.settings.SettingsRepository
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.Attachment
+import com.threemail.android.domain.model.Contact
 import com.threemail.android.domain.model.FolderType
 import com.threemail.android.util.AddressParser
 import com.threemail.android.util.MailText
 import com.threemail.android.util.Markdown
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+/** Identifies which recipient field the user is currently editing. */
+enum class RecipientField { TO, CC, BCC }
 
 @HiltViewModel
 class ComposeViewModel @Inject constructor(
@@ -29,8 +37,11 @@ class ComposeViewModel @Inject constructor(
     private val mailRepository: MailRepository,
     private val settingsRepository: SettingsRepository,
     private val mailRemoteFactory: MailRemoteFactory,
+    private val contactRepository: ContactRepository,
     savedStateHandle: SavedStateHandle
-) : ViewModel() {        data class UiState(
+) : ViewModel() {
+
+    data class UiState(
         val accounts: List<Account> = emptyList(),
         val selectedAccount: Account? = null,
         val to: String = "",
@@ -46,7 +57,13 @@ class ComposeViewModel @Inject constructor(
         val isDraftSaved: Boolean = false,
         val shouldClose: Boolean = false,
         val error: String? = null,
-        val recoverableAuthIntent: Intent? = null
+        val recoverableAuthIntent: Intent? = null,
+        val contactSuggestions: List<Contact> = emptyList(),
+        val activeRecipientField: RecipientField = RecipientField.TO,
+        val contactsPermissionDenied: Boolean = false,
+        val contactsPermissionRequested: Boolean = false,
+        /** Edge-triggered so the screen can launch the READ_CONTOS dialog once. */
+        val requestContactsPermission: Boolean = false
     )
 
     private val _uiState = MutableStateFlow(UiState())
@@ -59,55 +76,77 @@ class ComposeViewModel @Inject constructor(
     private var inReplyTo: String? = null
     private var references: String? = null
 
+    /** Last-segment text from active recipient field; debounced then dispatched to the contact repo. */
+    private val contactQueries = MutableSharedFlow<String>(extraBufferCapacity = 64)
+
     init {
         viewModelScope.launch {
             runCatching {
-            val accounts = accountRepository.getAccounts().first()
-            val signature = settingsRepository.settings.first().signature
-            val self = accounts.firstOrNull()
-            val original = if (refId >= 0) mailRepository.getMessageById(refId) else null
+                val accounts = accountRepository.getAccounts().first()
+                val signature = settingsRepository.settings.first().signature
+                val self = accounts.firstOrNull()
+                val original = if (refId >= 0) mailRepository.getMessageById(refId) else null
 
-            var to = ""
-            var cc = ""
-            var subject = ""
-            var body = signatureBlock(signature)
-            var showCcBcc = false
+                var to = ""
+                var cc = ""
+                var subject = ""
+                var body = signatureBlock(signature)
+                var showCcBcc = false
 
-            if (original != null) {
-                inReplyTo = original.messageId
-                references = original.messageId
-                when (mode) {
-                    "reply" -> {
-                        to = AddressParser.format(original.from)
-                        subject = MailText.replySubject(original.subject)
-                        body = signatureBlock(signature) + MailText.replyQuote(original)
-                    }
-                    "replyAll" -> {
-                        val (toList, ccList) = MailText.replyAllRecipients(original, self?.email ?: "")
-                        to = AddressParser.format(toList)
-                        cc = AddressParser.format(ccList)
-                        showCcBcc = ccList.isNotEmpty()
-                        subject = MailText.replySubject(original.subject)
-                        body = signatureBlock(signature) + MailText.replyQuote(original)
-                    }
-                    "forward" -> {
-                        subject = MailText.forwardSubject(original.subject)
-                        body = signatureBlock(signature) + MailText.forwardQuote(original)
+                if (original != null) {
+                    inReplyTo = original.messageId
+                    references = original.messageId
+                    when (mode) {
+                        "reply" -> {
+                            to = AddressParser.format(original.from)
+                            subject = MailText.replySubject(original.subject)
+                            body = signatureBlock(signature) + MailText.replyQuote(original)
+                        }
+                        "replyAll" -> {
+                            val (toList, ccList) = MailText.replyAllRecipients(original, self?.email ?: "")
+                            to = AddressParser.format(toList)
+                            cc = AddressParser.format(ccList)
+                            showCcBcc = ccList.isNotEmpty()
+                            subject = MailText.replySubject(original.subject)
+                            body = signatureBlock(signature) + MailText.replyQuote(original)
+                        }
+                        "forward" -> {
+                            subject = MailText.forwardSubject(original.subject)
+                            body = signatureBlock(signature) + MailText.forwardQuote(original)
+                        }
                     }
                 }
-            }
 
-            _uiState.value = _uiState.value.copy(
-                accounts = accounts,
-                selectedAccount = self,
-                to = to,
-                cc = cc,
-                subject = subject,
-                body = body,
-                showCcBcc = showCcBcc
-            )
+                _uiState.value = _uiState.value.copy(
+                    accounts = accounts,
+                    selectedAccount = self,
+                    to = to,
+                    cc = cc,
+                    subject = subject,
+                    body = body,
+                    showCcBcc = showCcBcc
+                )
             }.onFailure { e ->
                 _uiState.value = _uiState.value.copy(error = e.message ?: "Failed to load compose draft")
+            }
+        }
+
+        viewModelScope.launch {
+            runCatching {
+                contactQueries
+                    .debounce(150L)
+                    .mapLatest { query ->
+                        if (contactRepository.hasPermission()) contactRepository.search(query)
+                        else emptyList()
+                    }
+                    .collect { suggestions ->
+                        _uiState.value = _uiState.value.copy(
+                            contactSuggestions = suggestions,
+                            contactsPermissionDenied = !contactRepository.hasPermission()
+                        )
+                    }
+            }.onFailure { e ->
+                _uiState.value = _uiState.value.copy(error = e.message ?: "Contact search failed")
             }
         }
     }
@@ -127,9 +166,21 @@ class ComposeViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(showCcBcc = !_uiState.value.showCcBcc)
     }
 
-    fun updateTo(value: String) { _uiState.value = _uiState.value.copy(to = value) }
-    fun updateCc(value: String) { _uiState.value = _uiState.value.copy(cc = value) }
-    fun updateBcc(value: String) { _uiState.value = _uiState.value.copy(bcc = value) }
+    fun updateTo(value: String) {
+        _uiState.value = _uiState.value.copy(to = value, activeRecipientField = RecipientField.TO)
+        scheduleContactSearch(value)
+    }
+
+    fun updateCc(value: String) {
+        _uiState.value = _uiState.value.copy(cc = value, activeRecipientField = RecipientField.CC)
+        scheduleContactSearch(value)
+    }
+
+    fun updateBcc(value: String) {
+        _uiState.value = _uiState.value.copy(bcc = value, activeRecipientField = RecipientField.BCC)
+        scheduleContactSearch(value)
+    }
+
     fun updateSubject(value: String) { _uiState.value = _uiState.value.copy(subject = value) }
     fun updateBody(value: String) { _uiState.value = _uiState.value.copy(body = value) }
 
@@ -139,6 +190,113 @@ class ComposeViewModel @Inject constructor(
 
     fun removeAttachment(attachment: Attachment) {
         _uiState.value = _uiState.value.copy(attachments = _uiState.value.attachments - attachment)
+    }
+
+    /**
+     * Inserts an inline image by appending the markdown snippet `![image](cid:...)`
+     * to the body and registering the matching Content-ID attachment so
+     * [com.threemail.android.data.remote.MimeBuilder] emits the right
+     * multipart/related structure. If a previous inline attachment with the
+     * same local path and filename already exists, its content-id is reused so
+     * the receiver doesn't get two duplicate MIME parts for the same bytes.
+     */
+    fun addInlineImage(contentId: String, fileName: String, mimeType: String, size: Long, localPath: String) {
+        val state = _uiState.value
+        val existing = state.attachments.firstOrNull {
+            it.isInline && it.localPath == localPath && it.fileName == fileName && it.contentId != null
+        }
+        val effectiveContentId = existing?.contentId ?: contentId
+        val snippet = "![image](cid:${effectiveContentId}@3mail)"
+        val newBody = when {
+            state.body.isBlank() -> snippet
+            state.body.endsWith("\n") -> "$state.body$snippet"
+            else -> "$state.body\n$snippet"
+        }
+        if (existing != null) {
+            _uiState.value = state.copy(body = newBody)
+        } else {
+            val attachment = Attachment(
+                fileName = fileName,
+                mimeType = mimeType,
+                size = size,
+                localPath = localPath,
+                isInline = true,
+                contentId = effectiveContentId
+            )
+            _uiState.value = state.copy(
+                body = newBody,
+                attachments = state.attachments + attachment
+            )
+        }
+    }
+
+    /** Screen callback fired when the OS READ_CONTACTS dialog completes. */
+    fun onContactsPermissionResult(granted: Boolean) {
+        _uiState.value = _uiState.value.copy(
+            requestContactsPermission = false,
+            contactsPermissionDenied = !granted
+        )
+        if (granted) {
+            // Immediately search the current active-field last segment so contacts surface without a fresh keystroke.
+            val segment = currentRecipientFieldText().substringAfterLast(',').trim()
+            contactQueries.tryEmit(segment)
+        }
+    }
+
+    /**
+     * Replaces the last comma-separated segment of the active recipient field
+     * with the picked contact's formatted address, then appends ", " so the
+     * user can keep typing. Matches Gmail / iOS autocomplete behavior.
+     *
+     * Display names containing `,` or `;` are stripped of those characters
+     * rather than quoted, because [AddressParser.parse] splits on those
+     * delimiters unconditionally and wouldn't round-trip a quoted name.
+     */
+    fun pickContact(contact: Contact, emailIndex: Int = 0) {
+        val state = _uiState.value
+        val email = contact.emails.getOrNull(emailIndex)?.takeIf { it.isNotBlank() } ?: return
+        val safeName = contact.displayName
+            .replace(",", "")
+            .replace(";", "")
+            .replace("\n", " ")
+            .trim()
+        val formatted = if (safeName.isBlank()) email
+        else "${safeName} <${email}>"
+        val activeText = currentRecipientFieldText()
+        val lastComma = activeText.lastIndexOf(',')
+        val newActive = if (lastComma == -1) {
+            "$formatted, "
+        } else {
+            val prefix = activeText.substring(0, lastComma).trimEnd { it == ',' || it == ' ' }
+            "$prefix, $formatted, "
+        }
+        val newTo = if (state.activeRecipientField == RecipientField.TO) newActive else state.to
+        val newCc = if (state.activeRecipientField == RecipientField.CC) newActive else state.cc
+        val newBcc = if (state.activeRecipientField == RecipientField.BCC) newActive else state.bcc
+        _uiState.value = state.copy(
+            to = newTo,
+            cc = newCc,
+            bcc = newBcc
+        )
+        // Drop any pending suggestions; the next keystroke re-arms the search.
+        contactQueries.tryEmit("")
+    }
+
+    private fun scheduleContactSearch(fieldText: String) {
+        val segment = fieldText.substringAfterLast(',').trim()
+        contactQueries.tryEmit(segment)
+        if (!contactRepository.hasPermission() && !_uiState.value.contactsPermissionRequested) {
+            _uiState.value = _uiState.value.copy(
+                contactsPermissionRequested = true,
+                requestContactsPermission = true
+            )
+        }
+    }
+
+    private fun currentRecipientFieldText(): String = when (_uiState.value.activeRecipientField) {
+        RecipientField.TO -> _uiState.value.to
+        RecipientField.CC -> _uiState.value.cc
+        RecipientField.BCC -> _uiState.value.bcc
     }
 
     fun send() {
