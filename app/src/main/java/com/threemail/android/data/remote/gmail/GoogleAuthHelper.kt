@@ -1,14 +1,15 @@
 package com.threemail.android.data.remote.gmail
 
 import android.content.Context
+import androidx.credentials.CredentialManager
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.GetCredentialResponse
+import androidx.credentials.exceptions.GetCredentialException
 import com.google.android.gms.auth.GoogleAuthUtil
 import com.google.android.gms.auth.UserRecoverableAuthException
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInAccount
-import com.google.android.gms.auth.api.signin.GoogleSignInClient
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions
-import com.google.android.gms.common.api.ApiException
-import com.google.android.gms.common.api.Scope
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.threemail.android.R
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -25,34 +26,39 @@ class GoogleAuthHelper @Inject constructor(
         const val CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar"
     }
 
-    private val signInClient: GoogleSignInClient by lazy {
-        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestEmail()
-            .requestScopes(Scope(GMAIL_SCOPE))
-            .requestScopes(Scope(CALENDAR_SCOPE))
+    private val credentialManager = CredentialManager.create(context)
+
+    suspend fun signInWithGoogle(activityContext: Context): Result<GoogleUserInfo> = withContext(Dispatchers.Main) {
+        val googleIdOption = GetGoogleIdOption.Builder()
+            .setFilterByAuthorizedAccounts(false)
+            .setServerClientId(context.getString(R.string.default_web_client_id))
             .build()
-        GoogleSignIn.getClient(context, gso)
+
+        val request = GetCredentialRequest.Builder()
+            .addCredentialOption(googleIdOption)
+            .build()
+
+        try {
+            val result = credentialManager.getCredential(activityContext, request)
+            Result.success(handleCredentialResponse(result))
+        } catch (e: GetCredentialException) {
+            Result.failure(e)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
-    fun getSignInIntent() = signInClient.signInIntent
-
-    fun getSignedInAccount(): GoogleSignInAccount? {
-        return GoogleSignIn.getLastSignedInAccount(context)
-    }
-
-    fun isSignedIn(): Boolean {
-        return getSignedInAccount() != null
-    }
-
-    fun getSignedInEmail(): String? {
-        return getSignedInAccount()?.email
-    }
-
-    fun hasCalendarConsent(): Boolean {
-        return GoogleSignIn.hasPermissions(
-            getSignedInAccount() ?: return false,
-            Scope(CALENDAR_SCOPE)
-        )
+    private fun handleCredentialResponse(response: GetCredentialResponse): GoogleUserInfo {
+        val credential = response.credential
+        if (credential is GoogleIdTokenCredential) {
+            return GoogleUserInfo(
+                email = credential.id,
+                displayName = credential.displayName,
+                idToken = credential.idToken
+            )
+        } else {
+            throw Exception("Unexpected credential type: ${credential.type}")
+        }
     }
 
     /**
@@ -63,8 +69,8 @@ class GoogleAuthHelper @Inject constructor(
      *         The caller should launch the provided intent and then retry.
      */
     @Throws(RecoverableAuthException::class)
-    suspend fun getAccessToken(): String = withContext(Dispatchers.IO) {
-        val account = getSignedInAccount()?.account ?: throw IllegalStateException("No Google account is signed in")
+    suspend fun getAccessToken(email: String): String = withContext(Dispatchers.IO) {
+        val account = android.accounts.Account(email, "com.google")
         try {
             GoogleAuthUtil.getToken(context, account, "oauth2:$GMAIL_SCOPE")
         } catch (e: UserRecoverableAuthException) {
@@ -73,29 +79,22 @@ class GoogleAuthHelper @Inject constructor(
         }
     }
 
-    /** Returns an Intent the caller can launch to ask the user for the Calendar scope. */
-    fun requestCalendarConsentIntent() =
-        GoogleSignIn.getClient(
-            context,
-            GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                .requestScopes(Scope(CALENDAR_SCOPE))
-                .build()
-        ).signInIntent
-
-    /**
-     * Parses the result of the Google Sign-In intent.
-     * Returns the account on success, or throws [ApiException] on failure.
-     */
-    fun handleSignInResult(data: android.content.Intent?): Result<GoogleSignInAccount> {
-        return try {
-            val task = GoogleSignIn.getSignedInAccountFromIntent(data)
-            Result.success(task.getResult(ApiException::class.java))
-        } catch (e: ApiException) {
-            Result.failure(e)
-        }
+    /** Legacy support for single-account calls. */
+    @Throws(RecoverableAuthException::class)
+    suspend fun getAccessToken(): String {
+        // This is now problematic as we don't track the "last signed in account" globally via SDK.
+        // We should ideally pass the email everywhere.
+        // For now, if this is called, it might fail if we don't have a way to know which email to use.
+        throw UnsupportedOperationException("Call getAccessToken(email) instead")
     }
 
     fun signOut() {
-        signInClient.signOut()
+        // CredentialManager sign-out is handled by clearing local app state.
     }
 }
+
+data class GoogleUserInfo(
+    val email: String,
+    val displayName: String? = null,
+    val idToken: String? = null
+)

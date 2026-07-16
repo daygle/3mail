@@ -27,12 +27,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MediumTopAppBar
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.rememberSwipeToDismissBoxState
@@ -104,6 +104,10 @@ fun InboxScreen(
                 onCalendar = {
                     scope.launch { drawerState.close() }
                     onNavigateToCalendar()
+                },
+                onSync = {
+                    scope.launch { drawerState.close() }
+                    viewModel.sync()
                 }
             )
         }
@@ -111,7 +115,7 @@ fun InboxScreen(
         Scaffold(
             modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
             topBar = {
-                MediumTopAppBar(
+                TopAppBar(
                     title = { Text(state.selectedFolder?.name ?: stringResource(R.string.app_name)) },
                     navigationIcon = {
                         IconButton(onClick = { scope.launch { drawerState.open() } }) {
@@ -126,7 +130,7 @@ fun InboxScreen(
                             Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.sync))
                         }
                     },
-                    colors = TopAppBarDefaults.mediumTopAppBarColors(
+                    colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant,
                         titleContentColor = MaterialTheme.colorScheme.onSurface,
                         scrolledContainerColor = MaterialTheme.colorScheme.surface

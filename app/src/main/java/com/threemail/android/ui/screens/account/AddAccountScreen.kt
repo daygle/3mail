@@ -21,10 +21,10 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MediumTopAppBar
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -33,10 +33,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.common.api.ApiException
 import com.threemail.android.R
 import com.threemail.android.domain.model.AccountType
 
@@ -48,28 +47,11 @@ fun AddAccountScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val context = LocalContext.current
 
     LaunchedEffect(state.isSaved) {
         if (state.isSaved) {
             onNavigateBack()
-        }
-    }
-
-    val googleSignInLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        val accountResult = viewModel.handleGoogleSignInResult(result.data)
-        accountResult.onSuccess { account ->
-            account.email?.let { email ->
-                viewModel.saveGmailAccount(email, account.displayName.orEmpty())
-            } ?: viewModel.updateError("Google Sign-In did not return an email address.")
-        }.onFailure { error ->
-            val message = if (error is ApiException) {
-                "Google Sign-In failed: ${error.statusCode}"
-            } else {
-                "Google Sign-In failed: ${error.message}"
-            }
-            viewModel.updateError(message)
         }
     }
 
@@ -89,14 +71,14 @@ fun AddAccountScreen(
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            MediumTopAppBar(
+            TopAppBar(
                 title = { Text(stringResource(R.string.add_account)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cancel))
                     }
                 },
-                colors = TopAppBarDefaults.mediumTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     titleContentColor = MaterialTheme.colorScheme.onSurface,
                     scrolledContainerColor = MaterialTheme.colorScheme.surface
@@ -113,7 +95,7 @@ fun AddAccountScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             GoogleSignInButton(
-                onClick = { googleSignInLauncher.launch(viewModel.getGoogleSignInIntent()) },
+                onClick = { viewModel.signInWithGoogle(context) },
                 enabled = !state.isSaving
             )
             Spacer(modifier = Modifier.height(16.dp))

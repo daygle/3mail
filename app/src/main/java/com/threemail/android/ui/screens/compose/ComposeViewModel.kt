@@ -19,6 +19,8 @@ import com.threemail.android.util.AddressParser
 import com.threemail.android.util.MailText
 import com.threemail.android.util.Markdown
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,6 +33,7 @@ import javax.inject.Inject
 /** Identifies which recipient field the user is currently editing. */
 enum class RecipientField { TO, CC, BCC }
 
+@OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class ComposeViewModel @Inject constructor(
     private val accountRepository: AccountRepository,

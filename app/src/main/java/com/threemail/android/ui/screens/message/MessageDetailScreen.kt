@@ -252,10 +252,6 @@ class SafeWebView(
 ) : WebView(context) {
     init {
         settings.javaScriptEnabled = false
-        settings.allowFileAccess = false
-        settings.allowContentAccess = false
-        settings.allowFileAccessFromFileURLs = false
-        settings.allowUniversalAccessFromFileURLs = false
         settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
         settings.domStorageEnabled = false
         settings.loadsImagesAutomatically = false

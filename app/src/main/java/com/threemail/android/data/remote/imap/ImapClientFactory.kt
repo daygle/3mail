@@ -14,7 +14,7 @@ class ImapClientFactory @Inject constructor(
     fun create(account: Account): ImapClient {
         val tokenProvider: suspend () -> String? = when (account.accountType) {
             AccountType.GMAIL -> {
-                { googleAuthHelper.getAccessToken() }
+                { googleAuthHelper.getAccessToken(account.email) }
             }
             AccountType.IMAP -> {
                 { null }

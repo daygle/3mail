@@ -54,9 +54,15 @@ class AddAccountViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(recoverableAuthIntent = null)
     }
 
-    fun getGoogleSignInIntent() = googleAuthHelper.getSignInIntent()
-
-    fun handleGoogleSignInResult(data: android.content.Intent?) = googleAuthHelper.handleSignInResult(data)
+    fun signInWithGoogle(context: android.content.Context) {
+        viewModelScope.launch {
+            googleAuthHelper.signInWithGoogle(context).onSuccess { userInfo ->
+                saveGmailAccount(userInfo.email, userInfo.displayName.orEmpty())
+            }.onFailure { error ->
+                updateError("Google Sign-In failed: ${error.message}")
+            }
+        }
+    }
 
     fun save() {
         val state = _uiState.value
