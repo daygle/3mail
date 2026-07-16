@@ -19,6 +19,10 @@ captures/
 # OS specific
 .DS_Store
 Thumbs.db
+# Windows reserved device names - files named these are usually shell
+# redirection artifacts (e.g. `> nul` accidentally landing in the repo root
+# from a malformed findstr/find). The most common offender is `nul`.
+nul
 
 # Built application files
 *.apk
