@@ -23,7 +23,8 @@ class SearchViewModel @Inject constructor(
     data class UiState(
         val query: String = "",
         val results: List<MailMessage> = emptyList(),
-        val isLoading: Boolean = false
+        val isLoading: Boolean = false,
+        val error: String? = null
     )
 
     private val _uiState = MutableStateFlow(UiState())
@@ -33,6 +34,7 @@ class SearchViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            runCatching {
             _query
                 .debounce(300)
                 .flatMapLatest { query ->
@@ -45,6 +47,9 @@ class SearchViewModel @Inject constructor(
                 .collect { results ->
                     _uiState.value = _uiState.value.copy(results = results, isLoading = false)
                 }
+            }.onFailure { e ->
+                _uiState.value = _uiState.value.copy(error = e.message ?: "Failed to load search")
+            }
         }
     }
 

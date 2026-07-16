@@ -61,6 +61,7 @@ class ComposeViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            runCatching {
             val accounts = accountRepository.getAccounts().first()
             val signature = settingsRepository.settings.first().signature
             val self = accounts.firstOrNull()
@@ -105,6 +106,9 @@ class ComposeViewModel @Inject constructor(
                 body = body,
                 showCcBcc = showCcBcc
             )
+            }.onFailure { e ->
+                _uiState.value = _uiState.value.copy(error = e.message ?: "Failed to load compose draft")
+            }
         }
     }
 

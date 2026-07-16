@@ -20,7 +20,8 @@ class AccountViewModel @Inject constructor(
     data class UiState(
         val accounts: List<Account> = emptyList(),
         val isLoading: Boolean = false,
-        val pendingRemoval: Account? = null
+        val pendingRemoval: Account? = null,
+        val error: String? = null
     )
 
     private val _uiState = MutableStateFlow(UiState())
@@ -28,6 +29,7 @@ class AccountViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            runCatching {
             accountRepository.getAccounts().collect { accounts ->
                 _uiState.value = _uiState.value.copy(
                     accounts = accounts,
@@ -36,6 +38,9 @@ class AccountViewModel @Inject constructor(
                         accounts.any { it.id == pending.id }
                     }
                 )
+            }
+            }.onFailure { e ->
+                _uiState.value = _uiState.value.copy(error = e.message ?: "Failed to load accounts")
             }
         }
     }

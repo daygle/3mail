@@ -64,7 +64,7 @@ class InboxViewModel @Inject constructor(
 
     private val messagesFlow = _selectedFolder
         .filterNotNull()
-        .flatMapLatest { folder -> mailRepository.getMessages(folder.id) }
+        .flatMapLatest { folder -> mailRepository.getMessagesPaged(folder.id, DEFAULT_PAGE_SIZE, 0) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val baseState: StateFlow<UiState> = combine(
@@ -97,17 +97,25 @@ class InboxViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            runCatching {
             accountsFlow.collect { accounts ->
                 if (_selectedAccount.value == null && accounts.isNotEmpty()) {
                     _selectedAccount.value = accounts.first()
                 }
             }
+            }.onFailure { e ->
+                _uiState.value = _uiState.value.copy(error = e.message ?: "Failed to load inbox")
+            }
         }
         viewModelScope.launch {
+            runCatching {
             foldersFlow.collect { folders ->
                 if (_selectedFolder.value == null && folders.isNotEmpty()) {
                     _selectedFolder.value = folders.firstOrNull { it.type == FolderType.INBOX } ?: folders.first()
                 }
+            }
+            }.onFailure { e ->
+                _uiState.value = _uiState.value.copy(error = e.message ?: "Failed to load inbox")
             }
         }
     }
@@ -170,5 +178,14 @@ class InboxViewModel @Inject constructor(
 
     fun archive(message: MailMessage) {
         viewModelScope.launch { mailActions.archive(message) }
+    }
+
+    companion object {
+        /**
+         * Page size for the initial folder fetch. Lets `getByFolderPaged` cap the row
+         * count so the inbox doesn't stream every message in a giant folder into Compose.
+         * Re-selection re-fetches; full paging with loadMore() can layer on top later.
+         */
+        private const val DEFAULT_PAGE_SIZE = 50
     }
 }

@@ -12,6 +12,7 @@ import com.threemail.android.domain.model.MailFolder
 import com.threemail.android.domain.model.MailMessage
 import com.threemail.android.util.FtsUtil
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import org.json.JSONArray
@@ -67,6 +68,18 @@ class MailRepository @Inject constructor(
 
     fun getThread(accountId: Long, threadId: String): Flow<List<MailMessage>> =
         messageDao.getByThread(accountId, threadId).map { list -> list.map { it.toDomain() } }
+
+    /**
+     * Bounded paged folder fetch. Emits once on collection — not Room-reactive, so
+     * new mail arriving in the folder won't auto-push to the UI. Re-selecting the
+     * folder via InboxViewModel triggers a fresh snapshot. The inbox cap is
+     * implemented on top of `MessageDao.getByFolderPaged` so the JVM-side query is
+     * bounded; full paging with loadMore() can be layered on top without changing
+     * this method.
+     */
+    fun getMessagesPaged(folderId: Long, limit: Int, offset: Int): Flow<List<MailMessage>> = flow {
+        emit(messageDao.getByFolderPaged(folderId, limit, offset).map { it.toDomain() })
+    }
 
     suspend fun getMaxUid(folderId: Long): Long =
         messageDao.getMaxUid(folderId) ?: 0L
