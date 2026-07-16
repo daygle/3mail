@@ -216,8 +216,8 @@ class ComposeViewModel @Inject constructor(
         val snippet = "![image](cid:${effectiveContentId}@3mail)"
         val newBody = when {
             state.body.isBlank() -> snippet
-            state.body.endsWith("\n") -> "$state.body$snippet"
-            else -> "$state.body\n$snippet"
+            state.body.endsWith("\n") -> "${state.body}$snippet"
+            else -> "${state.body}\n$snippet"
         }
         if (existing != null) {
             _uiState.value = state.copy(body = newBody)
