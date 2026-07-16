@@ -33,7 +33,6 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -45,10 +44,12 @@ import org.robolectric.shadows.ShadowLooper
  * transparently bumps UI state to Security.STARTTLS, sets the upgrade
  * banner, and persists the Account row with useStartTls = true.
  *
- * Robolectric gives us a working AndroidKeyStore (so CredentialStore
- * can encrypt the password it stores on save) and an in-memory SQLite
- * (so the saved Account round-trips back through the AccountEntity
- * schema for the assertion at the end of the test).
+ * Robolectric does NOT implement AndroidKeyStore AES/GCM crypto, so the
+ * real CredentialStore.savePassword throws there; the test injects a no-op
+ * [FakeCredentialStore] to bypass it while keeping the real
+ * AccountRepository (and therefore the real security -> useStartTls mapper
+ * under test). An in-memory SQLite lets the saved Account round-trip back
+ * through the AccountEntity schema for the assertion at the end of the test.
  *
  * Coroutine timing: `viewModelScope.launch` runs on Dispatchers.Main.
  * Setting it to `UnconfinedTestDispatcher` in @Before makes every
@@ -72,18 +73,25 @@ class AddAccountViewModelTest {
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         val context = ApplicationProvider.getApplicationContext<Context>()
+        // Run Room's suspend DAO work on the calling thread so the insert in
+        // AccountRepository.addAccount completes synchronously under the test
+        // dispatcher instead of hopping to Room's background executor (which
+        // the test dispatcher doesn't drive) and racing the assertions.
+        val directExecutor = java.util.concurrent.Executor { it.run() }
         database = Room.inMemoryDatabaseBuilder(context, ThreeMailDatabase::class.java)
             .allowMainThreadQueries()
+            .setQueryExecutor(directExecutor)
+            .setTransactionExecutor(directExecutor)
             .build()
-        // Real CredentialStore so the security->useStartTls mapper on
-        // AccountRepository sees the real AndroidKeyStore-backed
-        // password storage path. We never read the password back in this
-        // test - the goal is to verify the on-disk useStartTls column -
-        // but going through the real class is the cleanest way to
-        // exercise the production path.
+        // Real AccountRepository so the production security -> useStartTls
+        // mapper is exercised, but a no-op CredentialStore: the real one drives
+        // AndroidKeyStore AES/GCM, which Robolectric does not implement, so
+        // savePassword() would throw and abort save() before it reaches the
+        // saved terminal. We assert the persisted useStartTls column, not the
+        // password, so a no-op credential store loses no coverage.
         accountRepository = AccountRepository(
             accountDao = database.accountDao(),
-            credentialStore = CredentialStore(context)
+            credentialStore = FakeCredentialStore(context)
         )
         // The factory's only job is to surface a FakeMailRemote on
         // every `create(account)` call. We give it real dependencies
@@ -102,16 +110,6 @@ class AddAccountViewModelTest {
         Dispatchers.resetMain()
     }
 
-    // Pre-existing failure, unrelated to this PR's audit fixes. This test was
-    // added alongside the STARTTLS auto-upgrade feature but has never actually
-    // executed in CI: the test source set did not compile until androidx.test:core
-    // was added (this PR). Once compiling, it fails an assertion inside the
-    // runTest block (the CI console attributes it only to the runTest line, not a
-    // specific assert, and the environment here can't run the Robolectric suite to
-    // pinpoint it). Ignoring so the audit fixes can land with a green build; the
-    // auto-upgrade logic in AddAccountViewModel itself is exercised manually and
-    // is unchanged by this PR. TODO: repair and re-enable this test.
-    @Ignore("Pre-existing failure; needs the Robolectric suite to diagnose. See comment above.")
     @Test
     fun `auto-upgrades Security NONE to STARTTLS when server advertises STARTTLS`() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
@@ -158,6 +156,19 @@ class AddAccountViewModelTest {
         // useEncryption must be false - the mapper enforces "exactly one
         // of the two is true", and STARTTLS wins.
         assertEquals(false, savedRow.useEncryption)
+    }
+
+    /**
+     * No-op [CredentialStore] for Robolectric: the real implementation drives
+     * AndroidKeyStore-backed AES/GCM, whose KeyGenerator/Cipher operations are
+     * unsupported under Robolectric and throw. Overriding the writes to no-ops
+     * (and reads to null) keeps AccountRepository.addAccount from aborting on
+     * the credential path while leaving the persisted-column assertions intact.
+     */
+    private class FakeCredentialStore(context: Context) : CredentialStore(context) {
+        override fun savePassword(email: String, password: String?) {}
+        override fun getPassword(email: String): String? = null
+        override fun deletePassword(email: String) {}
     }
 
     /**

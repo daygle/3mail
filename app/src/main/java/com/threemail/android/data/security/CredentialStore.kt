@@ -40,9 +40,16 @@ import javax.inject.Singleton
  * The storage file is keyed at [PREFS_FILE]; any passwords saved by previous
  * builds (encrypted with `EncryptedSharedPreferences`) are silently dropped on
  * first launch after upgrade. Users will need to re-enter IMAP passwords once.
+ *
+ * `open` (class + public methods) so JVM/Robolectric tests can substitute a
+ * no-op subclass: the real implementation drives AndroidKeyStore-backed
+ * AES/GCM, whose `KeyGenerator`/`Cipher` operations are not supported under
+ * Robolectric and throw. Production always wires this concrete class via Hilt;
+ * `open` does not weaken the stored-credential path at runtime. Mirrors the
+ * same pattern already used by `AccountRepository` and `MailRemoteFactory`.
  */
 @Singleton
-class CredentialStore @Inject constructor(
+open class CredentialStore @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     companion object {
@@ -164,7 +171,7 @@ class CredentialStore @Inject constructor(
         prefs.edit().remove(key(email)).apply()
     }
 
-    fun savePassword(email: String, password: String?) {
+    open fun savePassword(email: String, password: String?) {
         val prefKey = key(email)
         if (password.isNullOrEmpty()) {
             prefs.edit().remove(prefKey).apply()
@@ -173,12 +180,12 @@ class CredentialStore @Inject constructor(
         }
     }
 
-    fun getPassword(email: String): String? {
+    open fun getPassword(email: String): String? {
         val encoded = prefs.getString(key(email), null) ?: return null
         return decrypt(email, encoded)
     }
 
-    fun deletePassword(email: String) {
+    open fun deletePassword(email: String) {
         dropEntry(email)
     }
 }
