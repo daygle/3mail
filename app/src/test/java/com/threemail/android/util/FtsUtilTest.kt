@@ -53,6 +53,20 @@ class FtsUtilTest {
     }
 
     @Test
+    fun `truncation across a token boundary never dangles an unbalanced quote`() {
+        // A long multi-token query whose sanitized form overflows MAX_QUERY_LENGTH
+        // and whose truncation point lands after (or inside) a completed token.
+        // The old code appended a stray closing quote to an already-balanced
+        // prefix, producing e.g. `"ab" "ab""` which fails the FTS4 parser.
+        val out = FtsUtil.sanitize((1..40).joinToString(" ") { "ab" })
+        assertTrue("output overflowed the cap: $out", out.length <= FtsUtil.MAX_QUERY_LENGTH)
+        assertEquals("unbalanced quotes in $out", 0, out.count { it == '"' } % 2)
+        assertTrue("output ends mid-token in $out", out.isEmpty() || out.endsWith("\""))
+        // Idempotency: re-sanitizing the output must be a fixed point.
+        assertEquals(out, FtsUtil.sanitize(out))
+    }
+
+    @Test
     fun `email address survives sanitization`() {
         assertEquals("\"user@domain.com\"", FtsUtil.sanitize("user@domain.com"))
     }

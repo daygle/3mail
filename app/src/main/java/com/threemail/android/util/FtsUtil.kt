@@ -39,7 +39,15 @@ object FtsUtil {
         val truncated = sanitized.take(MAX_QUERY_LENGTH)
         if (truncated.endsWith("\"")) return truncated
         val lastSpace = truncated.lastIndexOf(' ')
-        return if (lastSpace > 0) truncated.substring(0, lastSpace) + "\""
+        // Truncation landed mid-token. Every earlier token in the joined string
+        // is already `"..."`-closed and followed by the space at `lastSpace`, so
+        // the prefix up to that space is itself balanced - drop the partial
+        // trailing token and return it as-is. Appending a `"` here would instead
+        // dangle an unmatched quote after the last complete token (e.g.
+        // `"aa" "bb""`), which fails the FTS4 parser AND breaks idempotency.
+        return if (lastSpace > 0) truncated.substring(0, lastSpace)
+        // No space at all: a single over-long token. Trim one char to leave room
+        // for the closing quote and re-close it.
         else truncated.take(MAX_QUERY_LENGTH - 1) + "\""
     }
 }
