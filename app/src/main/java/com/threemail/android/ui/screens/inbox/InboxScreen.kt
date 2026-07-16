@@ -98,6 +98,9 @@ fun InboxScreen(
                     scope.launch { drawerState.close() }
                 },
                 onToggleFavorite = { folder -> viewModel.toggleFavorite(folder) },
+                onReorderFavorite = { accountId, serverIds ->
+                    viewModel.reorderFavorites(accountId, serverIds)
+                },
                 onManageAccounts = {
                     scope.launch { drawerState.close() }
                     onNavigateToAccounts()

@@ -2,6 +2,7 @@ package com.threemail.android.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Label
@@ -22,6 +24,7 @@ import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Drafts
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FolderOpen
@@ -42,20 +45,45 @@ import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import com.threemail.android.R
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.FolderType
 import com.threemail.android.domain.model.MailFolder
 import com.threemail.android.ui.theme.avatarColorFor
+
+/**
+ * Per-row drag state for the favourites drag-reorder gesture. Lifted to
+ * file scope so the data class stays private to this composable - no
+ * other screen cares about it. `accumulatorY` is the running sum of
+ * pointer dragAmount pixels since the gesture began; the row's
+ * graphicsLayer translates against this so dragging never causes the
+ * rest of the drawer to recompose.
+ */
+private data class DragInfo(
+    val fromIndex: Int,
+    val fromServerId: String,
+    val accumulatorY: Float = 0f
+)
 
 @Composable
 fun FolderDrawerContent(
@@ -64,18 +92,27 @@ fun FolderDrawerContent(
     selectedFolder: MailFolder?,
     onFolderClick: (MailFolder) -> Unit,
     onToggleFavorite: (MailFolder) -> Unit,
+    onReorderFavorite: (accountId: Long, serverIds: List<String>) -> Unit,
     onManageAccounts: () -> Unit,
     onSettings: () -> Unit,
     onCalendar: () -> Unit,
     onSync: () -> Unit
 ) {
     // Split folders into favorites + main list. The drawer renders favorites
-    // first as non-interactive rows (the user's mental model: a "pinned"
-    // shortcut list at the top) so the action targets for the real folder
-    // picker stay grouped below. `remember(folders)` keeps the partitioning
-    // stable across recompositions not driven by `folders`.
+    // first (the user's mental model: a "pinned" shortcut list at the top)
+    // so the action targets for the real folder picker stay grouped below.
+    // `remember(folders)` keeps the partitioning stable across recompositions
+    // not driven by `folders`.
     val favoriteFolders = remember(folders) { folders.filter { it.isFavorite } }
     val normalFolders = remember(folders) { folders.filterNot { it.isFavorite } }
+
+    // Live reference to the favourites list. The drag gesture's `onDragEnd`
+    // closure captures this Compose state (which always reads the latest
+    // value) instead of the original `favoriteFolders` parameter - a mid-
+    // drag reorder that changed the list would otherwise be invisible to
+    // the closure, and the user could see their reorder "stick" against a
+    // stale snapshot.
+    val favoriteFoldersState = rememberUpdatedState(favoriteFolders)
 
     ModalDrawerSheet {
         Column(modifier = Modifier.fillMaxHeight()) {
@@ -141,12 +178,11 @@ fun FolderDrawerContent(
             HorizontalDivider()
 
             // Folder List (Scrollable). Emits three blocks:
-            //   1. Favorites header + disabled rows (only when there is an
-            //      account AND at least one favorited folder)
+            //   1. Favorites header + long-press-draggable pinned rows
+            //      (only when there is an account AND at least one favorite)
             //   2. The main folder list with star toggles on each row
-            // Both blocks share a single LazyColumn so the scroll position
-            // behaves naturally and the divider above is the only chrome
-            // between sections.
+            // Both share a single LazyColumn so the scroll position behaves
+            // naturally and there is no divider chrome breaking the feel.
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
@@ -159,37 +195,143 @@ fun FolderDrawerContent(
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            // Sit the label inline with the folder-row text gutter
-                            // (NavigationDrawerItem's label is offset by the icon
-                            // width; 32.dp approximates that gutter for the list
-                            // density this drawer uses).
                             modifier = Modifier.padding(start = 32.dp, top = 4.dp, bottom = 4.dp)
                         )
                     }
-                    items(favoriteFolders, key = { "fav-${it.id}" }) { folder ->
-                        // Non-interactive pinned shortcut. Rendered as a plain
-                        // Row rather than a NavigationDrawerItem because
-                        // NavigationDrawerItem (`enabled` was added in a later
-                        // Material3 than this project pins, and on this version
-                        // the icon stays clickable even with `onClick = {}`)
-                        // and our pinned rows must NOT be tappable: tapping
-                        // them would clear the selection on the same-named
-                        // entry in the main list below, which is confusing.
-                        // The star + dimmed-onSurface color combination is the
-                        // visual contract that says "shortcut, not a button".
+
+                    itemsIndexed(
+                        favoriteFolders,
+                        // ServerId is the natural cross-table identifier;
+                        // using folder.id would force a full re-key on
+                        // every server sync that REPLACES folders.
+                        key = { _, f -> "fav-${f.serverId}" }
+                    ) { index, folder ->
+                        // Capture the row's actual measured height so the
+                        // per-row "row height" used to compute the drop
+                        // index matches whatever's currently laid out
+                        // (long folder names wrap, padding differs, etc.).
+                        var rowHeightPx by remember { mutableStateOf(48.dp.toPx()) }
+                        val haptics = LocalHapticFeedback.current
+                        val dragInfo = remember { mutableStateOf<DragInfo?>(null) }
+                        // derivedStateOf so the boolean only flips on drag
+                        // start/stop edge, not on every pixel of accumulatorY
+                        // movement. Reading dragInfo.value directly in
+                        // `.zIndex(...)` would re-compose the whole Row on
+                        // every drag step; derivedStateOf collapses the
+                        // high-frequency reads to a single recomposition per
+                        // edge so the rest of the row stays still.
+                        val isDragging by remember {
+                            derivedStateOf { dragInfo.value?.fromIndex == index }
+                        }
+
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 4.dp),
+                                .onSizeChanged { rowHeightPx = it.height.toFloat() }
+                                // Lift the dragged row above siblings so it
+                                // paints over the divider and the next
+                                // favourite instead of sliding under them.
+                                .zIndex(if (isDragging) 1f else 0f)
+                                .padding(horizontal = 12.dp, vertical = 4.dp)
+                                // Read dragInfo.value ONLY inside graphicsLayer
+                                // - reading it in the composition phase would
+                                // re-compose the whole Row on every pixel of
+                                // movement; inside the layer only the cheap
+                                // graphicsLayer apply runs.
+                                .graphicsLayer {
+                                    val current = dragInfo.value
+                                    if (current?.fromIndex == index) {
+                                        translationY = current.accumulatorY
+                                        shadowElevation = 6.dp.toPx()
+                                        alpha = 0.92f
+                                    } else {
+                                        translationY = 0f
+                                        shadowElevation = 0f
+                                        alpha = 1f
+                                    }
+                                }
+                                .pointerInput(favoriteFolders.size) {
+                                    detectDragGesturesAfterLongPress(
+                                        onDragStart = {
+                                            // Tactile cue that drag mode has
+                                            // engaged (long-press passed).
+                                            haptics.performHapticFeedback(
+                                                HapticFeedbackType.LongPress
+                                            )
+                                            dragInfo.value = DragInfo(
+                                                fromIndex = index,
+                                                fromServerId = folder.serverId,
+                                                accumulatorY = 0f
+                                            )
+                                        },
+                                        onDrag = { _, dragAmount ->
+                                            val cur = dragInfo.value
+                                                ?: return@detectDragGesturesAfterLongPress
+                                            dragInfo.value = cur.copy(
+                                                accumulatorY = cur.accumulatorY + dragAmount.y
+                                            )
+                                        },
+                                        onDragEnd = {
+                                            val final = dragInfo.value ?: run {
+                                                return@detectDragGesturesAfterLongPress
+                                            }
+                                            // Read the LIVE list, not the
+                                            // close-over snapshot. If favourites
+                                            // shrank to empty mid-drag, drop
+                                            // the reorder cleanly.
+                                            val live = favoriteFoldersState.value
+                                            if (live.isEmpty()) {
+                                                dragInfo.value = null
+                                                return@detectDragGesturesAfterLongPress
+                                            }
+                                            val steps = if (rowHeightPx > 0f) {
+                                                (final.accumulatorY / rowHeightPx).toInt()
+                                            } else {
+                                                0
+                                            }
+                                            // Bound the target so the user
+                                            // cannot drag the dragged row
+                                            // beyond either end of the
+                                            // favourites list. From index K,
+                                            // valid new indices are 0..N-1.
+                                            val targetIndex = (final.fromIndex + steps)
+                                                .coerceIn(0, live.lastIndex)
+                                            if (targetIndex != final.fromIndex && account != null) {
+                                                val newOrder = live.toMutableList()
+                                                val moved = newOrder.removeAt(final.fromIndex)
+                                                newOrder.add(
+                                                    targetIndex.coerceAtMost(newOrder.size),
+                                                    moved
+                                                )
+                                                onReorderFavorite(
+                                                    account.id,
+                                                    newOrder.map { it.serverId }
+                                                )
+                                            }
+                                            dragInfo.value = null
+                                        },
+                                        onDragCancel = { dragInfo.value = null }
+                                    )
+                                },
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            // Drag-handle icon: low-alpha visual contract
+                            // that says "this row reorders on long-press".
+                            // Kept low-alpha so it doesn't compete with
+                            // the star for attention.
+                            Icon(
+                                imageVector = Icons.Default.DragHandle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    .copy(alpha = 0.5f)
+                            )
                             Icon(
                                 imageVector = Icons.Default.Star,
-                                contentDescription = null,
+                                contentDescription = stringResource(R.string.favorites_remove),
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(start = 8.dp)
+                                modifier = Modifier.padding(start = 4.dp)
                             )
-                            Spacer(Modifier.width(20.dp))
+                            Spacer(Modifier.width(16.dp))
                             Text(
                                 text = folder.name,
                                 style = MaterialTheme.typography.bodyMedium,
@@ -197,6 +339,7 @@ fun FolderDrawerContent(
                             )
                         }
                     }
+
                     item(key = "favorites-divider") {
                         HorizontalDivider(
                             modifier = Modifier.padding(vertical = 6.dp),
@@ -212,11 +355,7 @@ fun FolderDrawerContent(
                         label = { Text(folder.name) },
                         // Badge slot hosts BOTH the unread count (preserves the
                         // pre-favoriteFolders visual cue for "this folder has
-                        // new mail") AND the star toggle for favoriting. The
-                        // Row shares the gutter reserved for the badge area;
-                        // the IconButton keeps its default 48dp tap target so
-                        // accessibility (TalkBack long-press, overshoot) is
-                        // preserved even in this dense compact list.
+                        // new mail") AND the star toggle for favoriting.
                         badge = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 if (folder.unreadCount > 0) {
@@ -238,7 +377,7 @@ fun FolderDrawerContent(
                                         // Color chain: `when` (not chained `if`)
                                         // so the selected state ALWAYS paints
                                         // white-on-primary, even for favorited
-                                        // folders where the priority order would
+                                        // folders where priority order would
                                         // otherwise be primary-on-primary (invisible).
                                         tint = when {
                                             isSelected -> Color.White

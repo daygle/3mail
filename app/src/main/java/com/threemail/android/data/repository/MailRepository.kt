@@ -86,18 +86,45 @@ class MailRepository @Inject constructor(
     /**
      * Toggle a folder's favorite state. INSERT OR IGNORE / DELETE keep the
      * side table consistent without races.
+     *
+     * When starring a fresh folder, the recipient slot is computed as
+     * `MAX(position) + 1` over the current ranked list so newly-starred
+     * folders append at the bottom of the user's pinned shortcut list
+     * (i.e. position N when there are already N favourites). That matches
+     * the user's mental model: "I just starred this - it should land at
+     * the end, and I can drag it up from there if I want."
+     *
+     * INSERT OR IGNORE means: if a row for the same (accountId, serverId)
+     * already exists (e.g. intended re-favorite with no position change),
+     * the existing position is preserved. The repository never silently
+     * renumbers an existing row.
      */
     suspend fun setFolderFavorite(accountId: Long, serverId: String, isFavorite: Boolean) {
         if (isFavorite) {
+            val ranked = folderDao.getFavoritesByAccountOnce(accountId)
+            val appendPosition = (ranked.maxOfOrNull { it.position } ?: -1) + 1
             folderDao.addFavorite(
                 com.threemail.android.data.local.entity.FolderFavoriteEntity(
                     accountId = accountId,
-                    serverId = serverId
+                    serverId = serverId,
+                    position = appendPosition
                 )
             )
         } else {
             folderDao.removeFavorite(accountId, serverId)
         }
+    }
+
+    /**
+     * Reassign positions for ALL favorites of one account in the order
+     * supplied. Called by the drawer's drag-reorder UI on drop release;
+     * the [androidx.room.Transaction] in
+     * [com.threemail.android.data.local.dao.FolderDao.reorderFavorites]
+     * ensures a partial reorder can't leave the on-disk list mid-shuffle.
+     * ServerIds not in the favourites set are no-ops (per the DAO contract).
+     */
+    suspend fun reorderFavorites(accountId: Long, serverIds: List<String>) {
+        folderDao.reorderFavorites(accountId, serverIds)
     }
 
     suspend fun updateFolderCursor(folderId: Long, maxUid: Long) {

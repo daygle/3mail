@@ -195,6 +195,19 @@ class InboxViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Persist a drag-reorder of the drawer's pinned favorites. Called once
+     * per drag release with the new serverId ordering. The DAO wraps the
+     * per-row position UPDATEs in a single Room Transaction so a partial
+     * reorder (mid-loop cancellation, crash) rolls back instead of leaving
+     * the user's pinned list half-renumbered.
+     */
+    fun reorderFavorites(accountId: Long, serverIds: List<String>) {
+        viewModelScope.launch {
+            mailRepository.reorderFavorites(accountId, serverIds)
+        }
+    }
+
     companion object {
         /**
          * Page size for the initial folder fetch. Lets `getByFolderPaged` cap the row

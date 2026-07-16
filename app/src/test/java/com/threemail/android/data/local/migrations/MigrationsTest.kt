@@ -266,4 +266,77 @@ class MigrationsTest {
             db.close()
         }
     }
+
+    /**
+     * Drives the full v9 -> v11 -> v12 upgrade path so we exercise MIGRATION_11_12
+     * the way a real user upgrading from before drag-reorder would see it:
+     * existing ROWIDs survive (so insertion-order tie-breaks in the DAO query
+     * are meaningful after the backfill), and the migration's DEFAULT 0 is
+     * applied uniformly to every pre-existing row.
+     */
+    @Test
+    fun `migration 11 to 12 adds position column with default 0`() {
+        val db = openV9Database()
+        try {
+            // Bring forward to v11: create folder_favorites + an account so
+            // we can insert favorites with a valid FK.
+            MIGRATION_10_11.migrate(db)
+            db.execSQL(
+                "INSERT INTO accounts (" +
+                    "email, displayName, accountType, incomingServer, incomingPort, useEncryption, " +
+                    "isActive, syncEnabled, calendarSyncEnabled, pushEnabled, createdAt" +
+                    ") VALUES (" +
+                    "'user@example.com', 'user', 'IMAP', 'imap.example.com', 993, 1, 1, 1, 1, 1, 123)"
+            )
+            db.execSQL("INSERT INTO folder_favorites (accountId, serverId) VALUES (1, 'A')")
+            db.execSQL("INSERT INTO folder_favorites (accountId, serverId) VALUES (1, 'B')")
+            db.execSQL("INSERT INTO folder_favorites (accountId, serverId) VALUES (1, 'C')")
+
+            // Pre-migration assertion: no `position` column yet.
+            val preColumns = mutableSetOf<String>()
+            db.query("PRAGMA table_info(folder_favorites)").use { cursor ->
+                val nameIdx = cursor.getColumnIndexOrThrow("name")
+                while (cursor.moveToNext()) {
+                    preColumns.add(cursor.getString(nameIdx))
+                }
+            }
+            assertEquals(
+                "before migration: only (accountId, serverId) columns exist",
+                setOf("accountId", "serverId"),
+                preColumns
+            )
+
+            MIGRATION_11_12.migrate(db)
+
+            // Post-migration: position column was added.
+            val postColumns = mutableSetOf<String>()
+            db.query("PRAGMA table_info(folder_favorites)").use { cursor ->
+                val nameIdx = cursor.getColumnIndexOrThrow("name")
+                while (cursor.moveToNext()) {
+                    postColumns.add(cursor.getString(nameIdx))
+                }
+            }
+            assertTrue(
+                "position column should be added by MIGRATION_11_12",
+                postColumns.contains("position")
+            )
+
+            // Every pre-existing row is backfilled to position=0. The DAO
+            // query uses `ORDER BY position ASC, rowid ASC` so ties at
+            // position=0 fall back to FIFO insertion order.
+            val preMigrationBackfilled = mutableListOf<Pair<String, Int>>()
+            db.query("SELECT serverId, position FROM folder_favorites ORDER BY rowid ASC").use { cursor ->
+                while (cursor.moveToNext()) {
+                    preMigrationBackfilled.add(cursor.getString(0) to cursor.getInt(1))
+                }
+            }
+            assertEquals(
+                "all pre-existing favorites receive position=0 from DEFAULT",
+                listOf("A" to 0, "B" to 0, "C" to 0),
+                preMigrationBackfilled
+            )
+        } finally {
+            db.close()
+        }
+    }
 }

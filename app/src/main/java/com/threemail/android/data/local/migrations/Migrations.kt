@@ -194,6 +194,37 @@ val MIGRATION_10_11: Migration = object : Migration(10, 11) {
 }
 
 /**
+ * Adds a per-favorite `position INTEGER NOT NULL DEFAULT 0` column to the
+ * `folder_favorites` side table so the drawer's Favorites shortcut list can
+ * be reordered by long-press drag.
+ *
+ * Existing rows default to `position = 0`; ordering falls back to ROWID
+ * (insertion order / FIFO) via the DAO's `ORDER BY position ASC, rowid ASC`
+ * query. No bulk backfill SQL is needed - ties at `position = 0` break by
+ * rowid which always preserves insertion order.
+ *
+ * Why contiguous 0..N-1 integers and not sparse? With a favourites list of
+ * typical size 3-10, minimizing writes per reorder is a premature
+ * optimization - the simpler invariant "every favourite has a unique
+ * 0..N-1 slot" is easier to reason about and to test. The reorder write is
+ * wrapped in a [androidx.room.Transaction] inside
+ * [com.threemail.android.data.local.dao.FolderDao.reorderFavorites], which
+ * reassigns positions in one atomic UPDATE batch on drop release.
+ *
+ * `IF NOT EXISTS` is not valid for `ALTER TABLE … ADD COLUMN` (it's only
+ * legal on `CREATE` statements) so this is a plain ALTER - but the column
+ * has no FK, no index, no default side-effects, so partial migrations are
+ * safe to resume.
+ */
+val MIGRATION_11_12: Migration = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "ALTER TABLE folder_favorites ADD COLUMN position INTEGER NOT NULL DEFAULT 0"
+        )
+    }
+}
+
+/**
  * Idempotently creates the FTS4 virtual table, the keep-in-sync triggers and an
  * initial backfill.  All statements use IF NOT EXISTS so a partial state can be
  * resumed without crashing; the backfill is a no-op on empty `messages`.
