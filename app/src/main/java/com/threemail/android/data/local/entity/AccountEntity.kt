@@ -13,6 +13,8 @@ data class AccountEntity(
     val accountType: AccountType,
     val incomingServer: String? = null,
     val incomingPort: Int = 993,
+    val outgoingServer: String? = null,
+    val outgoingPort: Int = 587,
     val useEncryption: Boolean = true,
     val password: String? = null,
     val isActive: Boolean = true,

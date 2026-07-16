@@ -19,6 +19,7 @@ import com.threemail.android.data.local.migrations.FtsTriggers
 import com.threemail.android.data.local.migrations.MIGRATION_4_5
 import com.threemail.android.data.local.migrations.MIGRATION_5_6
 import com.threemail.android.data.local.migrations.MIGRATION_6_7
+import com.threemail.android.data.local.migrations.MIGRATION_7_8
 
 @Database(
     entities = [
@@ -28,7 +29,7 @@ import com.threemail.android.data.local.migrations.MIGRATION_6_7
         CalendarEventEntity::class,
         MessageSearchEntity::class
     ],
-    version = 7,
+    version = 8,
     // exportSchema intentionally OFF: Room 2.8.4 ships pre-generated
     // SchemaBundle/FieldBundle/EntityBundle/DatabaseBundle serializer classes
     // whose compiled ABI is incompatible with the serialization-core version
@@ -75,7 +76,7 @@ abstract class ThreeMailDatabase : RoomDatabase() {
                     ThreeMailDatabase::class.java,
                     "threemail_database"
                 )
-                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                     .addCallback(freshInstallCallback)
                     .build()
                     .also { INSTANCE = it }

@@ -28,6 +28,8 @@ class AddAccountViewModel @Inject constructor(
         val password: String = "",
         val server: String = "",
         val port: String = "993",
+        val outgoingServer: String = "",
+        val outgoingPort: String = "587",
         val useEncryption: Boolean = true,
         val accountType: AccountType = AccountType.IMAP,
         val isSaving: Boolean = false,
@@ -46,6 +48,8 @@ class AddAccountViewModel @Inject constructor(
     fun updatePassword(value: String) { _uiState.value = _uiState.value.copy(password = value) }
     fun updateServer(value: String) { _uiState.value = _uiState.value.copy(server = value) }
     fun updatePort(value: String) { _uiState.value = _uiState.value.copy(port = value) }
+    fun updateOutgoingServer(value: String) { _uiState.value = _uiState.value.copy(outgoingServer = value) }
+    fun updateOutgoingPort(value: String) { _uiState.value = _uiState.value.copy(outgoingPort = value) }
     fun updateUseEncryption(value: Boolean) { _uiState.value = _uiState.value.copy(useEncryption = value) }
     fun updateAccountType(value: AccountType) { _uiState.value = _uiState.value.copy(accountType = value) }
     fun updateError(message: String?) { _uiState.value = _uiState.value.copy(error = message) }
@@ -75,6 +79,8 @@ class AddAccountViewModel @Inject constructor(
                     accountType = state.accountType,
                     incomingServer = state.server.ifBlank { null },
                     incomingPort = state.port.toIntOrNull() ?: 993,
+                    outgoingServer = state.outgoingServer.ifBlank { null },
+                    outgoingPort = state.outgoingPort.toIntOrNull() ?: 587,
                     useEncryption = state.useEncryption,
                     password = state.password.ifBlank { null }
                 )

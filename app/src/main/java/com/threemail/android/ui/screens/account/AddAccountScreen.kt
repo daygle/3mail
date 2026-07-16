@@ -141,6 +141,20 @@ fun AddAccountScreen(
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = state.outgoingServer,
+                onValueChange = viewModel::updateOutgoingServer,
+                label = { Text(stringResource(R.string.outgoing_server)) },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = state.outgoingPort,
+                onValueChange = viewModel::updateOutgoingPort,
+                label = { Text(stringResource(R.string.outgoing_port)) },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = state.useEncryption, onCheckedChange = viewModel::updateUseEncryption)
                 Text(stringResource(R.string.use_encryption))

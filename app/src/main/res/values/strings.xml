@@ -32,6 +32,8 @@
     <string name="new_message">New message</string>
     <string name="from_colon">From:</string>
     <string name="imap_server">IMAP server</string>
+    <string name="outgoing_server">SMTP server (outgoing)</string>
+    <string name="outgoing_port">SMTP port</string>
     <string name="email_address">Email address</string>
     <string name="password">Password</string>
     <string name="port">Port</string>

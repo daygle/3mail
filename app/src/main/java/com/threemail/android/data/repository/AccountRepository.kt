@@ -61,6 +61,8 @@ class AccountRepository @Inject constructor(
         accountType = accountType,
         incomingServer = incomingServer,
         incomingPort = incomingPort,
+        outgoingServer = outgoingServer,
+        outgoingPort = outgoingPort,
         useEncryption = useEncryption,
         // Hydrate the password from the encrypted store; the DB column stays null.
         password = if (accountType == AccountType.IMAP) credentialStore.getPassword(email) else null,
@@ -77,6 +79,8 @@ class AccountRepository @Inject constructor(
         accountType = accountType,
         incomingServer = incomingServer,
         incomingPort = incomingPort,
+        outgoingServer = outgoingServer,
+        outgoingPort = outgoingPort,
         useEncryption = useEncryption,
         password = null,
         isActive = isActive,
