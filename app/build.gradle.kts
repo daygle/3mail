@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.androidx.room)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
@@ -62,8 +63,8 @@ kotlin {
     }
 }
 
-ksp {
-    // room.schemaLocation arg removed to bypass KSP/Serialization version mismatch
+room {
+    schemaDirectory("$projectDir/schemas")
 }
 
 dependencies {
