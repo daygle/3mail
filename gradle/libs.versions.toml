@@ -28,7 +28,7 @@ googleid = "1.1.0"
 splashscreen = "1.0.1"
 robolectric = "4.12.2"
 ksp = "2.2.10-2.0.2"
-kotlinxSerialization = "1.6.3"
+kotlinxSerialization = "1.7.3"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
