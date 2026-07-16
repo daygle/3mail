@@ -12,7 +12,7 @@ import javax.inject.Singleton
  * [ImapIdleService] to wire IDLE subscriptions to specific accounts.
  *
  * The service is the source of truth for which accounts are currently being
- * pushed — it reads the accounts table on every `REFRESH`. These methods
+ * pushed - it reads the accounts table on every `REFRESH`. These methods
  * only enqueue Intent work; the service is in charge of all bookkeeping.
  */
 @Singleton
@@ -20,7 +20,7 @@ class PushController @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
 
-    /** Read once — `Context.packageName` is stable for the lifetime of the app. */
+    /** Read once - `Context.packageName` is stable for the lifetime of the app. */
     private val packageName: String = context.packageName
 
     /**

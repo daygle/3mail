@@ -97,7 +97,7 @@ class SyncScheduler @Inject constructor(
      * updates without waiting for the next periodic tick.
      *
      * Uses [ExistingWorkPolicy.REPLACE] keyed by account ID so two consecutive
-     * push events from the same account collapse — we don't need to spam the
+     * push events from the same account collapse - we don't need to spam the
      * server with redundant refreshes.
      */
     fun enqueueImmediateSync(accountId: Long) {

@@ -16,7 +16,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * - emits a [IdleEvent.NewMail] with the delta and the new [messageCount];
  * - re-enters IDLE.
  *
- * Every iteration's body — including the `messageCount()` reads — runs inside
+ * Every iteration's body - including the `messageCount()` reads - runs inside
  * a single `try`/`catch` so that *any* failure surfaces as
  * [IdleEvent.Disconnected]. A leaked exception would otherwise escape the
  * `flow {}` builder and terminate the foreground service's collect block
@@ -29,7 +29,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 class IdleLoop(private val ops: IdleFolderOps) {
 
     fun events(): Flow<IdleEvent> = flow {
-        // Initial Open — guarded so a broken folder close-on-start still
+        // Initial Open - guarded so a broken folder close-on-start still
         // surfaces as Disconnected rather than crashing the flow.
         val initialCount = try {
             ops.messageCount()
@@ -44,7 +44,7 @@ class IdleLoop(private val ops: IdleFolderOps) {
 
         while (currentCoroutineContext().isActive) {
             try {
-                // Most servers cap IDLE at 29 minutes (RFC 2177) — guard with
+                // Most servers cap IDLE at 29 minutes (RFC 2177) - guard with
                 // a 25-minute ceiling so we re-IDLE before the server drops us.
                 val idleReentered = withTimeoutOrNull(IDLE_RENEW_MS) {
                     ops.idle()
@@ -54,7 +54,7 @@ class IdleLoop(private val ops: IdleFolderOps) {
                 val delta = (newCount - lastCount).coerceAtLeast(0)
                 if (delta > 0) emit(IdleEvent.NewMail(newCount, delta))
                 // If the timeout fired (`idleReentered == false`) we re-armed
-                // IDLE on our own — that's an internal detail, not a new-mail
+                // IDLE on our own - that's an internal detail, not a new-mail
                 // signal unless the message count actually changed.
                 lastCount = newCount
             } catch (e: kotlinx.coroutines.CancellationException) {

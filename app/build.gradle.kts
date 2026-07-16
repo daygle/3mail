@@ -58,6 +58,7 @@ configure<com.android.build.api.dsl.ApplicationExtension> {
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        languageVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
     }
 }
 
@@ -98,7 +99,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.play.services)
 
     // Mail (android-mail already bundles android-activation, so no separate
-    // com.sun.activation:javax.activation dependency — it duplicates the classes)
+    // com.sun.activation:javax.activation dependency - it duplicates the classes)
     implementation(libs.java.mail)
 
     // Google Sign-In / Gmail
@@ -115,6 +116,8 @@ dependencies {
 
     // Encrypted credential storage
     implementation(libs.androidx.security.crypto)
+    implementation(libs.androidx.credentials.core)
+    implementation(libs.androidx.credentials.play.auth)
 
     // Testing
     testImplementation(libs.junit)

@@ -96,7 +96,7 @@ class ImapIdleService : Service() {
      *
      * v1 simplification: takes a snapshot of accounts + settings. Mid-session
      * account changes (sign-in / sign-out, push toggle) require another
-     * [PushController.refresh] call — typically fired from the call site that
+     * [PushController.refresh] call - typically fired from the call site that
      * performed the mutation. A future iteration should subscribe via the
      * existing [kotlinx.coroutines.flow.Flow] APIs to react automatically.
      */
@@ -114,7 +114,7 @@ class ImapIdleService : Service() {
             jobs.keys.filter { it !in registered }.forEach(::stopAccountPush)
             val pushEnabled = settingsRepository.settings.first().pushEnabled
             if (!pushEnabled) {
-                Log.d(TAG, "Push disabled in settings — refreshing without subscriptions")
+                Log.d(TAG, "Push disabled in settings - refreshing without subscriptions")
                 maybeStop()
                 return@launch
             }
@@ -133,7 +133,7 @@ class ImapIdleService : Service() {
                 val account = accountRepository.getAccountById(accountId) ?: return@launch
                 val client = imapClientFactory.create(account)
                 if (!client.supportsIdle()) {
-                    Log.w(TAG, "Server for ${account.email} does not advertise IDLE — skipping push")
+                    Log.w(TAG, "Server for ${account.email} does not advertise IDLE - skipping push")
                     return@launch
                 }
                 client.idle("INBOX").collect { event ->

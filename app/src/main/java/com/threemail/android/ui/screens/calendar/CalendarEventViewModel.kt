@@ -23,7 +23,7 @@ import javax.inject.Inject
  * State machine for the create/edit event screen.
  *
  * - In **create** mode ([CalendarFormUiState.isEditing] = false), the user supplies a fresh
- *   `title` and a start/end range — saving calls [CalendarRepository.createRemote].
+ *   `title` and a start/end range - saving calls [CalendarRepository.createRemote].
  * - In **edit** mode, we hydrate from a row in Room (carrying both the local PK and the
  *   remote `eventId`) and saving calls [CalendarRepository.updateRemote]. Deletion calls
  *   [CalendarRepository.deleteRemote].

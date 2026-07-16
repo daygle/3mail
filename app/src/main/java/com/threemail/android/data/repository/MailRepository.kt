@@ -70,7 +70,7 @@ class MailRepository @Inject constructor(
         messageDao.getByThread(accountId, threadId).map { list -> list.map { it.toDomain() } }
 
     /**
-     * Bounded paged folder fetch. Emits once on collection — not Room-reactive, so
+     * Bounded paged folder fetch. Emits once on collection - not Room-reactive, so
      * new mail arriving in the folder won't auto-push to the UI. Re-selecting the
      * folder via InboxViewModel triggers a fresh snapshot. The inbox cap is
      * implemented on top of `MessageDao.getByFolderPaged` so the JVM-side query is

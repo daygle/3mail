@@ -20,7 +20,7 @@ val MIGRATION_4_5: Migration = object : Migration(4, 5) {
 /**
  * Adds a per-account `pushEnabled` column so IMAP IDLE push can be disabled
  * for a single account without turning off the global push master switch or
- * disabling mail sync. Existing rows default to 1 — i.e. optical backwards
+ * disabling mail sync. Existing rows default to 1 - i.e. optical backwards
  * compatibility: every account that was enrolled in push stays enrolled.
  */
 val MIGRATION_5_6: Migration = object : Migration(5, 6) {
@@ -34,7 +34,7 @@ val MIGRATION_5_6: Migration = object : Migration(5, 6) {
 /**
  * Reorders the unique composite index on `messages` so `folderId` is the
  * leading column. This both preserves the original uniqueness guarantee
- * (`(accountId, folderId, messageId)` triples are still unique — column order
+ * (`(accountId, folderId, messageId)` triples are still unique - column order
  * is irrelevant to uniqueness) AND silences the KSP FK-index warning, because
  * Room's check only requires the FK child column to be at position 0 of some
  * `Index` annotation.
@@ -47,14 +47,14 @@ val MIGRATION_5_6: Migration = object : Migration(5, 6) {
  *
  * Steps:
  *  1. Drop the v6-era auto-generated index
- *     `index_messages_accountId_folderId_messageId` — Room's default name
+ *     `index_messages_accountId_folderId_messageId` - Room's default name
  *     for the previous `(accountId, folderId, messageId) unique` annotation.
  *  2. Create the new ordered index
  *     `index_messages_folderId_accountId_messageId` to match the v7
  *     generated schema.
  *
  * `IF EXISTS` / `IF NOT EXISTS` make this safe on:
- *  - fresh v7 installs (the DROP is a no-op — the old index never existed),
+ *  - fresh v7 installs (the DROP is a no-op - the old index never existed),
  *  - resumed migrations (partial application is resumable).
  *
  * The post-migration `room_master_table` checksum must match the v7
@@ -72,7 +72,7 @@ val MIGRATION_6_7: Migration = object : Migration(6, 7) {
         //     in commit 8f9ac6d, which added a standalone
         //     `Index(value = ["folderId"])`. The v2 design folds folderId
         //     into the reordered unique composite instead, so this leftover
-        //     becomes an orphan — Room's v7 schema won't declare it. Drop
+        //     becomes an orphan - Room's v7 schema won't declare it. Drop
         //     here so users coming from 8f9ac6d don't carry dead B-tree
         //     maintenance on every `messages` write.
         db.execSQL(
@@ -96,7 +96,7 @@ val MIGRATION_6_7: Migration = object : Migration(6, 7) {
  *
  * The `tokenize=unicode61` clause matches the `@Fts4` declaration on
  * [com.threemail.android.data.local.entity.MessageSearchEntity]. If you ever
- * change the tokenizer there, update this SQL the same way — Room's generated
+ * change the tokenizer there, update this SQL the same way - Room's generated
  * schema will pick up the change but the migration is fixed once shipped.
  */
 object FtsTriggers {

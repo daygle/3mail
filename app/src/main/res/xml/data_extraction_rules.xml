@@ -5,7 +5,7 @@
 <data-extraction-rules>
     <cloud-backup>
         <include domain="sharedpref" path="."/>
-        <!-- See backup_rules.xml — Keystore master key isn't transferable. -->
+        <!-- See backup_rules.xml - Keystore master key isn't transferable. -->
         <exclude domain="sharedpref" path="threemail_credentials.xml"/>
         <exclude domain="database" path="."/>
         <exclude domain="file" path="."/>

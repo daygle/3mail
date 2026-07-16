@@ -123,7 +123,7 @@ class ImapClient(
     /**
      * Returns true if the connected account's IMAP server advertised IDLE
      * (RFC 2177) in its CAPABILITY response. IDLE push is only attempted on
-     * servers that confirm support — otherwise we silently fall back to the
+     * servers that confirm support - otherwise we silently fall back to the
      * periodic worker-based sync.
      *
      * Uses [Store.hasCapability] against the connected [Store] directly so we
@@ -146,7 +146,7 @@ class ImapClient(
     /**
      * Subscribes to the IMAP IDLE notification stream on [folderServerId]
      * (typically INBOX). The returned flow emits when the server reports new
-     * mail. The connection is owned by the collector — cancelling collection
+     * mail. The connection is owned by the collector - cancelling collection
      * tears the folder + store down cleanly.
      *
      * This is the IMAP-side counterpart to Gmail's REST push and is meant to

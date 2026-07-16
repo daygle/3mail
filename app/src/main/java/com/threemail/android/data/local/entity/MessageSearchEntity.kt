@@ -12,7 +12,7 @@ import androidx.room.Fts4
  * `COALESCE(?, '')` before insertion.
  *
  * Tokenizer: `unicode61` (better Unicode + diacritic handling vs the default
- * `simple`). Note this still does not tokenize CJK by character — for that users
+ * `simple`). Note this still does not tokenize CJK by character - for that users
  * would need a custom ICU tokenizer; the migration SQL mirrors this choice so
  * fresh and upgraded installs see the same schema.
  *

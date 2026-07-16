@@ -9,7 +9,7 @@ A modern, full-featured Android mail client supporting IMAP (push) and Gmail (OA
 
 ## Features
 
-- **Multi-account**: IMAP (with IDLE push notifications) and Gmail via OAuth2 — selected per account behind a `MailRemote` abstraction, so each account picks the right transport automatically.
+- **Multi-account**: IMAP (with IDLE push notifications) and Gmail via OAuth2 - selected per account behind a `MailRemote` abstraction, so each account picks the right transport automatically.
 - **Native Gmail sync**: Gmail REST API for labels-as-folders, server-side threads, and label-based read/star; IMAP/SMTP for everything else.
 - **Modern UI**: Material 3 + Jetpack Compose with dynamic color (Material You), light/dark/system themes, sender avatars, swipe-to-archive/delete, and a folder navigation drawer.
 - **Full message reading**: HTML bodies rendered in a `WebView` (remote images blocked by default), plain-text fallback, and on-demand body fetch.
@@ -21,7 +21,7 @@ A modern, full-featured Android mail client supporting IMAP (push) and Gmail (OA
 - **Conversation threading** derived from `References`/`In-Reply-To` headers, plus server-side Gmail threads when available.
 - **Drafts** saved to the server's Drafts folder.
 - **Full-text search** across cached messages.
-- **Google Calendar** integration — read/write via the Google Calendar API, Material 3 month grid, per-day agenda, event create/edit via `DatePicker`/`TimePicker`. **Multi-account filter chip strip** above the grid whenever multiple Google accounts have `calendarSyncEnabled` enabled — scope to one account or aggregate all. Room-cached for offline viewing, kept warm by a periodic `CalendarSyncWorker` (~6 months back / ~12 weeks forward). Per-account `calendarSyncEnabled` flag.
+- **Google Calendar** integration - read/write via the Google Calendar API, Material 3 month grid, per-day agenda, event create/edit via `DatePicker`/`TimePicker`. **Multi-account filter chip strip** above the grid whenever multiple Google accounts have `calendarSyncEnabled` enabled - scope to one account or aggregate all. Room-cached for offline viewing, kept warm by a periodic `CalendarSyncWorker` (~6 months back / ~12 weeks forward). Per-account `calendarSyncEnabled` flag.
 - **Notifications** for new mail, plus a launcher-badge counter.
 - **Push for IMAP**: a foreground `ImapIdleService` keeps an idle connection per account, drives immediate sync on `IdleEvent.NewMail`, and survives process death via `START_STICKY`.
 - **Incremental background sync**: `MailSyncWorker` with UID pagination for IMAP and `internalDate` cursor for Gmail.
@@ -53,22 +53,22 @@ A modern, full-featured Android mail client supporting IMAP (push) and Gmail (OA
 
 ## Architecture
 
-- `data/local` — Room database, DAOs, entities, and `Migrations.kt` (schemas checked in under `app/schemas/`).
-- `data/remote/imap` — JavaMail-backed IMAP client (`ImapClient`, `ImapClientFactory`, `ImapRemote`).
-- `data/remote/gmail` — Gmail REST API client, OAuth helper, recoverable-auth handling.
-- `data/remote/calendar` — Google Calendar API client.
-- `data/remote/idle` — IMAP IDLE loop (`IdleLoop`), events (`IdleEvent`), folder ops (`IdleFolderOps`).
-- `data/repository` — `AccountRepository`, `MailRepository`, `MailActions`, `CalendarRepository`.
-- `data/security` — `CredentialStore` (EncryptedSharedPreferences + Android Keystore).
-- `data/settings` — `SettingsRepository` (DataStore-backed preferences).
-- `domain/model` — pure-Kotlin domain types.
-- `ui/screens` — Compose screens and ViewModels (inbox, message, compose, search, calendar, account, add-account, settings).
-- `ui/components` & `ui/theme` — shared Compose widgets + Material 3 theme/typography/color.
-- `ui/navigation` — nav graph (`ThreeMailNavHost`, `Screen`).
-- `sync` — `MailSyncWorker`, `CalendarSyncWorker`, `TrashCleanupWorker`, `SyncScheduler`.
-- `push` — `PushController` + `ImapIdleService` (foreground IDLE service).
-- `notifications` — channels, helpers, launcher badge.
-- `di` — Hilt `AppModule`.
+- `data/local` - Room database, DAOs, entities, and `Migrations.kt` (schemas checked in under `app/schemas/`).
+- `data/remote/imap` - JavaMail-backed IMAP client (`ImapClient`, `ImapClientFactory`, `ImapRemote`).
+- `data/remote/gmail` - Gmail REST API client, OAuth helper, recoverable-auth handling.
+- `data/remote/calendar` - Google Calendar API client.
+- `data/remote/idle` - IMAP IDLE loop (`IdleLoop`), events (`IdleEvent`), folder ops (`IdleFolderOps`).
+- `data/repository` - `AccountRepository`, `MailRepository`, `MailActions`, `CalendarRepository`.
+- `data/security` - `CredentialStore` (EncryptedSharedPreferences + Android Keystore).
+- `data/settings` - `SettingsRepository` (DataStore-backed preferences).
+- `domain/model` - pure-Kotlin domain types.
+- `ui/screens` - Compose screens and ViewModels (inbox, message, compose, search, calendar, account, add-account, settings).
+- `ui/components` & `ui/theme` - shared Compose widgets + Material 3 theme/typography/color.
+- `ui/navigation` - nav graph (`ThreeMailNavHost`, `Screen`).
+- `sync` - `MailSyncWorker`, `CalendarSyncWorker`, `TrashCleanupWorker`, `SyncScheduler`.
+- `push` - `PushController` + `ImapIdleService` (foreground IDLE service).
+- `notifications` - channels, helpers, launcher badge.
+- `di` - Hilt `AppModule`.
 
 ## Security Notes
 
@@ -94,4 +94,4 @@ A modern, full-featured Android mail client supporting IMAP (push) and Gmail (OA
 
 ## License
 
-Licensed under the MIT License — see [`LICENSE`](LICENSE) at the repo root. Copyright © 2026 daygle.
+Licensed under the MIT License - see [`LICENSE`](LICENSE) at the repo root. Copyright © 2026 daygle.

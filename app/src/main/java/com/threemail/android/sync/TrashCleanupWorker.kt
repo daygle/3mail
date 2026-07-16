@@ -57,7 +57,7 @@ class TrashCleanupWorker @AssistedInject constructor(
                 }
             }
 
-            // RecoverableAuthException needs the UI to grant additional consent — propagate by retrying once.
+            // RecoverableAuthException needs the UI to grant additional consent - propagate by retrying once.
             if (failureCount == accounts.size && runAttemptCount < hardFailureThreshold) {
                 Result.retry()
             } else if (failureCount == accounts.size) {

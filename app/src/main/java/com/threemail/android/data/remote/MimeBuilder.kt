@@ -16,9 +16,9 @@ import javax.mail.internet.MimeMultipart
 
 /**
  * Builds an RFC 5322 [MimeMessage] from an [OutgoingMessage]. Shared by the IMAP
- * (SMTP) and Gmail (raw send) transports so message construction — including
+ * (SMTP) and Gmail (raw send) transports so message construction - including
  * multipart/alternative HTML bodies, multipart/related inline images, and
- * file attachments — lives in one place.
+ * file attachments - lives in one place.
  */
 object MimeBuilder {
 
@@ -78,7 +78,7 @@ object MimeBuilder {
         }
     }
 
-    /** Root part of a multipart/related — multipart/alternative when HTML is available, otherwise plain text. */
+    /** Root part of a multipart/related - multipart/alternative when HTML is available, otherwise plain text. */
     private fun rootBodyPart(message: OutgoingMessage): MimeBodyPart =
         if (message.htmlBody.isNullOrBlank()) {
             MimeBodyPart().apply { setText(message.textBody, "utf-8") }

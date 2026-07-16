@@ -13,7 +13,7 @@ import javax.inject.Singleton
  *  - lives on a dedicated [NotificationHelper.BADGE_CHANNEL_ID] (IMPORTANCE_LOW +
  *    `setShowBadge(true)`) so the OS surfaces the unread count on the launcher
  *    icon via `NotificationCompat.Builder.setNumber`;
- *  - is intentionally **not** `setOngoing(true)` — launchers ignore ongoing
+ *  - is intentionally **not** `setOngoing(true)` - launchers ignore ongoing
  *    notifications when computing badge counts. The notification is sticky
  *    only because we re-post the same ID whenever the unread count changes;
  *  - uses `setOnlyAlertOnce(true)` + `setSilent(true)` so we never repeat the

@@ -3,7 +3,7 @@ package com.threemail.android.data.remote.idle
 /**
  * Events produced by an IMAP IDLE subscription on a single folder.
  *
- * These are deliberately minimal — callers only need to know that something
+ * These are deliberately minimal - callers only need to know that something
  * changed on the server, the rough delta, and (for diagnostics) whether the
  * connection went away so they can decide whether to reconnect.
  */
@@ -19,7 +19,7 @@ sealed interface IdleEvent {
 
     /**
      * IDLE failed or the server dropped the connection. The caller should
-     * reconnect (with backoff) — [cause] is the original exception's message.
+     * reconnect (with backoff) - [cause] is the original exception's message.
      */
     data class Disconnected(val cause: String) : IdleEvent
 }

@@ -32,7 +32,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 
-/** Calendar indicator palette — six sturdy, accessible colors keyed to calendarId. */
+/** Calendar indicator palette - six sturdy, accessible colors keyed to calendarId. */
 val CalendarIndicatorColors: List<Color> = listOf(
     Color(0xFF5B54E6), // indigo
     Color(0xFF0EA5E9), // sky

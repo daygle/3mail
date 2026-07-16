@@ -2,7 +2,7 @@ package com.threemail.android.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Brand palette — indigo/violet primary with a fresh sky secondary and teal accent.
+// Brand palette - indigo/violet primary with a fresh sky secondary and teal accent.
 val Primary = Color(0xFF5B54E6)
 val OnPrimary = Color(0xFFFFFFFF)
 val PrimaryContainer = Color(0xFFE4E1FF)

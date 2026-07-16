@@ -28,7 +28,7 @@ class MainActivity : ComponentActivity() {
 
     /**
      * Runtime POST_NOTIFICATIONS prompt (required on API 33+). The result is
-     * intentionally ignored — channels degrade gracefully when the permission
+     * intentionally ignored - channels degrade gracefully when the permission
      * is denied, but the launcher badge won't surface until the user grants
      * the permission.
      */

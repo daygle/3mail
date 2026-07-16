@@ -33,7 +33,7 @@ class FtsUtilTest {
 
     @Test
     fun `fts reserved tokens are treated as literal search terms`() {
-        // "OR 1=1" — naive input — gets wrapped as "OR" "1=1", which FTS4 treats
+        // "OR 1=1" - naive input - gets wrapped as "OR" "1=1", which FTS4 treats
         // as two literal search terms rather than a boolean expression.
         assertEquals("\"OR\" \"1=1\"", FtsUtil.sanitize("OR 1=1"))
         assertEquals("\"foo\" \"OR\"", FtsUtil.sanitize("foo OR"))
@@ -44,7 +44,7 @@ class FtsUtilTest {
     fun `input is truncated to MAX_QUERY_LENGTH before processing`() {
         val longInput = "a".repeat(FtsUtil.MAX_QUERY_LENGTH + 50)
         val out = FtsUtil.sanitize(longInput)
-        // 150 'a's truncate to (MAX_QUERY_LENGTH - 2) 'a's — that single
+        // 150 'a's truncate to (MAX_QUERY_LENGTH - 2) 'a's - that single
         // token, wrapped in quotes, is the expected output. The -2 leaves room
         // for the quote chars so the output is itself <= MAX_QUERY_LENGTH,
         // which is what makes the idempotency test hold.

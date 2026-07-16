@@ -13,7 +13,7 @@ interface IdleFolderOps {
      * underlying folder sends the periodic alarm that JavaMail uses to
      * retire IDLE after the 29-minute RFC 2177 timeout.
      *
-     * Implementations MUST be safe to cancel from another thread —
+     * Implementations MUST be safe to cancel from another thread -
      * throwing is acceptable; we only rely on the call returning.
      */
     fun idle()
