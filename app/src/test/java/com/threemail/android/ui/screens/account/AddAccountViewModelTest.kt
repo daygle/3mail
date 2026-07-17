@@ -24,10 +24,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -38,6 +36,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.shadows.ShadowLooper
 
 /**
  * Verifies the IMAP handshake auto-upgrade: when the user picks
@@ -62,19 +61,17 @@ import org.robolectric.RobolectricTestRunner
  *    test's flakiness). With a fake DAO, save() has no real suspension
  *    point and runs straight to its terminal state.
  *
- * Coroutine timing: `viewModelScope.launch` runs on Dispatchers.Main. We
- * bind it to a [StandardTestDispatcher] built from `runTest`'s own
- * `testScheduler`, then drain with `advanceUntilIdle()`. A
- * StandardTestDispatcher (not Unconfined) is deliberate: an
- * UnconfinedTestDispatcher runs the launched coroutine *eagerly*, and under
- * Robolectric that eager step escapes onto the (paused) Android main looper,
- * where the test scheduler's `advanceUntilIdle()` can't reach it - so the
- * upgrade never lands before the assertions and the state read still shows
- * Security.NONE. StandardTestDispatcher instead queues every step on the
- * test scheduler, so `advanceUntilIdle()` runs the whole isSaving -> probe
- * -> upgrade -> addAccount -> isSaved chain to completion deterministically
- * before `uiState.value` is read. This is the canonical viewModelScope test
- * setup (setMain a StandardTestDispatcher sharing runTest's scheduler).
+ * Coroutine timing: `viewModelScope.launch` runs on Dispatchers.Main, bound
+ * here to an [UnconfinedTestDispatcher]. Under Robolectric the launched
+ * coroutine's continuations settle on the (paused) Android main looper, so
+ * the drain that actually reaches them is [ShadowLooper.idleMainLooper] -
+ * NOT a test scheduler's `advanceUntilIdle()`. The test therefore does not
+ * use `runTest` (which would also assert on viewModelScope's never-cancelled
+ * SupervisorJob); it calls `save()` and then idles the main looper, after
+ * which the whole isSaving -> probe -> upgrade -> addAccount -> isSaved chain
+ * has run and `uiState.value` is the terminal state. Removing Room (the fake
+ * DAO above) is what makes this deterministic: the historical version idled
+ * the looper too but raced Room's suspend insert on a background executor.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -86,8 +83,7 @@ class AddAccountViewModelTest {
 
     @Before
     fun setUp() {
-        // Dispatchers.setMain is deferred into the test body so it can bind to
-        // runTest's own testScheduler; none of the wiring below touches Main.
+        Dispatchers.setMain(UnconfinedTestDispatcher())
         val context = ApplicationProvider.getApplicationContext<Context>()
         accountDao = FakeAccountDao()
         // Real AccountRepository so the production security -> useStartTls
@@ -115,10 +111,7 @@ class AddAccountViewModelTest {
     }
 
     @Test
-    fun `auto-upgrades Security NONE to STARTTLS when server advertises STARTTLS`() = runTest {
-        // Bind Main to a StandardTestDispatcher sharing this runTest's scheduler
-        // so advanceUntilIdle() drives the viewModelScope coroutine save() launches.
-        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+    fun `auto-upgrades Security NONE to STARTTLS when server advertises STARTTLS`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val viewModel = AddAccountViewModel(
             context = context,
@@ -135,11 +128,12 @@ class AddAccountViewModelTest {
         assertEquals(Security.NONE, viewModel.uiState.value.security)
         assertNull(viewModel.uiState.value.upgradeBanner)
 
-        // Tap Save. save() launches on viewModelScope (Main == the test
-        // dispatcher). advanceUntilIdle() drains the isSaving -> probe ->
-        // upgrade -> addAccount -> isSaved chain to completion.
+        // Tap Save. save() launches on viewModelScope (Main). Idling the
+        // Robolectric main looper runs the launched isSaving -> probe ->
+        // upgrade -> addAccount -> isSaved chain to completion (the fakes
+        // never suspend on real I/O, so one drain reaches the terminal state).
         viewModel.save()
-        advanceUntilIdle()
+        ShadowLooper.idleMainLooper()
 
         // UI state mutations driven by the auto-upgrade.
         val state = viewModel.uiState.value
