@@ -89,17 +89,20 @@ abstract class ThreeMailDatabase : RoomDatabase() {
                 )
                     .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
                     .addCallback(freshInstallCallback)
-                    // Whitelist destructive fallback to exactly the two
-                    // legacy versions this migration rescue actually applies
-                    // to. v12 is the broken-indexes state shipped by the
-                    // pre-fix 8f9ac6d path; v11 is its immediate predecessor.
-                    // If [MIGRATION_12_13] itself fails on a v12 DB we drop
-                    // the cache rather than leaving the user stuck in a
-                    // crash loop. A broader `fallbackToDestructiveMigrationOnDowngrade()`
-                    // would also nuke every well-formed v13 cache if a
-                    // tester installs a debug build over a field build -
-                    // not worth losing their locally-fetched messages.
-                    .fallbackToDestructiveMigrationFrom(11, 12)
+                    // No destructive fallback is configured. The v11 -> v12 ->
+                    // v13 path is fully covered by MIGRATION_11_12 and
+                    // MIGRATION_12_13 (the latter being the idempotent repair
+                    // for the broken-index v12 state shipped by the pre-fix
+                    // 8f9ac6d path), so every supported DB reaches v13 by
+                    // migration. A previous `fallbackToDestructiveMigrationFrom(11, 12)`
+                    // was removed: Room rejects declaring a destructive
+                    // fallback FROM a version that also has a registered
+                    // migration STARTING at it (11 -> MIGRATION_11_12, 12 ->
+                    // MIGRATION_12_13), so build() threw IllegalArgumentException
+                    // and crashed the app on first DB access. It also could
+                    // never have served its intended purpose: destructive
+                    // fallback only fires when no migration path exists, not
+                    // when a registered migration throws at runtime.
                     .build()
                     .also { INSTANCE = it }
             }
