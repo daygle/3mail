@@ -1,10 +1,9 @@
 package com.threemail.android.ui.screens.account
 
 import android.content.Context
-import android.os.Looper
-import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
-import com.threemail.android.data.local.ThreeMailDatabase
+import com.threemail.android.data.local.dao.AccountDao
+import com.threemail.android.data.local.entity.AccountEntity
 import com.threemail.android.data.remote.MailRemote
 import com.threemail.android.data.remote.MailRemoteFactory
 import com.threemail.android.data.remote.MessageBody
@@ -23,7 +22,8 @@ import com.threemail.android.domain.model.MailMessage
 import com.threemail.android.domain.model.Security
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -38,7 +38,6 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.shadows.ShadowLooper
 
 /**
  * Verifies the IMAP handshake auto-upgrade: when the user picks
@@ -46,61 +45,54 @@ import org.robolectric.shadows.ShadowLooper
  * transparently bumps UI state to Security.STARTTLS, sets the upgrade
  * banner, and persists the Account row with useStartTls = true.
  *
- * Robolectric does NOT implement AndroidKeyStore AES/GCM crypto, so the
- * real CredentialStore.savePassword throws there; the test injects a no-op
- * [FakeCredentialStore] to bypass it while keeping the real
- * AccountRepository (and therefore the real security -> useStartTls mapper
- * under test). An in-memory SQLite lets the saved Account round-trip back
- * through the AccountEntity schema for the assertion at the end of the test.
+ * The real [AccountRepository] is kept so the production security ->
+ * (useEncryption, useStartTls) mapper is exercised, but its two
+ * collaborators are replaced with synchronous fakes:
  *
- * Coroutine timing: `viewModelScope.launch` runs on Dispatchers.Main.
- * The test binds Main and `runTest` to a *single* [TestCoroutineScheduler]
- * (via [mainDispatcher]) so the coroutine `save()` launches is governed by
- * the same clock the test drives - a plain `runTest {}` would spin up its
- * own scheduler, leaving the viewModelScope launch outside the reach of
- * `advanceUntilIdle()` and forcing the test to *assume* the unconfined
- * launch already finished (a race against Room's suspend insert hopping
- * dispatchers). After `save()`, `advanceUntilIdle()` deterministically
- * drains every launched continuation, and `ShadowLooper.idleMainLooper()`
- * flushes anything Robolectric routed through the main looper. Only then is
- * `viewModel.uiState.value` read - it is now the terminal state.
+ *  - [FakeCredentialStore]: the real CredentialStore drives
+ *    AndroidKeyStore AES/GCM, which Robolectric does not implement, so
+ *    savePassword() would throw and abort save() before it reaches the
+ *    saved terminal. We assert the persisted useStartTls column, not the
+ *    password, so a no-op credential store loses no coverage.
+ *  - [FakeAccountDao]: an in-memory map that captures the inserted
+ *    [AccountEntity]. Crucially it does NOT suspend - a real (in-memory
+ *    Room) DAO routes its suspend insert through Room's own executor
+ *    dispatcher, and that cross-dispatcher hop left save()'s coroutine
+ *    parked under the test scheduler (the historical source of this
+ *    test's flakiness). With a fake DAO, save() has no real suspension
+ *    point and runs straight to its terminal state.
+ *
+ * Coroutine timing: `viewModelScope.launch` runs on Dispatchers.Main,
+ * bound here to an [UnconfinedTestDispatcher] shared with `runTest` (so
+ * `advanceUntilIdle()` governs the launched coroutine). Because save()
+ * no longer suspends on real I/O, the whole isSaving -> probe -> upgrade
+ * -> addAccount -> isSaved chain completes synchronously; the drain is a
+ * belt-and-braces guarantee before `uiState.value` is read.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 class AddAccountViewModelTest {
 
-    private lateinit var database: ThreeMailDatabase
+    private lateinit var accountDao: FakeAccountDao
     private lateinit var accountRepository: AccountRepository
     private lateinit var fakeFactory: FakeMailRemoteFactory
 
-    // One scheduler shared by Dispatchers.Main and runTest below, so the
-    // coroutine save() launches on viewModelScope (Main) is on the same clock
-    // the test advances - otherwise advanceUntilIdle() can't reach it.
-    private val scheduler = TestCoroutineScheduler()
-    private val mainDispatcher = UnconfinedTestDispatcher(scheduler)
+    // One UnconfinedTestDispatcher shared by Dispatchers.Main and runTest
+    // (see the test's runTest(mainDispatcher)) so the coroutine save()
+    // launches on viewModelScope is on the same clock the test advances.
+    private val mainDispatcher = UnconfinedTestDispatcher()
 
     @Before
     fun setUp() {
         Dispatchers.setMain(mainDispatcher)
         val context = ApplicationProvider.getApplicationContext<Context>()
-        // Run Room's suspend DAO work on the calling thread so the insert in
-        // AccountRepository.addAccount completes synchronously under the test
-        // dispatcher instead of hopping to Room's background executor (which
-        // the test dispatcher doesn't drive) and racing the assertions.
-        val directExecutor = java.util.concurrent.Executor { it.run() }
-        database = Room.inMemoryDatabaseBuilder(context, ThreeMailDatabase::class.java)
-            .allowMainThreadQueries()
-            .setQueryExecutor(directExecutor)
-            .setTransactionExecutor(directExecutor)
-            .build()
+        accountDao = FakeAccountDao()
         // Real AccountRepository so the production security -> useStartTls
-        // mapper is exercised, but a no-op CredentialStore: the real one drives
-        // AndroidKeyStore AES/GCM, which Robolectric does not implement, so
-        // savePassword() would throw and abort save() before it reaches the
-        // saved terminal. We assert the persisted useStartTls column, not the
-        // password, so a no-op credential store loses no coverage.
+        // mapper is exercised, backed by synchronous fakes so save() never
+        // hops off the test dispatcher (Room's suspend insert did, which is
+        // what made this test flaky).
         accountRepository = AccountRepository(
-            accountDao = database.accountDao(),
+            accountDao = accountDao,
             credentialStore = FakeCredentialStore(context)
         )
         // The factory's only job is to surface a FakeMailRemote on
@@ -116,7 +108,6 @@ class AddAccountViewModelTest {
 
     @After
     fun tearDown() {
-        database.close()
         Dispatchers.resetMain()
     }
 
@@ -139,13 +130,11 @@ class AddAccountViewModelTest {
         assertNull(viewModel.uiState.value.upgradeBanner)
 
         // Tap Save. save() launches on viewModelScope (Main == mainDispatcher,
-        // sharing runTest's scheduler), so advanceUntilIdle() drains the whole
-        // isSaving -> probe -> upgrade -> addAccount -> isSaved chain to
-        // completion before we read state. ShadowLooper.idleMainLooper()
-        // flushes anything Robolectric bridged onto the main looper.
+        // sharing runTest's scheduler) and, with the synchronous fakes, runs
+        // the isSaving -> probe -> upgrade -> addAccount -> isSaved chain to
+        // completion. advanceUntilIdle() is the deterministic drain.
         viewModel.save()
         advanceUntilIdle()
-        ShadowLooper.idleMainLooper()
 
         // UI state mutations driven by the auto-upgrade.
         val state = viewModel.uiState.value
@@ -160,7 +149,7 @@ class AddAccountViewModelTest {
         // The persisted Account row reflects the upgraded security via
         // AccountRepository.toEntity's mapper (security == STARTTLS ->
         // useStartTls = true).
-        val savedRow = database.accountDao().getByEmail("user@example.com")
+        val savedRow = accountDao.getByEmail("user@example.com")
         assertNotNull("account row should be persisted", savedRow)
         assertTrue(
             "useStartTls should be true on the saved AccountEntity",
@@ -182,6 +171,34 @@ class AddAccountViewModelTest {
         override fun savePassword(email: String, password: String?) {}
         override fun getPassword(email: String): String? = null
         override fun deletePassword(email: String) {}
+    }
+
+    /**
+     * In-memory [AccountDao] that captures inserted rows in a map keyed by
+     * email. Unlike a real (even in-memory Room) DAO, none of these suspend
+     * functions actually suspends: they complete on the caller's dispatcher,
+     * so save()'s coroutine never hops onto Room's executor dispatcher and
+     * runs straight to its terminal state under the test scheduler.
+     *
+     * Only [insert] and [getByEmail] are exercised by the test; the rest are
+     * satisfied minimally.
+     */
+    private class FakeAccountDao : AccountDao {
+        private val rows = mutableMapOf<String, AccountEntity>()
+
+        override suspend fun insert(account: AccountEntity): Long {
+            rows[account.email] = account
+            return rows.size.toLong()
+        }
+
+        override suspend fun getByEmail(email: String): AccountEntity? = rows[email]
+
+        override fun getAll(): Flow<List<AccountEntity>> = flowOf(rows.values.toList())
+        override suspend fun getAllOnce(): List<AccountEntity> = rows.values.toList()
+        override suspend fun getById(id: Long): AccountEntity? = rows.values.firstOrNull { it.id == id }
+        override suspend fun setPushEnabled(id: Long, enabled: Boolean) {}
+        override suspend fun update(account: AccountEntity) { rows[account.email] = account }
+        override suspend fun delete(account: AccountEntity) { rows.remove(account.email) }
     }
 
     /**
