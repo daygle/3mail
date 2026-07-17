@@ -44,6 +44,15 @@ configure<com.android.build.api.dsl.ApplicationExtension> {
     buildFeatures {
         compose = true
     }
+    testOptions {
+        unitTests {
+            // Robolectric needs the app's merged resources/manifest so unit
+            // tests that read app resources (e.g. context.getString(R.string.*))
+            // resolve them instead of falling back to the framework-only
+            // resource table and throwing "Bad identifier".
+            isIncludeAndroidResources = true
+        }
+    }
     packaging {
         jniLibs {
             keepDebugSymbols += "**/libandroidx.graphics.path.so"
@@ -78,6 +87,16 @@ kotlin {
 // simply flip exportSchema back to true.
 room {
     schemaDirectory("$projectDir/schemas")
+}
+
+// Surface full failure details (assertion message + stack) for unit tests in
+// the CI console, since the HTML/XML report artifacts aren't always reachable
+// when triaging a red build.
+tasks.withType<Test>().configureEach {
+    testLogging {
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+        events("failed")
+    }
 }
 
 dependencies {
