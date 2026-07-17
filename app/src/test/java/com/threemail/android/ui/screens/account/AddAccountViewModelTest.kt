@@ -23,7 +23,9 @@ import com.threemail.android.domain.model.MailMessage
 import com.threemail.android.domain.model.Security
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -52,14 +54,16 @@ import org.robolectric.shadows.ShadowLooper
  * through the AccountEntity schema for the assertion at the end of the test.
  *
  * Coroutine timing: `viewModelScope.launch` runs on Dispatchers.Main.
- * Setting it to `UnconfinedTestDispatcher` in @Before makes every
- * launched coroutine start synchronously on the test thread - the
- * state mutation that `save()` drives (isSaving -> probe -> upgrade ->
- * addAccount -> isSaved) lands in `_uiState.value` before save() returns.
- * `ShadowLooper.idle()` is a belt-and-braces drain in case any
- * dispatcher still routes through the main looper (e.g. via
- * Robolectric's bridging). After both, `viewModel.uiState.value` is
- * the terminal state.
+ * The test binds Main and `runTest` to a *single* [TestCoroutineScheduler]
+ * (via [mainDispatcher]) so the coroutine `save()` launches is governed by
+ * the same clock the test drives - a plain `runTest {}` would spin up its
+ * own scheduler, leaving the viewModelScope launch outside the reach of
+ * `advanceUntilIdle()` and forcing the test to *assume* the unconfined
+ * launch already finished (a race against Room's suspend insert hopping
+ * dispatchers). After `save()`, `advanceUntilIdle()` deterministically
+ * drains every launched continuation, and `ShadowLooper.idleMainLooper()`
+ * flushes anything Robolectric routed through the main looper. Only then is
+ * `viewModel.uiState.value` read - it is now the terminal state.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -69,9 +73,15 @@ class AddAccountViewModelTest {
     private lateinit var accountRepository: AccountRepository
     private lateinit var fakeFactory: FakeMailRemoteFactory
 
+    // One scheduler shared by Dispatchers.Main and runTest below, so the
+    // coroutine save() launches on viewModelScope (Main) is on the same clock
+    // the test advances - otherwise advanceUntilIdle() can't reach it.
+    private val scheduler = TestCoroutineScheduler()
+    private val mainDispatcher = UnconfinedTestDispatcher(scheduler)
+
     @Before
     fun setUp() {
-        Dispatchers.setMain(UnconfinedTestDispatcher())
+        Dispatchers.setMain(mainDispatcher)
         val context = ApplicationProvider.getApplicationContext<Context>()
         // Run Room's suspend DAO work on the calling thread so the insert in
         // AccountRepository.addAccount completes synchronously under the test
@@ -111,7 +121,7 @@ class AddAccountViewModelTest {
     }
 
     @Test
-    fun `auto-upgrades Security NONE to STARTTLS when server advertises STARTTLS`() = runTest {
+    fun `auto-upgrades Security NONE to STARTTLS when server advertises STARTTLS`() = runTest(mainDispatcher) {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val viewModel = AddAccountViewModel(
             context = context,
@@ -128,10 +138,13 @@ class AddAccountViewModelTest {
         assertEquals(Security.NONE, viewModel.uiState.value.security)
         assertNull(viewModel.uiState.value.upgradeBanner)
 
-        // Tap Save. The launched coroutine completes synchronously under
-        // UnconfinedTestDispatcher, so the next line sees the terminal
-        // state already; ShadowLooper.idle() is the safety net.
+        // Tap Save. save() launches on viewModelScope (Main == mainDispatcher,
+        // sharing runTest's scheduler), so advanceUntilIdle() drains the whole
+        // isSaving -> probe -> upgrade -> addAccount -> isSaved chain to
+        // completion before we read state. ShadowLooper.idleMainLooper()
+        // flushes anything Robolectric bridged onto the main looper.
         viewModel.save()
+        advanceUntilIdle()
         ShadowLooper.idleMainLooper()
 
         // UI state mutations driven by the auto-upgrade.
