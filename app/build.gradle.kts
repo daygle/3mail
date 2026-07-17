@@ -80,6 +80,17 @@ room {
     schemaDirectory("$projectDir/schemas")
 }
 
+// Surface full failure details (assertion messages + stdout) for unit tests
+// in the CI console, since the HTML/XML report artifacts aren't always
+// reachable when triaging a red build.
+tasks.withType<Test>().configureEach {
+    testLogging {
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+        events("failed")
+        showStandardStreams = true
+    }
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.core.splashscreen)
