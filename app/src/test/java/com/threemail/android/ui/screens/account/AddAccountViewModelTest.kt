@@ -24,8 +24,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -60,18 +62,19 @@ import org.robolectric.RobolectricTestRunner
  *    test's flakiness). With a fake DAO, save() has no real suspension
  *    point and runs straight to its terminal state.
  *
- * Coroutine timing: `viewModelScope.launch` runs on Dispatchers.Main,
- * bound here to an [UnconfinedTestDispatcher]. The test deliberately does
- * NOT use `runTest`: with the synchronous fakes above there is no real
- * suspension to await, and `runTest`'s end-of-test "no uncompleted
- * coroutines" check kept tripping over viewModelScope's never-cancelled
- * SupervisorJob (surfacing as an UncompletedCoroutinesError - a subclass
- * of AssertionError - attributed to the runTest call site). Instead we
- * drive the dispatcher's scheduler directly with
- * `mainDispatcher.scheduler.advanceUntilIdle()`, which deterministically
- * runs the launched isSaving -> probe -> upgrade -> addAccount -> isSaved
- * chain to completion before `uiState.value` is read, with no completeness
- * assertion in play.
+ * Coroutine timing: `viewModelScope.launch` runs on Dispatchers.Main. We
+ * bind it to a [StandardTestDispatcher] built from `runTest`'s own
+ * `testScheduler`, then drain with `advanceUntilIdle()`. A
+ * StandardTestDispatcher (not Unconfined) is deliberate: an
+ * UnconfinedTestDispatcher runs the launched coroutine *eagerly*, and under
+ * Robolectric that eager step escapes onto the (paused) Android main looper,
+ * where the test scheduler's `advanceUntilIdle()` can't reach it - so the
+ * upgrade never lands before the assertions and the state read still shows
+ * Security.NONE. StandardTestDispatcher instead queues every step on the
+ * test scheduler, so `advanceUntilIdle()` runs the whole isSaving -> probe
+ * -> upgrade -> addAccount -> isSaved chain to completion deterministically
+ * before `uiState.value` is read. This is the canonical viewModelScope test
+ * setup (setMain a StandardTestDispatcher sharing runTest's scheduler).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -81,14 +84,10 @@ class AddAccountViewModelTest {
     private lateinit var accountRepository: AccountRepository
     private lateinit var fakeFactory: FakeMailRemoteFactory
 
-    // One UnconfinedTestDispatcher shared by Dispatchers.Main and runTest
-    // (see the test's runTest(mainDispatcher)) so the coroutine save()
-    // launches on viewModelScope is on the same clock the test advances.
-    private val mainDispatcher = UnconfinedTestDispatcher()
-
     @Before
     fun setUp() {
-        Dispatchers.setMain(mainDispatcher)
+        // Dispatchers.setMain is deferred into the test body so it can bind to
+        // runTest's own testScheduler; none of the wiring below touches Main.
         val context = ApplicationProvider.getApplicationContext<Context>()
         accountDao = FakeAccountDao()
         // Real AccountRepository so the production security -> useStartTls
@@ -116,7 +115,10 @@ class AddAccountViewModelTest {
     }
 
     @Test
-    fun `auto-upgrades Security NONE to STARTTLS when server advertises STARTTLS`() {
+    fun `auto-upgrades Security NONE to STARTTLS when server advertises STARTTLS`() = runTest {
+        // Bind Main to a StandardTestDispatcher sharing this runTest's scheduler
+        // so advanceUntilIdle() drives the viewModelScope coroutine save() launches.
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val context = ApplicationProvider.getApplicationContext<Context>()
         val viewModel = AddAccountViewModel(
             context = context,
@@ -133,12 +135,11 @@ class AddAccountViewModelTest {
         assertEquals(Security.NONE, viewModel.uiState.value.security)
         assertNull(viewModel.uiState.value.upgradeBanner)
 
-        // Tap Save. save() launches on viewModelScope (Main == mainDispatcher).
-        // With the synchronous fakes the chain has no real suspension, so
-        // draining the dispatcher's scheduler runs isSaving -> probe ->
-        // upgrade -> addAccount -> isSaved to completion.
+        // Tap Save. save() launches on viewModelScope (Main == the test
+        // dispatcher). advanceUntilIdle() drains the isSaving -> probe ->
+        // upgrade -> addAccount -> isSaved chain to completion.
         viewModel.save()
-        mainDispatcher.scheduler.advanceUntilIdle()
+        advanceUntilIdle()
 
         // UI state mutations driven by the auto-upgrade.
         val state = viewModel.uiState.value
@@ -184,8 +185,8 @@ class AddAccountViewModelTest {
      * so save()'s coroutine never hops onto Room's executor dispatcher and
      * runs straight to its terminal state under the test scheduler.
      *
-     * Only [insert] and [getByEmail] are exercised by the test; the rest are
-     * satisfied minimally.
+     * Only [insert] and the non-suspend [saved] accessor are exercised by the
+     * test; the rest are satisfied minimally.
      */
     private class FakeAccountDao : AccountDao {
         private val rows = mutableMapOf<String, AccountEntity>()
