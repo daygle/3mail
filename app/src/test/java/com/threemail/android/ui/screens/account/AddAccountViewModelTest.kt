@@ -137,13 +137,6 @@ class AddAccountViewModelTest {
 
         // UI state mutations driven by the auto-upgrade.
         val state = viewModel.uiState.value
-        // TEMP DIAGNOSTIC (remove once green): dump the terminal state so the
-        // CI console reveals what actually happened under Robolectric.
-        println(
-            "DIAG terminal state: security=${state.security} isSaving=${state.isSaving} " +
-                "isSaved=${state.isSaved} banner=${state.upgradeBanner} error=${state.error} " +
-                "savedRow=${accountDao.saved("user@example.com")}"
-        )
         assertEquals("STARTTLS chip should be selected after auto-upgrade", Security.STARTTLS, state.security)
         assertEquals(
             "banner should explain the upgrade",
