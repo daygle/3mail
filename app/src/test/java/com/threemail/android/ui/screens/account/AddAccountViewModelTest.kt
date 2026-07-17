@@ -25,9 +25,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -63,11 +61,17 @@ import org.robolectric.RobolectricTestRunner
  *    point and runs straight to its terminal state.
  *
  * Coroutine timing: `viewModelScope.launch` runs on Dispatchers.Main,
- * bound here to an [UnconfinedTestDispatcher] shared with `runTest` (so
- * `advanceUntilIdle()` governs the launched coroutine). Because save()
- * no longer suspends on real I/O, the whole isSaving -> probe -> upgrade
- * -> addAccount -> isSaved chain completes synchronously; the drain is a
- * belt-and-braces guarantee before `uiState.value` is read.
+ * bound here to an [UnconfinedTestDispatcher]. The test deliberately does
+ * NOT use `runTest`: with the synchronous fakes above there is no real
+ * suspension to await, and `runTest`'s end-of-test "no uncompleted
+ * coroutines" check kept tripping over viewModelScope's never-cancelled
+ * SupervisorJob (surfacing as an UncompletedCoroutinesError - a subclass
+ * of AssertionError - attributed to the runTest call site). Instead we
+ * drive the dispatcher's scheduler directly with
+ * `mainDispatcher.scheduler.advanceUntilIdle()`, which deterministically
+ * runs the launched isSaving -> probe -> upgrade -> addAccount -> isSaved
+ * chain to completion before `uiState.value` is read, with no completeness
+ * assertion in play.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -112,7 +116,7 @@ class AddAccountViewModelTest {
     }
 
     @Test
-    fun `auto-upgrades Security NONE to STARTTLS when server advertises STARTTLS`() = runTest(mainDispatcher) {
+    fun `auto-upgrades Security NONE to STARTTLS when server advertises STARTTLS`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val viewModel = AddAccountViewModel(
             context = context,
@@ -129,12 +133,12 @@ class AddAccountViewModelTest {
         assertEquals(Security.NONE, viewModel.uiState.value.security)
         assertNull(viewModel.uiState.value.upgradeBanner)
 
-        // Tap Save. save() launches on viewModelScope (Main == mainDispatcher,
-        // sharing runTest's scheduler) and, with the synchronous fakes, runs
-        // the isSaving -> probe -> upgrade -> addAccount -> isSaved chain to
-        // completion. advanceUntilIdle() is the deterministic drain.
+        // Tap Save. save() launches on viewModelScope (Main == mainDispatcher).
+        // With the synchronous fakes the chain has no real suspension, so
+        // draining the dispatcher's scheduler runs isSaving -> probe ->
+        // upgrade -> addAccount -> isSaved to completion.
         viewModel.save()
-        advanceUntilIdle()
+        mainDispatcher.scheduler.advanceUntilIdle()
 
         // UI state mutations driven by the auto-upgrade.
         val state = viewModel.uiState.value
@@ -149,7 +153,7 @@ class AddAccountViewModelTest {
         // The persisted Account row reflects the upgraded security via
         // AccountRepository.toEntity's mapper (security == STARTTLS ->
         // useStartTls = true).
-        val savedRow = accountDao.getByEmail("user@example.com")
+        val savedRow = accountDao.saved("user@example.com")
         assertNotNull("account row should be persisted", savedRow)
         assertTrue(
             "useStartTls should be true on the saved AccountEntity",
@@ -185,6 +189,9 @@ class AddAccountViewModelTest {
      */
     private class FakeAccountDao : AccountDao {
         private val rows = mutableMapOf<String, AccountEntity>()
+
+        /** Non-suspend accessor for assertions in the (non-coroutine) test body. */
+        fun saved(email: String): AccountEntity? = rows[email]
 
         override suspend fun insert(account: AccountEntity): Long {
             rows[account.email] = account
