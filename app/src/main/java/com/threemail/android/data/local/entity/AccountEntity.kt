@@ -36,5 +36,26 @@ data class AccountEntity(
     val syncEnabled: Boolean = true,
     val calendarSyncEnabled: Boolean = true,
     val pushEnabled: Boolean = true,
+    /**
+     * Per-account signature appended to composed mail from this account. Empty
+     * means "no signature for this account"; the composer treats a blank value
+     * as a fall-through to the global signature in
+     * [com.threemail.android.data.settings.SettingsRepository].
+     */
+    val signature: String = "",
+    /**
+     * Per-account mail-check frequency in minutes. `0` is the sentinel for
+     * "follow the global default" so a user who never touches this keeps the
+     * app-wide cadence, while an override schedules a dedicated periodic
+     * [com.threemail.android.sync.MailSyncWorker] for just this account. See
+     * [com.threemail.android.sync.SyncScheduler.reconcileAccountSyncs].
+     */
+    val syncIntervalMinutes: Long = 0,
+    /**
+     * Per-account toggle for new-mail notifications. Gated together with the
+     * global [com.threemail.android.data.settings.AppSettings.notificationsEnabled]
+     * master switch, so both must be on for this account to notify.
+     */
+    val notificationsEnabled: Boolean = true,
     val createdAt: Long = System.currentTimeMillis()
 )

@@ -8,6 +8,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.threemail.android.ui.screens.account.AccountScreen
+import com.threemail.android.ui.screens.account.AccountSettingsScreen
 import com.threemail.android.ui.screens.account.AddAccountScreen
 import com.threemail.android.ui.screens.calendar.CalendarEventScreen
 import com.threemail.android.ui.screens.calendar.CalendarScreen
@@ -71,11 +72,23 @@ fun ThreeMailNavHost(navController: NavHostController) {
             AccountScreen(
                 viewModel = hiltViewModel(),
                 onNavigateBack = { navController.popBackStack() },
-                onAddAccount = { navController.navigate(Screen.AddAccount.route) }
+                onAddAccount = { navController.navigate(Screen.AddAccount.route) },
+                onOpenAccountSettings = { accountId ->
+                    navController.navigate(Screen.AccountSettings.createRoute(accountId))
+                }
             )
         }
         composable(Screen.AddAccount.route) {
             AddAccountScreen(
+                viewModel = hiltViewModel(),
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+        composable(
+            route = Screen.AccountSettings.route,
+            arguments = listOf(navArgument("accountId") { type = NavType.LongType })
+        ) {
+            AccountSettingsScreen(
                 viewModel = hiltViewModel(),
                 onNavigateBack = { navController.popBackStack() }
             )

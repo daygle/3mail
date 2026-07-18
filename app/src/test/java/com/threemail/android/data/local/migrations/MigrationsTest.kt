@@ -341,6 +341,50 @@ class MigrationsTest {
         }
     }
 
+    @Test
+    fun `migration 14 to 15 adds per-account personalization columns with behaviour-preserving defaults`() {
+        // The v9 accounts schema is a fine starting point: MIGRATION_14_15 only
+        // ALTERs `accounts`, so it doesn't depend on any columns added between
+        // v9 and v14.
+        val db = openV9Database()
+        try {
+            db.execSQL(
+                "INSERT INTO accounts (" +
+                    "email, displayName, accountType, incomingServer, incomingPort, useEncryption, " +
+                    "isActive, syncEnabled, calendarSyncEnabled, pushEnabled, createdAt" +
+                    ") VALUES (" +
+                    "'user@example.com', 'user', 'IMAP', 'imap.example.com', 993, 1, 1, 1, 1, 1, 123)"
+            )
+
+            MIGRATION_14_15.migrate(db)
+
+            val columns = mutableSetOf<String>()
+            db.query("PRAGMA table_info(accounts)").use { cursor ->
+                val nameIdx = cursor.getColumnIndexOrThrow("name")
+                while (cursor.moveToNext()) {
+                    columns.add(cursor.getString(nameIdx))
+                }
+            }
+            assertTrue("signature column should be added", columns.contains("signature"))
+            assertTrue("syncIntervalMinutes column should be added", columns.contains("syncIntervalMinutes"))
+            assertTrue("notificationsEnabled column should be added", columns.contains("notificationsEnabled"))
+
+            // Existing rows keep behaviour: no signature, follow-the-default
+            // sync cadence (0), and notifications on.
+            db.query(
+                "SELECT signature, syncIntervalMinutes, notificationsEnabled " +
+                    "FROM accounts WHERE email = 'user@example.com'"
+            ).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals("existing rows default to empty signature", "", cursor.getString(0))
+                assertEquals("existing rows default to 0 (global cadence)", 0, cursor.getInt(1))
+                assertEquals("existing rows keep notifications on", 1, cursor.getInt(2))
+            }
+        } finally {
+            db.close()
+        }
+    }
+
     /**
      * Open a v12-shaped `messages` table with no indices attached - each
      * test then seeds the specific index layout it cares about (broken

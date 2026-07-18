@@ -36,5 +36,14 @@ data class Account(
     val isActive: Boolean = true,
     val syncEnabled: Boolean = true,
     val calendarSyncEnabled: Boolean = true,
-    val pushEnabled: Boolean = true
+    val pushEnabled: Boolean = true,
+    /** Per-account signature; blank falls back to the global signature. */
+    val signature: String = "",
+    /**
+     * Per-account mail-check frequency in minutes. `0` means "use the global
+     * default sync interval".
+     */
+    val syncIntervalMinutes: Long = 0,
+    /** Per-account new-mail notification toggle (gated by the global switch). */
+    val notificationsEnabled: Boolean = true
 )

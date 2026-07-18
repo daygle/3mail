@@ -19,6 +19,11 @@ sealed class Screen(val route: String) {
     data object Search : Screen("search")
     data object Accounts : Screen("accounts")
     data object AddAccount : Screen("add_account")
+
+    data object AccountSettings : Screen("account_settings/{accountId}") {
+        fun createRoute(accountId: Long): String = "account_settings/$accountId"
+    }
+
     data object Settings : Screen("settings")
 
     data object Calendar : Screen("calendar")

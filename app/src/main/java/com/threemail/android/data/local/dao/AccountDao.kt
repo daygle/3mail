@@ -27,6 +27,21 @@ interface AccountDao {
     @Query("UPDATE accounts SET pushEnabled = :enabled WHERE id = :id")
     suspend fun setPushEnabled(id: Long, enabled: Boolean)
 
+    @Query("UPDATE accounts SET displayName = :displayName WHERE id = :id")
+    suspend fun setDisplayName(id: Long, displayName: String)
+
+    @Query("UPDATE accounts SET signature = :signature WHERE id = :id")
+    suspend fun setSignature(id: Long, signature: String)
+
+    @Query("UPDATE accounts SET syncIntervalMinutes = :minutes WHERE id = :id")
+    suspend fun setSyncIntervalMinutes(id: Long, minutes: Long)
+
+    @Query("UPDATE accounts SET syncEnabled = :enabled WHERE id = :id")
+    suspend fun setSyncEnabled(id: Long, enabled: Boolean)
+
+    @Query("UPDATE accounts SET notificationsEnabled = :enabled WHERE id = :id")
+    suspend fun setNotificationsEnabled(id: Long, enabled: Boolean)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(account: AccountEntity): Long
 

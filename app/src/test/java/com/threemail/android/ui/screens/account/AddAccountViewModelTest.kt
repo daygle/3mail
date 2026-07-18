@@ -119,7 +119,7 @@ class AddAccountViewModelTest {
             accountRepository = accountRepository,
             googleAuthHelper = GoogleAuthHelper(context),
             mailRemoteFactory = fakeFactory,
-            syncScheduler = FakeSyncScheduler(context)
+            syncScheduler = NoOpSyncScheduler(context)
         )
 
         // User picks cleartext.
@@ -175,15 +175,19 @@ class AddAccountViewModelTest {
     }
 
     /**
-     * No-op [SyncScheduler] for Robolectric: the real
-     * [SyncScheduler.enqueueImmediateSync] calls `WorkManager.getInstance()`,
-     * which is not initialized in the unit-test environment and would throw,
-     * aborting save() before it reaches the isSaved terminal state. Overriding
-     * the enqueue to a no-op keeps the auto-upgrade assertions intact without
-     * needing a WorkManager test harness.
+     * No-op [SyncScheduler] for Robolectric: the real one calls
+     * `WorkManager.getInstance(context)`, which throws unless WorkManager has
+     * been initialised for the test process. save() only schedules background
+     * sync as a side effect, so stubbing those out loses no coverage for the
+     * auto-upgrade assertions.
      */
-    private class FakeSyncScheduler(context: Context) : SyncScheduler(context) {
+    private class NoOpSyncScheduler(context: Context) : SyncScheduler(context) {
         override fun enqueueImmediateSync(accountId: Long) {}
+        override fun schedulePeriodicSyncForAccount(
+            accountId: Long,
+            intervalMinutes: Long,
+            replace: Boolean
+        ) {}
     }
 
     /**
@@ -213,6 +217,11 @@ class AddAccountViewModelTest {
         override suspend fun getAllOnce(): List<AccountEntity> = rows.values.toList()
         override suspend fun getById(id: Long): AccountEntity? = rows.values.firstOrNull { it.id == id }
         override suspend fun setPushEnabled(id: Long, enabled: Boolean) {}
+        override suspend fun setDisplayName(id: Long, displayName: String) {}
+        override suspend fun setSignature(id: Long, signature: String) {}
+        override suspend fun setSyncIntervalMinutes(id: Long, minutes: Long) {}
+        override suspend fun setSyncEnabled(id: Long, enabled: Boolean) {}
+        override suspend fun setNotificationsEnabled(id: Long, enabled: Boolean) {}
         override suspend fun update(account: AccountEntity) { rows[account.email] = account }
         override suspend fun delete(account: AccountEntity) { rows.remove(account.email) }
     }

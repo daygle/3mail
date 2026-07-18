@@ -26,6 +26,7 @@ A modern, full-featured Android mail client supporting IMAP (push) and Gmail (OA
 - **Incremental background sync**: `MailSyncWorker` with UID pagination for IMAP and `internalDate` cursor for Gmail.
 - **Encrypted credential storage** via `EncryptedSharedPreferences` backed by Android Keystore (see `data/security/CredentialStore.kt`).
 - **Configurable signature**, sync frequency, push, notifications, theme, and **Empty trash on launch / quit** (server-first `EXPUNGE` then local Room prune, dispatched through WorkManager so it survives process death on background).
+- **Per-account settings**: each account has its own settings screen (open it from the Accounts list) for a per-account **signature** (falls back to the global signature when blank), a **mail-check frequency** override (a dedicated periodic `MailSyncWorker` per account; "Default" follows the app-wide interval), and per-account **sync**, **notifications**, and IMAP **push** toggles. The settings pages are built from a shared Material 3 grouped-card component set (`ui/components/SettingsComponents.kt`).
 - **Launcher badge** counter for unread mail.
 
 ## Tech Stack

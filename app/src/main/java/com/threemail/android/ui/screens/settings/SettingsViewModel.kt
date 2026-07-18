@@ -2,6 +2,7 @@ package com.threemail.android.ui.screens.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.settings.AppSettings
 import com.threemail.android.data.settings.SettingsRepository
 import com.threemail.android.data.settings.ThemeMode
@@ -16,6 +17,7 @@ import javax.inject.Inject
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
+    private val accountRepository: AccountRepository,
     private val syncScheduler: SyncScheduler
 ) : ViewModel() {
 
@@ -29,7 +31,10 @@ class SettingsViewModel @Inject constructor(
     fun setSyncInterval(minutes: Long) {
         viewModelScope.launch {
             settingsRepository.setSyncInterval(minutes)
-            syncScheduler.schedulePeriodicSync(minutes, replace = true)
+            // The global interval is the default cadence; reschedule every
+            // account so those without a per-account override pick up the new
+            // value (accounts with an override keep it).
+            syncScheduler.reconcileAccountSyncs(accountRepository.getAccountsOnce(), minutes)
         }
     }
 
