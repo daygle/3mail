@@ -159,6 +159,10 @@ class AddAccountViewModel @Inject constructor(
                     val finalAccount = buildAccount(_uiState.value)
                     val accountId = accountRepository.addAccount(finalAccount)
                     syncScheduler.enqueueImmediateSync(accountId)
+                    // New accounts follow the global default cadence (override
+                    // 0). Schedule now so the account syncs periodically without
+                    // waiting for the next app launch's reconcile.
+                    syncScheduler.schedulePeriodicSyncForAccount(accountId, DEFAULT_SYNC_INTERVAL_MINUTES)
                     _uiState.value = _uiState.value.copy(isSaving = false, isSaved = true)
                 }.onFailure { error ->
                     Log.e(TAG, "Save failed", error)
@@ -256,6 +260,7 @@ class AddAccountViewModel @Inject constructor(
                 test.onSuccess {
                     val id = accountRepository.addAccount(account)
                     syncScheduler.enqueueImmediateSync(id)
+                    syncScheduler.schedulePeriodicSyncForAccount(id, DEFAULT_SYNC_INTERVAL_MINUTES)
                     _uiState.value = _uiState.value.copy(isSaving = false, isSaved = true)
                 }.onFailure {
                     Log.e(TAG, "Gmail save failed", it)
@@ -280,5 +285,13 @@ class AddAccountViewModel @Inject constructor(
 
     private companion object {
         private const val TAG = "AddAccountViewModel"
+
+        /**
+         * Cadence a freshly-added account starts on. Matches the app-wide
+         * default and WorkManager's 15-minute minimum period; if the user has
+         * changed the global default, the next app-launch reconcile corrects
+         * this account to it (the account's own override is 0 = follow default).
+         */
+        private const val DEFAULT_SYNC_INTERVAL_MINUTES = 15L
     }
 }

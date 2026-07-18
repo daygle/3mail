@@ -88,10 +88,28 @@ class ThreeMailApplication : Application(), Configuration.Provider {
     override fun onCreate() {
         super.onCreate()
         notificationHelper.createNotificationChannels()
-        syncScheduler.schedulePeriodicSync()
+        scheduleMailSyncs()
         syncScheduler.schedulePeriodicCalendarSync()
         registerTrashCleanup()
         registerPushAndBadge()
+    }
+
+    /**
+     * Schedules the per-account periodic mail syncs. Each account runs on its
+     * own cadence - its per-account override when set, otherwise the global
+     * default - so this reads both the account list and the default interval
+     * before reconciling. Runs off the main thread because it touches Room.
+     */
+    private fun scheduleMailSyncs() {
+        appScope.launch {
+            try {
+                val accounts = accountRepository.getAccountsOnce()
+                val defaultInterval = settingsRepository.settings.first().syncIntervalMinutes
+                syncScheduler.reconcileAccountSyncs(accounts, defaultInterval)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to schedule per-account mail syncs", e)
+            }
+        }
     }
 
     private fun registerTrashCleanup() {

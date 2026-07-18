@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.domain.model.Account
 import com.threemail.android.push.PushController
+import com.threemail.android.sync.SyncScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,7 +15,8 @@ import javax.inject.Inject
 @HiltViewModel
 class AccountViewModel @Inject constructor(
     private val accountRepository: AccountRepository,
-    private val pushController: PushController
+    private val pushController: PushController,
+    private val syncScheduler: SyncScheduler
 ) : ViewModel() {
 
     data class UiState(
@@ -58,6 +60,9 @@ class AccountViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(pendingRemoval = null)
         viewModelScope.launch {
             accountRepository.deleteAccount(account)
+            // Tear down the account's dedicated periodic sync so a deleted
+            // account can't keep waking WorkManager.
+            syncScheduler.cancelPeriodicSyncForAccount(account.id)
         }
     }
 

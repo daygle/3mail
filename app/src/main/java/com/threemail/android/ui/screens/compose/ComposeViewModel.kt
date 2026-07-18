@@ -83,6 +83,17 @@ class ComposeViewModel @Inject constructor(
     private var inReplyTo: String? = null
     private var references: String? = null
 
+    /** Global signature fallback for accounts that don't define their own. */
+    private var globalSignature: String = ""
+
+    /**
+     * The signature block currently applied to the body. Tracked so that
+     * switching accounts in a fresh "new" compose can swap the signature only
+     * when the user hasn't started editing (i.e. the body is still exactly the
+     * previously-applied block).
+     */
+    private var appliedSignatureBlock: String = ""
+
     /** Last-segment text from active recipient field; debounced then dispatched to the contact repo. */
     private val contactQueries = MutableSharedFlow<String>(extraBufferCapacity = 64)
 
@@ -90,8 +101,12 @@ class ComposeViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching {
                 val accounts = accountRepository.getAccounts().first()
-                val signature = settingsRepository.settings.first().signature
+                globalSignature = settingsRepository.settings.first().signature
                 val self = accounts.firstOrNull()
+                // Prefer the sending account's own signature; fall back to the
+                // global one when the account hasn't set a per-account signature.
+                val signature = effectiveSignature(self)
+                appliedSignatureBlock = signatureBlock(signature)
                 val original = if (refId >= 0) mailRepository.getMessageById(refId) else null
 
                 var to = ""
@@ -161,8 +176,24 @@ class ComposeViewModel @Inject constructor(
     private fun signatureBlock(signature: String): String =
         if (signature.isBlank()) "" else "\n\n-- \n$signature"
 
+    /** Per-account signature when set, otherwise the global signature. */
+    private fun effectiveSignature(account: Account?): String =
+        account?.signature?.takeIf { it.isNotBlank() } ?: globalSignature
+
     fun selectAccount(account: Account) {
-        _uiState.value = _uiState.value.copy(selectedAccount = account)
+        val state = _uiState.value
+        // On a fresh "new" compose whose body is still the untouched signature
+        // block, swap in the newly-selected account's signature so the sender's
+        // signature follows the From account. We deliberately don't touch a
+        // reply/forward body (which carries a quote) or a body the user has
+        // already edited.
+        val newBlock = signatureBlock(effectiveSignature(account))
+        if (mode == "new" && state.body == appliedSignatureBlock) {
+            appliedSignatureBlock = newBlock
+            _uiState.value = state.copy(selectedAccount = account, body = newBlock)
+        } else {
+            _uiState.value = state.copy(selectedAccount = account)
+        }
     }
 
     fun onRecoverableAuthHandled() {

@@ -15,6 +15,7 @@ import com.threemail.android.data.remote.gmail.GoogleAuthHelper
 import com.threemail.android.data.remote.imap.ImapClientFactory
 import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.security.CredentialStore
+import com.threemail.android.sync.SyncScheduler
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.Attachment
 import com.threemail.android.domain.model.MailFolder
@@ -117,7 +118,8 @@ class AddAccountViewModelTest {
             context = context,
             accountRepository = accountRepository,
             googleAuthHelper = GoogleAuthHelper(context),
-            mailRemoteFactory = fakeFactory
+            mailRemoteFactory = fakeFactory,
+            syncScheduler = NoOpSyncScheduler(context)
         )
 
         // User picks cleartext.
@@ -166,6 +168,22 @@ class AddAccountViewModelTest {
      * (and reads to null) keeps AccountRepository.addAccount from aborting on
      * the credential path while leaving the persisted-column assertions intact.
      */
+    /**
+     * No-op [SyncScheduler] for Robolectric: the real one calls
+     * `WorkManager.getInstance(context)`, which throws unless WorkManager has
+     * been initialised for the test process. save() only fires an immediate
+     * sync as a side effect, so stubbing it out loses no coverage for the
+     * auto-upgrade assertions.
+     */
+    private class NoOpSyncScheduler(context: Context) : SyncScheduler(context) {
+        override fun enqueueImmediateSync(accountId: Long) {}
+        override fun schedulePeriodicSyncForAccount(
+            accountId: Long,
+            intervalMinutes: Long,
+            replace: Boolean
+        ) {}
+    }
+
     private class FakeCredentialStore(context: Context) : CredentialStore(context) {
         override fun savePassword(email: String, password: String?) {}
         override fun getPassword(email: String): String? = null
@@ -199,6 +217,11 @@ class AddAccountViewModelTest {
         override suspend fun getAllOnce(): List<AccountEntity> = rows.values.toList()
         override suspend fun getById(id: Long): AccountEntity? = rows.values.firstOrNull { it.id == id }
         override suspend fun setPushEnabled(id: Long, enabled: Boolean) {}
+        override suspend fun setDisplayName(id: Long, displayName: String) {}
+        override suspend fun setSignature(id: Long, signature: String) {}
+        override suspend fun setSyncIntervalMinutes(id: Long, minutes: Long) {}
+        override suspend fun setSyncEnabled(id: Long, enabled: Boolean) {}
+        override suspend fun setNotificationsEnabled(id: Long, enabled: Boolean) {}
         override suspend fun update(account: AccountEntity) { rows[account.email] = account }
         override suspend fun delete(account: AccountEntity) { rows.remove(account.email) }
     }

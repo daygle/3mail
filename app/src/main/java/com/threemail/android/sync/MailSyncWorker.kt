@@ -71,7 +71,9 @@ class MailSyncWorker(
                         Log.d(TAG, "Fetched ${fetch.messages.size} new messages for folder ${folder.name}")
                         val toSave = fetch.messages.map { it.copy(folderId = folder.id) }
                         mailRepository.saveMessages(toSave)
-                        if (folder.type == FolderType.INBOX) {
+                        // Only feed the aggregate new-mail notification when this
+                        // account opts in; the global switch is applied once below.
+                        if (folder.type == FolderType.INBOX && account.notificationsEnabled) {
                             newMessages += toSave.count { !it.isRead }
                         }
                     }

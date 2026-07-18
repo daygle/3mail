@@ -10,17 +10,26 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
+import com.threemail.android.domain.model.Account
+import com.threemail.android.domain.model.AccountType
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class SyncScheduler @Inject constructor(
+/**
+ * `open` (class + the enqueue/schedule methods) so unit tests can subclass it
+ * with no-op overrides and avoid touching the real WorkManager singleton, which
+ * isn't initialised under Robolectric. Mirrors the same test-seam pattern used
+ * by [com.threemail.android.data.repository.AccountRepository]. Production always
+ * gets the Hilt-wired concrete class.
+ */
+open class SyncScheduler @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
 
-    fun schedulePeriodicSync(intervalMinutes: Long = 15, replace: Boolean = false) {
+    open fun schedulePeriodicSync(intervalMinutes: Long = 15, replace: Boolean = false) {
         val interval = intervalMinutes.coerceAtLeast(15) // WorkManager minimum period.
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
@@ -37,6 +46,68 @@ class SyncScheduler @Inject constructor(
             if (replace) ExistingPeriodicWorkPolicy.UPDATE else ExistingPeriodicWorkPolicy.KEEP,
             request
         )
+    }
+
+    /**
+     * Reconciles the set of per-account periodic mail syncs against the current
+     * account list and the app-wide default cadence.
+     *
+     * Each syncable account gets its own unique periodic worker
+     * (`$ACCOUNT_SYNC_PREFIX<id>`) whose period is the account's per-account
+     * override when set (`syncIntervalMinutes > 0`) or [defaultIntervalMinutes]
+     * otherwise. Accounts that are paused (`syncEnabled == false`) or that don't
+     * sync mail (e.g. a future non-IMAP/Gmail type) have their worker cancelled.
+     *
+     * The legacy single all-accounts worker ([SYNC_WORK_NAME]) is retired here:
+     * per-account workers fully replace it, so leaving it running would just
+     * double-sync every account.
+     */
+    open fun reconcileAccountSyncs(accounts: List<Account>, defaultIntervalMinutes: Long = 15) {
+        WorkManager.getInstance(context).cancelUniqueWork(SYNC_WORK_NAME)
+        accounts.forEach { account ->
+            val syncsMail = account.accountType == AccountType.IMAP ||
+                account.accountType == AccountType.GMAIL
+            if (account.syncEnabled && syncsMail) {
+                val effective = account.syncIntervalMinutes.takeIf { it > 0 } ?: defaultIntervalMinutes
+                schedulePeriodicSyncForAccount(account.id, effective)
+            } else {
+                cancelPeriodicSyncForAccount(account.id)
+            }
+        }
+    }
+
+    /**
+     * Schedules (or updates) the dedicated periodic mail sync for a single
+     * account. The worker is handed the account id as input so [MailSyncWorker]
+     * only touches that account, and [ExistingPeriodicWorkPolicy.UPDATE] lets a
+     * cadence change take effect without dropping the existing schedule.
+     */
+    open fun schedulePeriodicSyncForAccount(
+        accountId: Long,
+        intervalMinutes: Long,
+        replace: Boolean = true
+    ) {
+        val interval = intervalMinutes.coerceAtLeast(15) // WorkManager minimum period.
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .setRequiresBatteryNotLow(true)
+            .build()
+
+        val request = PeriodicWorkRequestBuilder<MailSyncWorker>(interval, TimeUnit.MINUTES)
+            .setConstraints(constraints)
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.MINUTES)
+            .setInputData(workDataOf(KEY_ACCOUNT_ID to accountId))
+            .build()
+
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            "$ACCOUNT_SYNC_PREFIX$accountId",
+            if (replace) ExistingPeriodicWorkPolicy.UPDATE else ExistingPeriodicWorkPolicy.KEEP,
+            request
+        )
+    }
+
+    open fun cancelPeriodicSyncForAccount(accountId: Long) {
+        WorkManager.getInstance(context).cancelUniqueWork("$ACCOUNT_SYNC_PREFIX$accountId")
     }
 
     fun schedulePeriodicCalendarSync(intervalMinutes: Long = 30, replace: Boolean = false) {
@@ -129,7 +200,7 @@ class SyncScheduler @Inject constructor(
      * push events from the same account collapse - we don't need to spam the
      * server with redundant refreshes.
      */
-    fun enqueueImmediateSync(accountId: Long) {
+    open fun enqueueImmediateSync(accountId: Long) {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
@@ -152,6 +223,7 @@ class SyncScheduler @Inject constructor(
         private const val TRASH_LAUNCH_WORK_NAME = "threemail_trash_cleanup_launch"
         private const val TRASH_QUIT_WORK_NAME = "threemail_trash_cleanup_quit"
         private const val IMMEDIATE_SYNC_PREFIX = "threemail_immediate_sync_"
+        private const val ACCOUNT_SYNC_PREFIX = "threemail_account_sync_"
         private const val SEND_MAIL_WORK_NAME = "threemail_send_mail"
         const val KEY_TRIGGER: String = "triggerKey"
         const val KEY_ACCOUNT_ID: String = "accountId"

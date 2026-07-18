@@ -283,6 +283,31 @@ val MIGRATION_13_14: Migration = object : Migration(13, 14) {
     }
 }
 
+/**
+ * Adds the per-account personalization columns backing the account settings
+ * screen: a per-account `signature`, an optional `syncIntervalMinutes` override
+ * (0 = follow the global default), and a per-account `notificationsEnabled`
+ * toggle.
+ *
+ * All three are additive `ALTER TABLE … ADD COLUMN`s with defaults that
+ * preserve existing behaviour:
+ *  - `signature = ''` → the composer keeps falling back to the global signature.
+ *  - `syncIntervalMinutes = 0` → every account keeps the app-wide sync cadence
+ *    until the user sets a per-account override.
+ *  - `notificationsEnabled = 1` → accounts keep notifying exactly as before,
+ *    still gated by the global master switch.
+ *
+ * `ADD COLUMN` cannot take `IF NOT EXISTS`, but none of the columns carry an
+ * index, FK, or trigger, so a partially-applied migration is safe to resume.
+ */
+val MIGRATION_14_15: Migration = object : Migration(14, 15) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE accounts ADD COLUMN signature TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE accounts ADD COLUMN syncIntervalMinutes INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE accounts ADD COLUMN notificationsEnabled INTEGER NOT NULL DEFAULT 1")
+    }
+}
+
 private fun repairMessageIndices(db: SupportSQLiteDatabase) {
     db.execSQL(
         "DROP INDEX IF EXISTS index_messages_accountId_folderId_messageId"

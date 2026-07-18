@@ -61,6 +61,32 @@ open class AccountRepository @Inject constructor(
         accountDao.setPushEnabled(id, enabled)
     }
 
+    /**
+     * Targeted per-account settings updates. These bypass [updateAccount] on
+     * purpose: that path re-saves the password into the encrypted credential
+     * store and rebuilds the whole entity, which is unnecessary (and would
+     * reset `createdAt`) when the user is only tweaking a single preference on
+     * the account settings screen.
+     */
+    suspend fun setDisplayName(id: Long, displayName: String) =
+        accountDao.setDisplayName(id, displayName)
+
+    suspend fun setSignature(id: Long, signature: String) =
+        accountDao.setSignature(id, signature)
+
+    suspend fun setSyncIntervalMinutes(id: Long, minutes: Long) =
+        accountDao.setSyncIntervalMinutes(id, minutes)
+
+    suspend fun setSyncEnabled(id: Long, enabled: Boolean) =
+        accountDao.setSyncEnabled(id, enabled)
+
+    suspend fun setNotificationsEnabled(id: Long, enabled: Boolean) =
+        accountDao.setNotificationsEnabled(id, enabled)
+
+    /** One-shot snapshot of active accounts (used by schedulers, not the UI). */
+    suspend fun getAccountsOnce(): List<Account> =
+        accountDao.getAllOnce().map { it.toDomain() }
+
     private fun AccountEntity.toDomain(): Account = Account(
         id = id,
         email = email,
@@ -84,7 +110,10 @@ open class AccountRepository @Inject constructor(
         isActive = isActive,
         syncEnabled = syncEnabled,
         calendarSyncEnabled = calendarSyncEnabled,
-        pushEnabled = pushEnabled
+        pushEnabled = pushEnabled,
+        signature = signature,
+        syncIntervalMinutes = syncIntervalMinutes,
+        notificationsEnabled = notificationsEnabled
     )
 
     private fun Account.toEntity(): AccountEntity = AccountEntity(
@@ -106,6 +135,9 @@ open class AccountRepository @Inject constructor(
         isActive = isActive,
         syncEnabled = syncEnabled,
         calendarSyncEnabled = calendarSyncEnabled,
-        pushEnabled = pushEnabled
+        pushEnabled = pushEnabled,
+        signature = signature,
+        syncIntervalMinutes = syncIntervalMinutes,
+        notificationsEnabled = notificationsEnabled
     )
 }
