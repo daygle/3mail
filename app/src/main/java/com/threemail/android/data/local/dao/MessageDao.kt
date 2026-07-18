@@ -18,6 +18,29 @@ interface MessageDao {
     @Query("SELECT * FROM messages WHERE folderId = :folderId ORDER BY date DESC LIMIT :limit OFFSET :offset")
     suspend fun getByFolderPaged(folderId: Long, limit: Int, offset: Int): List<MessageEntity>
 
+    /**
+     * Reactive, bounded feed of a single folder, newest first. Room re-emits
+     * on any insert / delete / flag flip touching the folder, so the inbox
+     * reflects sync results, swipe actions, and multi-select batch triage
+     * without the viewmodel having to re-query. LIMIT keeps a giant folder
+     * from streaming every row into Compose.
+     */
+    @Query("SELECT * FROM messages WHERE folderId = :folderId ORDER BY date DESC LIMIT :limit")
+    fun observeByFolder(folderId: Long, limit: Int): Flow<List<MessageEntity>>
+
+    /**
+     * Reactive, bounded cross-account unified inbox: every message in a folder
+     * of type INBOX, newest first, aggregated across all accounts via a JOIN
+     * on `folders`. Same reactivity guarantees as [observeByFolder].
+     */
+    @Query(
+        "SELECT m.* FROM messages m " +
+            "JOIN folders f ON m.folderId = f.id " +
+            "WHERE f.type = 'INBOX' " +
+            "ORDER BY m.date DESC LIMIT :limit"
+    )
+    fun observeUnifiedInbox(limit: Int): Flow<List<MessageEntity>>
+
     @Query("SELECT * FROM messages WHERE folderId = :folderId ORDER BY date DESC")
     suspend fun getByFolderOnce(folderId: Long): List<MessageEntity>
 

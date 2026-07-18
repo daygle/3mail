@@ -25,6 +25,17 @@
     <string name="sync">Sync</string>
     <string name="syncing">Syncing…</string>
     <string name="no_messages">No messages</string>
+    <string name="unified_inbox">Unified inbox</string>
+    <string name="all_inboxes">All inboxes</string>
+    <string name="mark_all_read">Mark all as read</string>
+    <string name="mark_read">Mark read</string>
+    <string name="mark_unread">Mark unread</string>
+    <string name="star">Star</string>
+    <string name="unstar">Unstar</string>
+    <string name="select_all">Select all</string>
+    <string name="selected_count">%1$d selected</string>
+    <string name="clear_selection">Clear selection</string>
+    <string name="pull_to_refresh_hint">Pull down to refresh</string>
     <string name="no_accounts">No accounts added</string>
     <string name="add_account_prompt">Add an email account to get started</string>
     <string name="empty_state_add_account">Add Account</string>

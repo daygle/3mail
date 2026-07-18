@@ -155,6 +155,20 @@ class MailRepository @Inject constructor(
         emit(messageDao.getByFolderPaged(folderId, limit, offset).map { it.toDomain() })
     }
 
+    /**
+     * Reactive, bounded feed of a single folder. Unlike [getMessagesPaged],
+     * Room re-emits on every mutation so the inbox reflects sync, swipe, and
+     * batch actions live.
+     */
+    fun observeFolder(folderId: Long, limit: Int): Flow<List<MailMessage>> =
+        messageDao.observeByFolder(folderId, limit).map { list -> list.map { it.toDomain() } }
+
+    /**
+     * Reactive, bounded cross-account unified inbox (all INBOX folders).
+     */
+    fun observeUnifiedInbox(limit: Int): Flow<List<MailMessage>> =
+        messageDao.observeUnifiedInbox(limit).map { list -> list.map { it.toDomain() } }
+
     suspend fun getMaxUid(folderId: Long): Long =
         messageDao.getMaxUid(folderId) ?: 0L
 
