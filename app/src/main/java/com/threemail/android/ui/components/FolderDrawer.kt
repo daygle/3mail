@@ -178,7 +178,7 @@ private fun detectSeparator(folders: List<MailFolder>): Char {
         }
     }
     // Try common IMAP separators
-    for (sep in listOf('.', '/', '\\\\', '-', '_')) {
+    for (sep in listOf('.', '/', '\\', '-', '_')) {
         if (folders.any { it.serverId.contains(sep) }) return sep
     }
     return '.'
@@ -490,7 +490,7 @@ private fun FolderTreeRow(
     onToggleExpand: () -> Unit,
     onToggleFavorite: (MailFolder) -> Unit
 ) {
-    val indentPadding = node.depth * TREE_INDENT_PER_LEVEL
+    val indentPadding = TREE_INDENT_PER_LEVEL * node.depth
     val containerColor = if (isSelected) {
         MaterialTheme.colorScheme.primary
     } else {
