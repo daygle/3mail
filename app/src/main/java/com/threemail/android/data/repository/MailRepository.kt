@@ -40,7 +40,7 @@ class MailRepository @Inject constructor(
         ) { folders, favorites ->
             val favoriteIds = favorites.mapTo(HashSet(folders.size)) { it.serverId }
             folders.map { entity ->
-                entity.toDomain(isFavorite = entity.serverId in favoriteIds)
+                entity.toDomain(isFavorite = entity.serverId in favoriteIds, isHidden = entity.isHidden)
             }
         }
 
@@ -60,7 +60,9 @@ class MailRepository @Inject constructor(
             val merged = folder.copy(
                 id = existing?.id ?: 0,
                 syncVersion = existing?.syncVersion ?: folder.syncVersion,
-                unreadCount = existing?.unreadCount ?: folder.unreadCount
+                unreadCount = existing?.unreadCount ?: folder.unreadCount,
+                // Preserve the user's hide choice across folder re-syncs.
+                isHidden = existing?.isHidden ?: folder.isHidden
             )
             val id = folderDao.insert(merged.toEntity())
             merged.copy(id = id)
@@ -131,6 +133,11 @@ class MailRepository @Inject constructor(
         folderDao.updateSyncVersion(folderId, maxUid)
     }
 
+    /** Toggle a folder's drawer visibility (kept locally; not synced to the server). */
+    suspend fun setFolderHidden(folderId: Long, isHidden: Boolean) {
+        folderDao.setHidden(folderId, isHidden)
+    }
+
     fun getMessages(folderId: Long): Flow<List<MailMessage>> =
         messageDao.getByFolder(folderId).map { list -> list.map { it.toDomain() } }
 
@@ -154,6 +161,20 @@ class MailRepository @Inject constructor(
     fun getMessagesPaged(folderId: Long, limit: Int, offset: Int): Flow<List<MailMessage>> = flow {
         emit(messageDao.getByFolderPaged(folderId, limit, offset).map { it.toDomain() })
     }
+
+    /**
+     * Reactive, bounded feed of a single folder. Unlike [getMessagesPaged],
+     * Room re-emits on every mutation so the inbox reflects sync, swipe, and
+     * batch actions live.
+     */
+    fun observeFolder(folderId: Long, limit: Int): Flow<List<MailMessage>> =
+        messageDao.observeByFolder(folderId, limit).map { list -> list.map { it.toDomain() } }
+
+    /**
+     * Reactive, bounded cross-account unified inbox (all INBOX folders).
+     */
+    fun observeUnifiedInbox(limit: Int): Flow<List<MailMessage>> =
+        messageDao.observeUnifiedInbox(limit).map { list -> list.map { it.toDomain() } }
 
     suspend fun getMaxUid(folderId: Long): Long =
         messageDao.getMaxUid(folderId) ?: 0L
@@ -192,7 +213,7 @@ class MailRepository @Inject constructor(
         return messageDao.search(match).map { list -> list.map { it.toDomain() } }
     }
 
-    private fun FolderEntity.toDomain(isFavorite: Boolean = false): MailFolder = MailFolder(
+    private fun FolderEntity.toDomain(isFavorite: Boolean = false, isHidden: Boolean = false): MailFolder = MailFolder(
         id = id,
         accountId = accountId,
         serverId = serverId,
@@ -201,7 +222,8 @@ class MailRepository @Inject constructor(
         messageCount = messageCount,
         unreadCount = unreadCount,
         syncVersion = syncVersion,
-        isFavorite = isFavorite
+        isFavorite = isFavorite,
+        isHidden = isHidden
     )
 
     private fun MailFolder.toEntity(): FolderEntity = FolderEntity(
@@ -212,7 +234,8 @@ class MailRepository @Inject constructor(
         type = type,
         messageCount = messageCount,
         unreadCount = unreadCount,
-        syncVersion = syncVersion
+        syncVersion = syncVersion,
+        isHidden = isHidden
     )
 
     private fun MessageEntity.toDomain(): MailMessage = MailMessage(

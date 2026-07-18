@@ -4,6 +4,8 @@ import com.threemail.android.data.remote.gmail.GmailApiClient
 import com.threemail.android.data.remote.gmail.GmailRemote
 import com.threemail.android.data.remote.imap.ImapClientFactory
 import com.threemail.android.data.remote.imap.ImapRemote
+import com.threemail.android.data.remote.pop3.Pop3Client
+import com.threemail.android.data.remote.pop3.Pop3Remote
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.AccountType
 import javax.inject.Inject
@@ -27,5 +29,6 @@ open class MailRemoteFactory @Inject constructor(
     open fun create(account: Account): MailRemote = when (account.accountType) {
         AccountType.GMAIL -> GmailRemote(account, gmailApiClient)
         AccountType.IMAP -> ImapRemote(imapClientFactory.create(account))
+        AccountType.POP3 -> Pop3Remote(Pop3Client(account))
     }
 }

@@ -1,7 +1,8 @@
 package com.threemail.android.ui.components
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.Icon
@@ -27,48 +29,73 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.threemail.android.data.settings.MessageDensity
 import com.threemail.android.domain.model.MailMessage
 import com.threemail.android.ui.theme.avatarColorFor
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MailListItem(
     message: MailMessage,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    onToggleStar: (() -> Unit)? = null
+    onToggleStar: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
+    selected: Boolean = false,
+    density: MessageDensity = MessageDensity.COMFORTABLE,
+    previewLines: Int = 2
 ) {
     val sender = message.from.firstOrNull()
     val senderLabel = sender?.name?.takeIf { it.isNotBlank() } ?: sender?.address ?: "(unknown)"
     val avatarColor = avatarColorFor(sender?.address ?: senderLabel)
 
+    val compact = density == MessageDensity.COMPACT
+    val rowPaddingV = if (compact) 8.dp else 12.dp
+    val avatarSize = if (compact) 36.dp else 44.dp
+
+    val background = when {
+        selected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+        message.isRead -> MaterialTheme.colorScheme.surface
+        else -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.1f)
+    }
+
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(
-                if (message.isRead) MaterialTheme.colorScheme.surface 
-                else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.1f)
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .background(background)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .padding(horizontal = 16.dp, vertical = rowPaddingV),
         verticalAlignment = Alignment.Top
     ) {
-        // Sender avatar with deterministic color + initial.
+        // Sender avatar with deterministic color + initial. In selection mode a
+        // selected row swaps the avatar for a check disc.
         Box(
             modifier = Modifier
                 .padding(top = 2.dp)
-                .size(44.dp)
+                .size(avatarSize)
                 .clip(CircleShape)
-                .background(if (message.isRead) avatarColor.copy(alpha = 0.8f) else avatarColor),
+                .background(
+                    if (selected) MaterialTheme.colorScheme.primary
+                    else if (message.isRead) avatarColor.copy(alpha = 0.8f) else avatarColor
+                ),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = senderLabel.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar()?.toString() ?: "?",
-                style = MaterialTheme.typography.titleMedium,
-                color = Color.White
-            )
+            if (selected) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    tint = Color.White
+                )
+            } else {
+                Text(
+                    text = senderLabel.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar()?.toString() ?: "?",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White
+                )
+            }
         }
 
         Spacer(modifier = Modifier.width(12.dp))
@@ -108,14 +135,18 @@ fun MailListItem(
                 overflow = TextOverflow.Ellipsis
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = message.bodyPreview,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
+                if (previewLines > 0) {
+                    Text(
+                        text = message.bodyPreview,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = previewLines,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                } else {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
                 if (onToggleStar != null) {
                     IconButton(onClick = onToggleStar, modifier = Modifier.size(28.dp)) {
                         Icon(

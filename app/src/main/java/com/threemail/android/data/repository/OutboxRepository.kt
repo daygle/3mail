@@ -46,7 +46,10 @@ class OutboxRepository @Inject constructor(
                 htmlBody = message.htmlBody,
                 attachmentsJson = serializeAttachments(message.attachments),
                 inReplyTo = message.inReplyTo,
-                references = message.references
+                references = message.references,
+                fromName = message.fromName,
+                fromAddress = message.fromAddress,
+                requestReadReceipt = message.requestReadReceipt
             )
         )
 
@@ -72,7 +75,10 @@ class OutboxRepository @Inject constructor(
             htmlBody = htmlBody,
             attachments = parseAttachments(attachmentsJson),
             inReplyTo = inReplyTo,
-            references = references
+            references = references,
+            fromName = fromName,
+            fromAddress = fromAddress,
+            requestReadReceipt = requestReadReceipt
         )
     )
 

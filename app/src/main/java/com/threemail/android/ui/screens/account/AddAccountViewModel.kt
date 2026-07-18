@@ -87,17 +87,37 @@ class AddAccountViewModel @Inject constructor(
             upgradeBanner = null
         )
     }
-    fun updateAccountType(value: AccountType) { _uiState.value = _uiState.value.copy(accountType = value) }
+    fun updateAccountType(value: AccountType) {
+        val state = _uiState.value
+        // Reset the incoming port to the default for the new protocol so a user
+        // switching IMAP <-> POP3 lands on 993/143 vs 995/110 without editing.
+        _uiState.value = state.copy(
+            accountType = value,
+            port = defaultIncomingPortFor(value, state.security).toString()
+        )
+    }
 
     /**
-     * Standard IMAP port for the chosen security mode. Used as the fallback
-     * in [save] when the user hasn't typed one, and as the auto-reset target
-     * in [updateSecurity] when the user is still on the previous default.
+     * Standard incoming port for the chosen protocol + security mode. Used as
+     * the fallback in [save] when the user hasn't typed one, and as the
+     * auto-reset target in [updateSecurity] when the user is still on the
+     * previous default. Reads the current [UiState.accountType].
      */
-    private fun defaultIncomingPort(security: Security): Int = when (security) {
-        Security.SSL_TLS -> 993
-        Security.STARTTLS, Security.NONE -> 143
-    }
+    private fun defaultIncomingPort(security: Security): Int =
+        defaultIncomingPortFor(_uiState.value.accountType, security)
+
+    private fun defaultIncomingPortFor(accountType: AccountType, security: Security): Int =
+        when (accountType) {
+            AccountType.POP3 -> when (security) {
+                Security.SSL_TLS -> 995
+                Security.STARTTLS, Security.NONE -> 110
+            }
+            // IMAP (and Gmail, which never reaches this manual path).
+            else -> when (security) {
+                Security.SSL_TLS -> 993
+                Security.STARTTLS, Security.NONE -> 143
+            }
+        }
 
     /**
      * Standard SMTP submission port for the chosen security mode. Mirrors

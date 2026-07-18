@@ -308,6 +308,37 @@ val MIGRATION_14_15: Migration = object : Migration(14, 15) {
     }
 }
 
+/**
+ * Adds send-as identities and read-receipt support:
+ *  - `accounts.identitiesJson` (default `[]`) stores extra send-as aliases.
+ *  - `outbox_messages` gains `fromName` / `fromAddress` (identity override for
+ *    the From header) and `requestReadReceipt` (adds a Disposition-Notification-To
+ *    header when the message is sent).
+ *
+ * All additive `ALTER TABLE … ADD COLUMN`s with behaviour-preserving defaults:
+ * no identities configured and no receipt requested keeps sending exactly as
+ * before, from the account's primary address.
+ */
+val MIGRATION_15_16: Migration = object : Migration(15, 16) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE accounts ADD COLUMN identitiesJson TEXT NOT NULL DEFAULT '[]'")
+        db.execSQL("ALTER TABLE outbox_messages ADD COLUMN fromName TEXT DEFAULT NULL")
+        db.execSQL("ALTER TABLE outbox_messages ADD COLUMN fromAddress TEXT DEFAULT NULL")
+        db.execSQL("ALTER TABLE outbox_messages ADD COLUMN requestReadReceipt INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
+/**
+ * Adds `folders.isHidden` backing the folder-visibility management screen.
+ * Default `0` keeps every existing folder visible, so the drawer looks
+ * identical until the user hides something.
+ */
+val MIGRATION_16_17: Migration = object : Migration(16, 17) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE folders ADD COLUMN isHidden INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
 private fun repairMessageIndices(db: SupportSQLiteDatabase) {
     db.execSQL(
         "DROP INDEX IF EXISTS index_messages_accountId_folderId_messageId"

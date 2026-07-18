@@ -15,7 +15,14 @@ data class MailFolder(
      * comes from [com.threemail.android.data.local.entity.FolderFavoriteEntity]
      * joined in [com.threemail.android.data.repository.MailRepository.getFolders].
      */
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    /**
+     * User-controlled visibility. Hidden folders are kept in the database (and
+     * still sync) but omitted from the navigation drawer, so the user can
+     * declutter a long server folder list. Toggled from the folder-management
+     * screen; not synced to the server.
+     */
+    val isHidden: Boolean = false
 )
 
 enum class FolderType {

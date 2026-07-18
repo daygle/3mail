@@ -153,7 +153,7 @@ class ImapClient(
                 val token = tokenProvider() ?: throw IllegalStateException("Gmail account requires OAuth access token")
                 store.connect(server, account.email, token)
             }
-            AccountType.IMAP -> {
+            AccountType.IMAP, AccountType.POP3 -> {
                 val password = account.password ?: throw IllegalStateException("IMAP account requires password")
                 store.connect(server, account.email, password)
             }
@@ -547,7 +547,7 @@ class ImapClient(
 
     private suspend fun credential(): String = when (account.accountType) {
         AccountType.GMAIL -> tokenProvider() ?: throw IllegalStateException("Gmail account requires OAuth access token")
-        AccountType.IMAP -> account.password ?: throw IllegalStateException("IMAP account requires password")
+        AccountType.IMAP, AccountType.POP3 -> account.password ?: throw IllegalStateException("IMAP account requires password")
     }
 
     // region parsing

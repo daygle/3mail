@@ -41,6 +41,9 @@ interface FolderDao {
     @Query("UPDATE folders SET unreadCount = :unreadCount WHERE id = :id")
     suspend fun updateUnreadCount(id: Long, unreadCount: Int)
 
+    @Query("UPDATE folders SET isHidden = :isHidden WHERE id = :id")
+    suspend fun setHidden(id: Long, isHidden: Boolean)
+
     @Delete
     suspend fun delete(folder: FolderEntity)
 

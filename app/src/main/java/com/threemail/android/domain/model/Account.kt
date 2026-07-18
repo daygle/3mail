@@ -19,6 +19,20 @@ package com.threemail.android.domain.model
  */
 enum class Security { NONE, STARTTLS, SSL_TLS }
 
+/**
+ * A send-as identity (alias) for an account. Lets a user send from a different
+ * address / display name than the account's primary address (e.g. a shared or
+ * plus-addressed alias), each with its own optional signature. Persisted as a
+ * JSON list on the account row (see
+ * [com.threemail.android.data.local.entity.AccountEntity.identitiesJson]).
+ */
+data class Identity(
+    val displayName: String = "",
+    val email: String,
+    /** Per-identity signature; blank falls back to the account/global signature. */
+    val signature: String = ""
+)
+
 data class Account(
     val id: Long = 0,
     val email: String,
@@ -45,5 +59,11 @@ data class Account(
      */
     val syncIntervalMinutes: Long = 0,
     /** Per-account new-mail notification toggle (gated by the global switch). */
-    val notificationsEnabled: Boolean = true
+    val notificationsEnabled: Boolean = true,
+    /**
+     * Additional send-as identities (aliases). The account's own [email] /
+     * [displayName] is always the implicit primary identity; these are extra
+     * addresses the user can pick in the composer's From selector.
+     */
+    val identities: List<Identity> = emptyList()
 )

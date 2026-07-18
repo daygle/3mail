@@ -49,6 +49,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.threemail.android.R
+import com.threemail.android.domain.model.AccountType
 import com.threemail.android.domain.model.Security
 import com.threemail.android.ui.components.SettingsContentRow
 import com.threemail.android.ui.components.SettingsGroup
@@ -149,12 +150,50 @@ fun AddAccountScreen(
                 }
             }
 
+            SettingsGroup(title = stringResource(R.string.protocol_label)) {
+                SettingsContentRow {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // Only the two manually-configured protocols; Gmail uses
+                        // the Google sign-in button above.
+                        listOf(AccountType.IMAP, AccountType.POP3).forEach { type ->
+                            FilterChip(
+                                selected = state.accountType == type,
+                                onClick = { viewModel.updateAccountType(type) },
+                                label = {
+                                    Text(
+                                        stringResource(
+                                            if (type == AccountType.IMAP) R.string.protocol_imap
+                                            else R.string.protocol_pop3
+                                        )
+                                    )
+                                }
+                            )
+                        }
+                    }
+                    Text(
+                        text = stringResource(
+                            if (state.accountType == AccountType.POP3) R.string.protocol_pop3_subtitle
+                            else R.string.protocol_imap_subtitle
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
             SettingsGroup(title = "Server") {
                 SettingsContentRow {
                     OutlinedTextField(
                         value = state.server,
                         onValueChange = viewModel::updateServer,
-                        label = { Text(stringResource(R.string.imap_server)) },
+                        label = {
+                            Text(
+                                stringResource(
+                                    if (state.accountType == AccountType.POP3) R.string.pop3_server
+                                    else R.string.imap_server
+                                )
+                            )
+                        },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )

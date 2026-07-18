@@ -32,6 +32,8 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.threemail.android.R
+import com.threemail.android.data.settings.MessageDensity
+import com.threemail.android.data.settings.SwipeAction
 import com.threemail.android.data.settings.ThemeMode
 import com.threemail.android.ui.components.SettingsContentRow
 import com.threemail.android.ui.components.SettingsGroup
@@ -115,6 +117,64 @@ fun SettingsScreen(
                 }
             }
 
+            SettingsGroup(title = stringResource(R.string.display_section)) {
+                SettingsContentRow {
+                    Text(stringResource(R.string.swipe_right_label), style = MaterialTheme.typography.bodyLarge)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SwipeAction.entries.forEach { action ->
+                            FilterChip(
+                                selected = settings.swipeRightAction == action,
+                                onClick = { viewModel.setSwipeRightAction(action) },
+                                label = { Text(stringResource(swipeActionLabel(action))) }
+                            )
+                        }
+                    }
+                }
+                SettingsContentRow {
+                    Text(stringResource(R.string.swipe_left_label), style = MaterialTheme.typography.bodyLarge)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SwipeAction.entries.forEach { action ->
+                            FilterChip(
+                                selected = settings.swipeLeftAction == action,
+                                onClick = { viewModel.setSwipeLeftAction(action) },
+                                label = { Text(stringResource(swipeActionLabel(action))) }
+                            )
+                        }
+                    }
+                }
+                SettingsContentRow {
+                    Text(stringResource(R.string.density_label), style = MaterialTheme.typography.bodyLarge)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        MessageDensity.entries.forEach { density ->
+                            FilterChip(
+                                selected = settings.messageDensity == density,
+                                onClick = { viewModel.setMessageDensity(density) },
+                                label = {
+                                    Text(
+                                        stringResource(
+                                            if (density == MessageDensity.COMFORTABLE) R.string.density_comfortable
+                                            else R.string.density_compact
+                                        )
+                                    )
+                                }
+                            )
+                        }
+                    }
+                }
+                SettingsContentRow {
+                    Text(stringResource(R.string.preview_lines_label), style = MaterialTheme.typography.bodyLarge)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        (0..3).forEach { lines ->
+                            FilterChip(
+                                selected = settings.previewLines == lines,
+                                onClick = { viewModel.setPreviewLines(lines) },
+                                label = { Text(lines.toString()) }
+                            )
+                        }
+                    }
+                }
+            }
+
             SettingsGroup(title = "Notifications") {
                 SettingsSwitchRow(
                     title = "New mail notifications",
@@ -168,4 +228,12 @@ fun SettingsScreen(
             }
         }
     }
+}
+
+private fun swipeActionLabel(action: SwipeAction): Int = when (action) {
+    SwipeAction.NONE -> R.string.swipe_action_none
+    SwipeAction.ARCHIVE -> R.string.swipe_action_archive
+    SwipeAction.DELETE -> R.string.swipe_action_delete
+    SwipeAction.TOGGLE_READ -> R.string.swipe_action_toggle_read
+    SwipeAction.TOGGLE_STAR -> R.string.swipe_action_toggle_star
 }

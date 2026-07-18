@@ -8,6 +8,9 @@ import com.threemail.android.data.remote.gmail.RecoverableAuthException
 import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.repository.MailActions
 import com.threemail.android.data.repository.MailRepository
+import com.threemail.android.data.settings.MessageDensity
+import com.threemail.android.data.settings.SettingsRepository
+import com.threemail.android.data.settings.SwipeAction
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.MailFolder
 import com.threemail.android.domain.model.MailMessage
@@ -19,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import com.threemail.android.domain.model.FolderType
@@ -30,7 +34,8 @@ class InboxViewModel @Inject constructor(
     private val accountRepository: AccountRepository,
     private val mailRepository: MailRepository,
     private val mailActions: MailActions,
-    private val mailRemoteFactory: MailRemoteFactory
+    private val mailRemoteFactory: MailRemoteFactory,
+    private val settingsRepository: SettingsRepository
 ) : ViewModel() {
 
     data class UiState(
@@ -41,8 +46,20 @@ class InboxViewModel @Inject constructor(
         val messages: List<MailMessage> = emptyList(),
         val isSyncing: Boolean = false,
         val error: String? = null,
-        val recoverableAuthIntent: Intent? = null
-    )
+        val recoverableAuthIntent: Intent? = null,
+        /** True when the cross-account unified inbox is shown instead of a single folder. */
+        val unifiedInbox: Boolean = false,
+        /** Ids of messages currently selected for a batch action. Empty => not in selection mode. */
+        val selectedIds: Set<Long> = emptySet(),
+        // Display preferences (mirrored from SettingsRepository so the row layout
+        // and swipe gestures react to changes without re-navigating).
+        val swipeRightAction: SwipeAction = SwipeAction.ARCHIVE,
+        val swipeLeftAction: SwipeAction = SwipeAction.DELETE,
+        val messageDensity: MessageDensity = MessageDensity.COMFORTABLE,
+        val previewLines: Int = 2
+    ) {
+        val selectionMode: Boolean get() = selectedIds.isNotEmpty()
+    }
 
     private data class Transient(
         val isSyncing: Boolean = false,
@@ -52,6 +69,8 @@ class InboxViewModel @Inject constructor(
 
     private val _selectedAccount = MutableStateFlow<Account?>(null)
     private val _selectedFolder = MutableStateFlow<MailFolder?>(null)
+    private val _unifiedMode = MutableStateFlow(false)
+    private val _selectedIds = MutableStateFlow<Set<Long>>(emptySet())
     private val _transient = MutableStateFlow(Transient())
 
     private val accountsFlow = accountRepository.getAccounts()
@@ -62,10 +81,18 @@ class InboxViewModel @Inject constructor(
         .flatMapLatest { account -> mailRepository.getFolders(account.id) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val messagesFlow = _selectedFolder
-        .filterNotNull()
-        .flatMapLatest { folder -> mailRepository.getMessagesPaged(folder.id, DEFAULT_PAGE_SIZE, 0) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    // Reactive message feed: switches between the cross-account unified inbox
+    // and a single folder. Room-backed, so sync results and read/star/delete
+    // mutations reflect live without a manual re-query.
+    private val messagesFlow = combine(_unifiedMode, _selectedFolder) { unified, folder ->
+        unified to folder
+    }.flatMapLatest { (unified, folder) ->
+        when {
+            unified -> mailRepository.observeUnifiedInbox(DEFAULT_PAGE_SIZE)
+            folder != null -> mailRepository.observeFolder(folder.id, DEFAULT_PAGE_SIZE)
+            else -> flowOf(emptyList())
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val baseState: StateFlow<UiState> = combine(
         accountsFlow,
@@ -87,11 +114,29 @@ class InboxViewModel @Inject constructor(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState())
 
-    val uiState: StateFlow<UiState> = combine(baseState, _transient) { base, transient ->
+    private val settingsFlow = settingsRepository.settings
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.threemail.android.data.settings.AppSettings())
+
+    val uiState: StateFlow<UiState> = combine(
+        baseState,
+        _transient,
+        _selectedIds,
+        _unifiedMode,
+        settingsFlow
+    ) { base, transient, selectedIds, unified, settings ->
         base.copy(
             isSyncing = transient.isSyncing,
             error = transient.error,
-            recoverableAuthIntent = transient.recoverableAuthIntent
+            recoverableAuthIntent = transient.recoverableAuthIntent,
+            unifiedInbox = unified,
+            selectedFolder = if (unified) null else base.selectedFolder,
+            // Drop ids that scrolled out of the current feed so the selection
+            // count never counts phantom rows.
+            selectedIds = selectedIds intersect base.messages.mapTo(HashSet()) { it.id },
+            swipeRightAction = settings.swipeRightAction,
+            swipeLeftAction = settings.swipeLeftAction,
+            messageDensity = settings.messageDensity,
+            previewLines = settings.previewLines
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState())
 
@@ -121,12 +166,22 @@ class InboxViewModel @Inject constructor(
     }
 
     fun selectAccount(account: Account) {
+        _unifiedMode.value = false
+        _selectedIds.value = emptySet()
         _selectedAccount.value = account
         _selectedFolder.value = null
     }
 
     fun selectFolder(folder: MailFolder) {
+        _unifiedMode.value = false
+        _selectedIds.value = emptySet()
         _selectedFolder.value = folder
+    }
+
+    /** Switch to the cross-account unified inbox view. */
+    fun selectUnifiedInbox() {
+        _selectedIds.value = emptySet()
+        _unifiedMode.value = true
     }
 
     fun onRecoverableAuthHandled() {
@@ -138,19 +193,14 @@ class InboxViewModel @Inject constructor(
     }
 
     fun sync() {
-        val account = _selectedAccount.value ?: return
-        val folder = _selectedFolder.value ?: return
         _transient.value = _transient.value.copy(isSyncing = true, error = null, recoverableAuthIntent = null)
         viewModelScope.launch {
             try {
-                val remote = mailRemoteFactory.create(account)
-                val result = remote.fetchMessages(folder, folder.syncVersion, limit = 100)
-                result.onSuccess { fetch ->
-                    if (fetch.messages.isNotEmpty()) {
-                        mailRepository.saveMessages(fetch.messages.map { it.copy(folderId = folder.id) })
-                    }
-                    mailRepository.updateFolderCursor(folder.id, fetch.nextCursor)
-                }.onFailure { throw it }
+                if (_unifiedMode.value) {
+                    syncAllInboxes()
+                } else {
+                    syncSelectedFolder()
+                }
                 _transient.value = _transient.value.copy(isSyncing = false)
             } catch (e: RecoverableAuthException) {
                 _transient.value = _transient.value.copy(isSyncing = false, recoverableAuthIntent = e.intent)
@@ -160,8 +210,94 @@ class InboxViewModel @Inject constructor(
         }
     }
 
+    private suspend fun syncSelectedFolder() {
+        val account = _selectedAccount.value ?: return
+        val folder = _selectedFolder.value ?: return
+        val remote = mailRemoteFactory.create(account)
+        val fetch = remote.fetchMessages(folder, folder.syncVersion, limit = 100).getOrThrow()
+        if (fetch.messages.isNotEmpty()) {
+            mailRepository.saveMessages(fetch.messages.map { it.copy(folderId = folder.id) })
+        }
+        mailRepository.updateFolderCursor(folder.id, fetch.nextCursor)
+    }
+
+    /**
+     * Sync the INBOX of every account for the unified view. One account's
+     * failure (offline, auth) is isolated so the rest still refresh; a
+     * recoverable-auth error is rethrown so the UI can launch the consent flow.
+     */
+    private suspend fun syncAllInboxes() {
+        val accounts = accountsFlow.value
+        for (account in accounts) {
+            val folders = mailRepository.getFoldersOnce(account.id)
+            val inbox = folders.firstOrNull { it.type == FolderType.INBOX } ?: continue
+            try {
+                val remote = mailRemoteFactory.create(account)
+                val fetch = remote.fetchMessages(inbox, inbox.syncVersion, limit = 100).getOrThrow()
+                if (fetch.messages.isNotEmpty()) {
+                    mailRepository.saveMessages(fetch.messages.map { it.copy(folderId = inbox.id) })
+                }
+                mailRepository.updateFolderCursor(inbox.id, fetch.nextCursor)
+            } catch (e: RecoverableAuthException) {
+                throw e
+            } catch (_: Exception) {
+                // isolate this account's failure; other inboxes still sync
+            }
+        }
+    }
+
     fun retryAfterRecoverableAuth() {
         sync()
+    }
+
+    // ── Selection (multi-select triage) ──
+
+    fun toggleSelection(message: MailMessage) {
+        val current = _selectedIds.value
+        _selectedIds.value = if (message.id in current) current - message.id else current + message.id
+    }
+
+    fun clearSelection() {
+        _selectedIds.value = emptySet()
+    }
+
+    fun selectAll() {
+        _selectedIds.value = messagesFlow.value.mapTo(HashSet()) { it.id }
+    }
+
+    private fun selectedMessages(): List<MailMessage> {
+        val ids = _selectedIds.value
+        return messagesFlow.value.filter { it.id in ids }
+    }
+
+    fun archiveSelected() {
+        val batch = selectedMessages()
+        _selectedIds.value = emptySet()
+        viewModelScope.launch { mailActions.archiveBatch(batch) }
+    }
+
+    fun deleteSelected() {
+        val batch = selectedMessages()
+        _selectedIds.value = emptySet()
+        viewModelScope.launch { mailActions.deleteBatch(batch) }
+    }
+
+    fun markSelectedRead(isRead: Boolean) {
+        val batch = selectedMessages()
+        _selectedIds.value = emptySet()
+        viewModelScope.launch { mailActions.setReadBatch(batch, isRead) }
+    }
+
+    fun starSelected(isStarred: Boolean) {
+        val batch = selectedMessages()
+        _selectedIds.value = emptySet()
+        viewModelScope.launch { mailActions.setStarredBatch(batch, isStarred) }
+    }
+
+    /** Mark every message in the current feed as read (server + local). */
+    fun markAllRead() {
+        val batch = messagesFlow.value.filterNot { it.isRead }
+        viewModelScope.launch { mailActions.setReadBatch(batch, true) }
     }
 
     fun markAsRead(message: MailMessage, isRead: Boolean) {
@@ -210,9 +346,8 @@ class InboxViewModel @Inject constructor(
 
     companion object {
         /**
-         * Page size for the initial folder fetch. Lets `getByFolderPaged` cap the row
-         * count so the inbox doesn't stream every message in a giant folder into Compose.
-         * Re-selection re-fetches; full paging with loadMore() can layer on top later.
+         * Page size for the folder / unified feed. Bounds the reactive query so
+         * the inbox doesn't stream every message in a giant folder into Compose.
          */
         private const val DEFAULT_PAGE_SIZE = 50
     }

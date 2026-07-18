@@ -5,9 +5,12 @@ import com.threemail.android.data.local.entity.AccountEntity
 import com.threemail.android.data.security.CredentialStore
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.AccountType
+import com.threemail.android.domain.model.Identity
 import com.threemail.android.domain.model.Security
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import org.json.JSONArray
+import org.json.JSONObject
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -83,6 +86,9 @@ open class AccountRepository @Inject constructor(
     suspend fun setNotificationsEnabled(id: Long, enabled: Boolean) =
         accountDao.setNotificationsEnabled(id, enabled)
 
+    suspend fun setIdentities(id: Long, identities: List<Identity>) =
+        accountDao.setIdentitiesJson(id, serializeIdentities(identities))
+
     /** One-shot snapshot of active accounts (used by schedulers, not the UI). */
     suspend fun getAccountsOnce(): List<Account> =
         accountDao.getAllOnce().map { it.toDomain() }
@@ -105,15 +111,18 @@ open class AccountRepository @Inject constructor(
             useEncryption -> Security.SSL_TLS
             else -> Security.NONE
         },
-        // Hydrate the password from the encrypted store; the DB column stays null.
-        password = if (accountType == AccountType.IMAP) credentialStore.getPassword(email) else null,
+        // Hydrate the password from the encrypted store; the DB column stays
+        // null. Both IMAP and POP3 authenticate with a stored password (only
+        // Gmail uses OAuth), so hydrate for every non-Gmail account.
+        password = if (accountType != AccountType.GMAIL) credentialStore.getPassword(email) else null,
         isActive = isActive,
         syncEnabled = syncEnabled,
         calendarSyncEnabled = calendarSyncEnabled,
         pushEnabled = pushEnabled,
         signature = signature,
         syncIntervalMinutes = syncIntervalMinutes,
-        notificationsEnabled = notificationsEnabled
+        notificationsEnabled = notificationsEnabled,
+        identities = parseIdentities(identitiesJson)
     )
 
     private fun Account.toEntity(): AccountEntity = AccountEntity(
@@ -138,6 +147,36 @@ open class AccountRepository @Inject constructor(
         pushEnabled = pushEnabled,
         signature = signature,
         syncIntervalMinutes = syncIntervalMinutes,
-        notificationsEnabled = notificationsEnabled
+        notificationsEnabled = notificationsEnabled,
+        identitiesJson = serializeIdentities(identities)
     )
+
+    private fun serializeIdentities(identities: List<Identity>): String {
+        val json = JSONArray()
+        identities.forEach {
+            json.put(
+                JSONObject()
+                    .put("displayName", it.displayName)
+                    .put("email", it.email)
+                    .put("signature", it.signature)
+            )
+        }
+        return json.toString()
+    }
+
+    private fun parseIdentities(json: String): List<Identity> = try {
+        val array = JSONArray(json)
+        (0 until array.length()).mapNotNull {
+            val obj = array.getJSONObject(it)
+            val email = obj.optString("email", "")
+            if (email.isBlank()) null
+            else Identity(
+                displayName = obj.optString("displayName", ""),
+                email = email,
+                signature = obj.optString("signature", "")
+            )
+        }
+    } catch (e: Exception) {
+        emptyList()
+    }
 }

@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AllInbox
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Delete
@@ -213,18 +214,23 @@ fun FolderDrawerContent(
     accounts: List<Account>,
     folders: List<MailFolder>,
     selectedFolder: MailFolder?,
+    unifiedSelected: Boolean = false,
+    onUnifiedInbox: () -> Unit = {},
     onFolderClick: (MailFolder) -> Unit,
     onSelectAccount: (Account) -> Unit,
     onToggleFavorite: (MailFolder) -> Unit,
     onReorderFavorite: (accountId: Long, serverIds: List<String>) -> Unit,
     onManageAccounts: () -> Unit,
+    onManageFolders: () -> Unit = {},
     onSettings: () -> Unit,
     onCalendar: () -> Unit,
     onSync: () -> Unit
 ) {
-    // Split folders into favorites + main list.
-    val favoriteFolders = remember(folders) { folders.filter { it.isFavorite } }
-    val normalFolders = remember(folders) { folders.filterNot { it.isFavorite } }
+    // Split folders into favorites + main list. Hidden folders are omitted from
+    // both (they're managed from the folder-management screen).
+    val visibleFolders = remember(folders) { folders.filterNot { it.isHidden } }
+    val favoriteFolders = remember(visibleFolders) { visibleFolders.filter { it.isFavorite } }
+    val normalFolders = remember(visibleFolders) { visibleFolders.filterNot { it.isFavorite } }
     val favoriteFoldersState = rememberUpdatedState(favoriteFolders)
 
     // Whether the header is expanded to show the configured-account list
@@ -359,6 +365,22 @@ fun FolderDrawerContent(
                     .weight(1f)
                     .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
+                // ── Unified inbox (only meaningful with more than one account) ──
+                if (accounts.size > 1) {
+                    item(key = "unified-inbox") {
+                        UnifiedInboxRow(
+                            isSelected = unifiedSelected,
+                            onClick = onUnifiedInbox
+                        )
+                    }
+                    item(key = "unified-divider") {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 6.dp),
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                        )
+                    }
+                }
+
                 // ── Favorites section ──
                 if (account != null && favoriteFolders.isNotEmpty()) {
                     item(key = "favorites-header") {
@@ -515,7 +537,7 @@ fun FolderDrawerContent(
                     FooterItem(
                         icon = Icons.Default.FolderOpen,
                         label = stringResource(R.string.footer_manage_folders),
-                        onClick = onManageAccounts
+                        onClick = onManageFolders
                     )
                 }
                 FooterItem(
@@ -526,6 +548,51 @@ fun FolderDrawerContent(
             }
             Spacer(Modifier.height(8.dp))
         }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Unified inbox row
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun UnifiedInboxRow(
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val contentColor = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+    val iconColor = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp)
+            .then(
+                if (isSelected) {
+                    Modifier
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(MaterialTheme.colorScheme.primary)
+                } else {
+                    Modifier
+                }
+            )
+            .clickable { onClick() }
+            .padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Default.AllInbox,
+            contentDescription = null,
+            tint = iconColor,
+            modifier = Modifier.size(22.dp)
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = stringResource(R.string.all_inboxes),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = contentColor
+        )
     }
 }
 

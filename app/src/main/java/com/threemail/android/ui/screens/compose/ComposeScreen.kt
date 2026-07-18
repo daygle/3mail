@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.FormatItalic
 import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.MarkEmailRead
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.AlertDialog
@@ -229,6 +230,35 @@ fun ComposeScreen(
                 Spacer(Modifier.height(8.dp))
             }
 
+            // From (send-as identity) picker: shown only when the account has
+            // aliases configured beyond its primary address.
+            if (state.identities.size > 1) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = stringResource(R.string.from_label),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        state.identities.forEach { identity ->
+                            val label = if (identity.displayName.isBlank()) identity.email
+                            else "${identity.displayName} <${identity.email}>"
+                            FilterChip(
+                                selected = state.selectedIdentity?.email == identity.email &&
+                                    state.selectedIdentity?.displayName == identity.displayName,
+                                onClick = { viewModel.selectIdentity(identity) },
+                                label = { Text(label, maxLines = 1) }
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+
             OutlinedTextField(
                 value = state.to,
                 onValueChange = viewModel::updateTo,
@@ -283,6 +313,20 @@ fun ComposeScreen(
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
                 singleLine = true
+            )
+
+            Spacer(Modifier.height(8.dp))
+            FilterChip(
+                selected = state.requestReadReceipt,
+                onClick = { viewModel.toggleReadReceipt() },
+                leadingIcon = {
+                    Icon(
+                        Icons.Default.MarkEmailRead,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                },
+                label = { Text(stringResource(R.string.request_read_receipt)) }
             )
 
             if (state.attachments.isNotEmpty()) {

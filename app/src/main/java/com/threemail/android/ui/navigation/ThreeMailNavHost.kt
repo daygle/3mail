@@ -13,6 +13,7 @@ import com.threemail.android.ui.screens.account.AddAccountScreen
 import com.threemail.android.ui.screens.calendar.CalendarEventScreen
 import com.threemail.android.ui.screens.calendar.CalendarScreen
 import com.threemail.android.ui.screens.compose.ComposeScreen
+import com.threemail.android.ui.screens.folders.FolderManagementScreen
 import com.threemail.android.ui.screens.inbox.InboxScreen
 import com.threemail.android.ui.screens.message.MessageDetailScreen
 import com.threemail.android.ui.screens.search.SearchScreen
@@ -32,7 +33,8 @@ fun ThreeMailNavHost(navController: NavHostController) {
                 onNavigateToMessage = { messageId ->
                     navController.navigate(Screen.MessageDetail.createRoute(messageId))
                 },
-                onNavigateToAddAccount = { navController.navigate(Screen.AddAccount.route) }
+                onNavigateToAddAccount = { navController.navigate(Screen.AddAccount.route) },
+                onNavigateToManageFolders = { navController.navigate(Screen.ManageFolders.route) }
             )
         }
         composable(
@@ -89,6 +91,12 @@ fun ThreeMailNavHost(navController: NavHostController) {
             arguments = listOf(navArgument("accountId") { type = NavType.LongType })
         ) {
             AccountSettingsScreen(
+                viewModel = hiltViewModel(),
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+        composable(Screen.ManageFolders.route) {
+            FolderManagementScreen(
                 viewModel = hiltViewModel(),
                 onNavigateBack = { navController.popBackStack() }
             )

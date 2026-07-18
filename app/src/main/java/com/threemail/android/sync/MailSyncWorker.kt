@@ -46,7 +46,11 @@ class MailSyncWorker(
                     Log.d(TAG, "Sync disabled for ${account.email}")
                     return@forEach
                 }
-                if (account.accountType != AccountType.IMAP && account.accountType != AccountType.GMAIL) return@forEach
+                // IMAP, Gmail, and POP3 all sync mail.
+                if (account.accountType != AccountType.IMAP &&
+                    account.accountType != AccountType.GMAIL &&
+                    account.accountType != AccountType.POP3
+                ) return@forEach
 
                 Log.d(TAG, "Syncing account: ${account.email}")
                 val remote = mailRemoteFactory.create(account)

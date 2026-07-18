@@ -24,6 +24,8 @@ sealed class Screen(val route: String) {
         fun createRoute(accountId: Long): String = "account_settings/$accountId"
     }
 
+    data object ManageFolders : Screen("manage_folders")
+
     data object Settings : Screen("settings")
 
     data object Calendar : Screen("calendar")

@@ -66,7 +66,8 @@ open class SyncScheduler @Inject constructor(
         WorkManager.getInstance(context).cancelUniqueWork(SYNC_WORK_NAME)
         accounts.forEach { account ->
             val syncsMail = account.accountType == AccountType.IMAP ||
-                account.accountType == AccountType.GMAIL
+                account.accountType == AccountType.GMAIL ||
+                account.accountType == AccountType.POP3
             if (account.syncEnabled && syncsMail) {
                 val effective = account.syncIntervalMinutes.takeIf { it > 0 } ?: defaultIntervalMinutes
                 schedulePeriodicSyncForAccount(account.id, effective)

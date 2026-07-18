@@ -17,6 +17,7 @@ import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.Attachment
 import com.threemail.android.domain.model.Contact
 import com.threemail.android.domain.model.FolderType
+import com.threemail.android.domain.model.Identity
 import com.threemail.android.util.AddressParser
 import com.threemail.android.util.MailText
 import com.threemail.android.util.Markdown
@@ -51,6 +52,11 @@ class ComposeViewModel @Inject constructor(
     data class UiState(
         val accounts: List<Account> = emptyList(),
         val selectedAccount: Account? = null,
+        /** Send-as identities available for the selected account (primary first). */
+        val identities: List<Identity> = emptyList(),
+        val selectedIdentity: Identity? = null,
+        /** Whether to request a read receipt for this message. */
+        val requestReadReceipt: Boolean = false,
         val to: String = "",
         val cc: String = "",
         val bcc: String = "",
@@ -103,9 +109,11 @@ class ComposeViewModel @Inject constructor(
                 val accounts = accountRepository.getAccounts().first()
                 globalSignature = settingsRepository.settings.first().signature
                 val self = accounts.firstOrNull()
-                // Prefer the sending account's own signature; fall back to the
-                // global one when the account hasn't set a per-account signature.
-                val signature = effectiveSignature(self)
+                val identities = identitiesFor(self)
+                val selectedIdentity = identities.firstOrNull()
+                // Prefer the identity's own signature, then the account's, then
+                // the global one.
+                val signature = effectiveSignature(self, selectedIdentity)
                 appliedSignatureBlock = signatureBlock(signature)
                 val original = if (refId >= 0) mailRepository.getMessageById(refId) else null
 
@@ -142,6 +150,8 @@ class ComposeViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(
                     accounts = accounts,
                     selectedAccount = self,
+                    identities = identities,
+                    selectedIdentity = selectedIdentity,
                     to = to,
                     cc = cc,
                     subject = subject,
@@ -176,24 +186,64 @@ class ComposeViewModel @Inject constructor(
     private fun signatureBlock(signature: String): String =
         if (signature.isBlank()) "" else "\n\n-- \n$signature"
 
-    /** Per-account signature when set, otherwise the global signature. */
-    private fun effectiveSignature(account: Account?): String =
-        account?.signature?.takeIf { it.isNotBlank() } ?: globalSignature
+    /** Identity signature when set, else the account's, else the global one. */
+    private fun effectiveSignature(account: Account?, identity: Identity?): String =
+        identity?.signature?.takeIf { it.isNotBlank() }
+            ?: account?.signature?.takeIf { it.isNotBlank() }
+            ?: globalSignature
+
+    /** The account's primary address as the first identity, then its aliases. */
+    private fun identitiesFor(account: Account?): List<Identity> {
+        if (account == null) return emptyList()
+        val primary = Identity(
+            displayName = account.displayName,
+            email = account.email,
+            signature = account.signature
+        )
+        return listOf(primary) + account.identities
+    }
 
     fun selectAccount(account: Account) {
         val state = _uiState.value
+        val identities = identitiesFor(account)
+        val selectedIdentity = identities.firstOrNull()
         // On a fresh "new" compose whose body is still the untouched signature
         // block, swap in the newly-selected account's signature so the sender's
         // signature follows the From account. We deliberately don't touch a
         // reply/forward body (which carries a quote) or a body the user has
         // already edited.
-        val newBlock = signatureBlock(effectiveSignature(account))
+        val newBlock = signatureBlock(effectiveSignature(account, selectedIdentity))
         if (mode == "new" && state.body == appliedSignatureBlock) {
             appliedSignatureBlock = newBlock
-            _uiState.value = state.copy(selectedAccount = account, body = newBlock)
+            _uiState.value = state.copy(
+                selectedAccount = account,
+                identities = identities,
+                selectedIdentity = selectedIdentity,
+                body = newBlock
+            )
         } else {
-            _uiState.value = state.copy(selectedAccount = account)
+            _uiState.value = state.copy(
+                selectedAccount = account,
+                identities = identities,
+                selectedIdentity = selectedIdentity
+            )
         }
+    }
+
+    /** Pick a send-as identity for this message; swaps the signature like accounts do. */
+    fun selectIdentity(identity: Identity) {
+        val state = _uiState.value
+        val newBlock = signatureBlock(effectiveSignature(state.selectedAccount, identity))
+        if (mode == "new" && state.body == appliedSignatureBlock) {
+            appliedSignatureBlock = newBlock
+            _uiState.value = state.copy(selectedIdentity = identity, body = newBlock)
+        } else {
+            _uiState.value = state.copy(selectedIdentity = identity)
+        }
+    }
+
+    fun toggleReadReceipt() {
+        _uiState.value = _uiState.value.copy(requestReadReceipt = !_uiState.value.requestReadReceipt)
     }
 
     fun onRecoverableAuthHandled() {
@@ -349,6 +399,7 @@ class ComposeViewModel @Inject constructor(
                 // Persist to the outbox and let SendMailWorker deliver it. The
                 // send now survives network loss and process death instead of
                 // being lost if the immediate SMTP/Gmail call fails.
+                val identity = _uiState.value.selectedIdentity
                 outboxRepository.enqueue(
                     account.id,
                     OutgoingMessage(
@@ -360,7 +411,10 @@ class ComposeViewModel @Inject constructor(
                         htmlBody = Markdown.toHtml(body),
                         attachments = _uiState.value.attachments,
                         inReplyTo = inReplyTo,
-                        references = references
+                        references = references,
+                        fromName = identity?.displayName,
+                        fromAddress = identity?.email,
+                        requestReadReceipt = _uiState.value.requestReadReceipt
                     )
                 )
                 syncScheduler.enqueueSendMail()
@@ -395,6 +449,7 @@ class ComposeViewModel @Inject constructor(
                 }
                 val remote = mailRemoteFactory.create(account)
                 val body = _uiState.value.body
+                val identity = _uiState.value.selectedIdentity
                 remote.appendDraft(
                     drafts,
                     OutgoingMessage(
@@ -404,7 +459,9 @@ class ComposeViewModel @Inject constructor(
                         subject = _uiState.value.subject,
                         textBody = body,
                         htmlBody = Markdown.toHtml(body),
-                        attachments = _uiState.value.attachments
+                        attachments = _uiState.value.attachments,
+                        fromName = identity?.displayName,
+                        fromAddress = identity?.email
                     )
                 ).onSuccess {
                     _uiState.value = _uiState.value.copy(
