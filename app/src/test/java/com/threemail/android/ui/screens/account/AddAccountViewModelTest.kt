@@ -222,6 +222,7 @@ class AddAccountViewModelTest {
         override suspend fun setSyncIntervalMinutes(id: Long, minutes: Long) {}
         override suspend fun setSyncEnabled(id: Long, enabled: Boolean) {}
         override suspend fun setNotificationsEnabled(id: Long, enabled: Boolean) {}
+        override suspend fun setIdentitiesJson(id: Long, identitiesJson: String) {}
         override suspend fun update(account: AccountEntity) { rows[account.email] = account }
         override suspend fun delete(account: AccountEntity) { rows.remove(account.email) }
     }
