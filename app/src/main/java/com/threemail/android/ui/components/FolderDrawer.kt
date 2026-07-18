@@ -210,9 +210,11 @@ private val CHEVRON_SIZE = 20.dp
 @Composable
 fun FolderDrawerContent(
     account: Account?,
+    accounts: List<Account>,
     folders: List<MailFolder>,
     selectedFolder: MailFolder?,
     onFolderClick: (MailFolder) -> Unit,
+    onSelectAccount: (Account) -> Unit,
     onToggleFavorite: (MailFolder) -> Unit,
     onReorderFavorite: (accountId: Long, serverIds: List<String>) -> Unit,
     onManageAccounts: () -> Unit,
@@ -224,6 +226,10 @@ fun FolderDrawerContent(
     val favoriteFolders = remember(folders) { folders.filter { it.isFavorite } }
     val normalFolders = remember(folders) { folders.filterNot { it.isFavorite } }
     val favoriteFoldersState = rememberUpdatedState(favoriteFolders)
+
+    // Whether the header is expanded to show the configured-account list
+    // (tapping the header / its chevron toggles this) instead of folders.
+    var showAccounts by remember { mutableStateOf(false) }
 
     // --- Tree expand/collapse state ---
     val expandedServerIds = remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -266,43 +272,55 @@ fun FolderDrawerContent(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onManageAccounts() },
+                            .clickable { showAccounts = !showAccounts },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(avatarColorFor(account.email)),
-                            contentAlignment = Alignment.Center
-                        ) {
+                        if (showAccounts) {
+                            // Expanded state: header collapses to a plain
+                            // "Account list" title, matching the account picker.
                             Text(
-                                text = account.email.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
-                                color = Color.White,
-                                style = MaterialTheme.typography.titleLarge
-                            )
-                        }
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(start = 16.dp)
-                        ) {
-                            val accountName = account.email.substringAfter("@")
-                            Text(
-                                text = accountName,
+                                text = stringResource(R.string.account_list),
                                 style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f)
                             )
-                            Text(
-                                text = account.email,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .background(avatarColorFor(account.email)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = account.email.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.titleLarge
+                                )
+                            }
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(start = 16.dp)
+                            ) {
+                                val accountName = account.email.substringAfter("@")
+                                Text(
+                                    text = accountName,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = account.email,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                         Icon(
                             imageVector = Icons.Default.ExpandMore,
                             contentDescription = stringResource(R.string.accounts),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.rotate(if (showAccounts) 180f else 0f)
                         )
                     }
                 } else {
@@ -317,6 +335,25 @@ fun FolderDrawerContent(
 
             HorizontalDivider()
 
+            if (showAccounts) {
+                // ── Account switcher list ──
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    items(accounts, key = { "acct-${it.id}" }) { acct ->
+                        AccountRow(
+                            account = acct,
+                            isSelected = acct.id == account?.id,
+                            onClick = {
+                                if (acct.id != account?.id) onSelectAccount(acct)
+                                showAccounts = false
+                            }
+                        )
+                    }
+                }
+            } else {
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
@@ -451,11 +488,25 @@ fun FolderDrawerContent(
                     )
                 }
             }
+            }
 
             HorizontalDivider()
 
             Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                if (account != null) {
+                if (showAccounts) {
+                    // Account-list footer mirrors the account picker: sync
+                    // everything at once, or jump to the add-account flow.
+                    FooterItem(
+                        icon = Icons.Default.Refresh,
+                        label = stringResource(R.string.footer_sync_all),
+                        onClick = onSync
+                    )
+                    FooterItem(
+                        icon = Icons.Default.ManageAccounts,
+                        label = stringResource(R.string.add_account),
+                        onClick = onManageAccounts
+                    )
+                } else if (account != null) {
                     FooterItem(
                         icon = Icons.Default.Refresh,
                         label = stringResource(R.string.footer_refresh),
@@ -589,6 +640,83 @@ private fun FolderTreeRow(
                     }
                 )
             }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Account switcher row
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * One configured account in the header's expanded account list. The active
+ * account gets the same rounded primary "pill" highlight the selected folder
+ * uses, so the current account reads at a glance. Tapping a different row
+ * switches the active account (and, upstream, reloads its folders).
+ */
+@Composable
+private fun AccountRow(
+    account: Account,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val contentColor = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+    val subColor = if (isSelected) {
+        Color.White.copy(alpha = 0.85f)
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .then(
+                if (isSelected) {
+                    Modifier
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(MaterialTheme.colorScheme.primary)
+                } else {
+                    Modifier
+                }
+            )
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(avatarColorFor(account.email)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = account.email.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
+                color = Color.White,
+                style = MaterialTheme.typography.titleMedium
+            )
+        }
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 16.dp)
+        ) {
+            Text(
+                text = account.email.substringAfter("@"),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = contentColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = account.email,
+                style = MaterialTheme.typography.bodyMedium,
+                color = subColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

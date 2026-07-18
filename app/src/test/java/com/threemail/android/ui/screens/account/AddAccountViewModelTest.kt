@@ -168,11 +168,17 @@ class AddAccountViewModelTest {
      * (and reads to null) keeps AccountRepository.addAccount from aborting on
      * the credential path while leaving the persisted-column assertions intact.
      */
+    private class FakeCredentialStore(context: Context) : CredentialStore(context) {
+        override fun savePassword(email: String, password: String?) {}
+        override fun getPassword(email: String): String? = null
+        override fun deletePassword(email: String) {}
+    }
+
     /**
      * No-op [SyncScheduler] for Robolectric: the real one calls
      * `WorkManager.getInstance(context)`, which throws unless WorkManager has
-     * been initialised for the test process. save() only fires an immediate
-     * sync as a side effect, so stubbing it out loses no coverage for the
+     * been initialised for the test process. save() only schedules background
+     * sync as a side effect, so stubbing those out loses no coverage for the
      * auto-upgrade assertions.
      */
     private class NoOpSyncScheduler(context: Context) : SyncScheduler(context) {
@@ -182,12 +188,6 @@ class AddAccountViewModelTest {
             intervalMinutes: Long,
             replace: Boolean
         ) {}
-    }
-
-    private class FakeCredentialStore(context: Context) : CredentialStore(context) {
-        override fun savePassword(email: String, password: String?) {}
-        override fun getPassword(email: String): String? = null
-        override fun deletePassword(email: String) {}
     }
 
     /**
