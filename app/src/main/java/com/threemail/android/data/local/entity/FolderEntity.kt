@@ -30,5 +30,7 @@ data class FolderEntity(
     val type: FolderType,
     val messageCount: Int = 0,
     val unreadCount: Int = 0,
-    val syncVersion: Long = 0
+    val syncVersion: Long = 0,
+    /** User-controlled: hidden folders stay synced but are omitted from the drawer. */
+    val isHidden: Boolean = false
 )

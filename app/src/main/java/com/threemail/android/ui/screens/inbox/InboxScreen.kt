@@ -78,7 +78,8 @@ fun InboxScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToCalendar: () -> Unit,
     onNavigateToMessage: (Long) -> Unit,
-    onNavigateToAddAccount: () -> Unit
+    onNavigateToAddAccount: () -> Unit,
+    onNavigateToManageFolders: () -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -124,6 +125,10 @@ fun InboxScreen(
                 onManageAccounts = {
                     scope.launch { drawerState.close() }
                     onNavigateToAccounts()
+                },
+                onManageFolders = {
+                    scope.launch { drawerState.close() }
+                    onNavigateToManageFolders()
                 },
                 onSettings = {
                     scope.launch { drawerState.close() }

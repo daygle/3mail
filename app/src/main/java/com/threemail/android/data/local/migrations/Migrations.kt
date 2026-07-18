@@ -328,6 +328,17 @@ val MIGRATION_15_16: Migration = object : Migration(15, 16) {
     }
 }
 
+/**
+ * Adds `folders.isHidden` backing the folder-visibility management screen.
+ * Default `0` keeps every existing folder visible, so the drawer looks
+ * identical until the user hides something.
+ */
+val MIGRATION_16_17: Migration = object : Migration(16, 17) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE folders ADD COLUMN isHidden INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
 private fun repairMessageIndices(db: SupportSQLiteDatabase) {
     db.execSQL(
         "DROP INDEX IF EXISTS index_messages_accountId_folderId_messageId"

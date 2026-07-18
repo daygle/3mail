@@ -221,13 +221,16 @@ fun FolderDrawerContent(
     onToggleFavorite: (MailFolder) -> Unit,
     onReorderFavorite: (accountId: Long, serverIds: List<String>) -> Unit,
     onManageAccounts: () -> Unit,
+    onManageFolders: () -> Unit = {},
     onSettings: () -> Unit,
     onCalendar: () -> Unit,
     onSync: () -> Unit
 ) {
-    // Split folders into favorites + main list.
-    val favoriteFolders = remember(folders) { folders.filter { it.isFavorite } }
-    val normalFolders = remember(folders) { folders.filterNot { it.isFavorite } }
+    // Split folders into favorites + main list. Hidden folders are omitted from
+    // both (they're managed from the folder-management screen).
+    val visibleFolders = remember(folders) { folders.filterNot { it.isHidden } }
+    val favoriteFolders = remember(visibleFolders) { visibleFolders.filter { it.isFavorite } }
+    val normalFolders = remember(visibleFolders) { visibleFolders.filterNot { it.isFavorite } }
     val favoriteFoldersState = rememberUpdatedState(favoriteFolders)
 
     // Whether the header is expanded to show the configured-account list
@@ -534,7 +537,7 @@ fun FolderDrawerContent(
                     FooterItem(
                         icon = Icons.Default.FolderOpen,
                         label = stringResource(R.string.footer_manage_folders),
-                        onClick = onManageAccounts
+                        onClick = onManageFolders
                     )
                 }
                 FooterItem(

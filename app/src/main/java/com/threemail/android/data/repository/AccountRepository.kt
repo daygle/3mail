@@ -111,8 +111,10 @@ open class AccountRepository @Inject constructor(
             useEncryption -> Security.SSL_TLS
             else -> Security.NONE
         },
-        // Hydrate the password from the encrypted store; the DB column stays null.
-        password = if (accountType == AccountType.IMAP) credentialStore.getPassword(email) else null,
+        // Hydrate the password from the encrypted store; the DB column stays
+        // null. Both IMAP and POP3 authenticate with a stored password (only
+        // Gmail uses OAuth), so hydrate for every non-Gmail account.
+        password = if (accountType != AccountType.GMAIL) credentialStore.getPassword(email) else null,
         isActive = isActive,
         syncEnabled = syncEnabled,
         calendarSyncEnabled = calendarSyncEnabled,

@@ -16,7 +16,7 @@ class ImapClientFactory @Inject constructor(
             AccountType.GMAIL -> {
                 { googleAuthHelper.getAccessToken(account.email) }
             }
-            AccountType.IMAP -> {
+            AccountType.IMAP, AccountType.POP3 -> {
                 { null }
             }
         }

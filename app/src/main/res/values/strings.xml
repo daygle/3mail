@@ -59,6 +59,14 @@
     <string name="identity_signature">Signature (optional)</string>
     <string name="identity_save">Save</string>
     <string name="identity_email_required">An email address is required</string>
+    <string name="protocol_label">Protocol</string>
+    <string name="protocol_imap">IMAP</string>
+    <string name="protocol_pop3">POP3</string>
+    <string name="protocol_imap_subtitle">Keeps mail and folders in sync with the server (recommended).</string>
+    <string name="protocol_pop3_subtitle">Downloads inbox mail. No server folders, flags, or push.</string>
+    <string name="pop3_server">POP3 server</string>
+    <string name="manage_folders_title">Manage folders</string>
+    <string name="manage_folders_description">Turn a folder off to hide it from the navigation drawer. It stays on the server and keeps syncing.</string>
     <string name="no_accounts">No accounts added</string>
     <string name="add_account_prompt">Add an email account to get started</string>
     <string name="empty_state_add_account">Add Account</string>
