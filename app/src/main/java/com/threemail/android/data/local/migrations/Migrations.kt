@@ -268,25 +268,40 @@ val MIGRATION_11_12: Migration = object : Migration(11, 12) {
  */
 val MIGRATION_12_13: Migration = object : Migration(12, 13) {
     override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL(
-            "DROP INDEX IF EXISTS index_messages_accountId_folderId_messageId"
-        )
-        db.execSQL(
-            "DROP INDEX IF EXISTS index_messages_folderId"
-        )
-        // In the unlikely case a future schema re-runs this migration
-        // after a corrective prior attempt already created the right
-        // index in the wrong shape, drop it too before re-creating so
-        // the column-ordering invariant is enforced exactly once.
-        db.execSQL(
-            "DROP INDEX IF EXISTS index_messages_folderId_accountId_messageId"
-        )
-        db.execSQL(
-            "CREATE UNIQUE INDEX IF NOT EXISTS " +
+        repairMessageIndices(db)
+    }
+}
+
+/**
+ * Repair migration for users stuck on a broken v13 schema (e.g. from
+ * development builds) where the indices on `messages` do not match the
+ * entity's declaration. Identical to [MIGRATION_12_13].
+ */
+val MIGRATION_13_14: Migration = object : Migration(13, 14) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        repairMessageIndices(db)
+    }
+}
+
+private fun repairMessageIndices(db: SupportSQLiteDatabase) {
+    db.execSQL(
+        "DROP INDEX IF EXISTS index_messages_accountId_folderId_messageId"
+    )
+    db.execSQL(
+        "DROP INDEX IF EXISTS index_messages_folderId"
+    )
+    // In the unlikely case a future schema re-runs this migration
+    // after a corrective prior attempt already created the right
+    // index in the wrong shape, drop it too before re-creating so
+    // the column-ordering invariant is enforced exactly once.
+    db.execSQL(
+        "DROP INDEX IF EXISTS index_messages_folderId_accountId_messageId"
+    )
+    db.execSQL(
+        "CREATE UNIQUE INDEX IF NOT EXISTS " +
                 "index_messages_folderId_accountId_messageId " +
                 "ON messages(folderId, accountId, messageId)"
-        )
-    }
+    )
 }
 
 /**

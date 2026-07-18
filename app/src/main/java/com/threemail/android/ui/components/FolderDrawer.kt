@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -25,7 +26,6 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Drafts
 import androidx.compose.material.icons.filled.DragHandle
-import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Inbox
@@ -45,6 +45,7 @@ import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,6 +55,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -63,6 +65,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.threemail.android.R
@@ -85,6 +88,125 @@ private data class DragInfo(
     val accumulatorY: Float = 0f
 )
 
+/**
+ * A node in the folder tree, produced by [buildFolderTree]. The flat
+ * output list encodes the pre-order traversal so [LazyColumn] receives
+ * one stable item per node.
+ */
+private data class FolderNode(
+    val folder: MailFolder,
+    val depth: Int,
+    val hasChildren: Boolean,
+    val isExpanded: Boolean
+)
+
+/**
+ * Convert a flat folder list into a depth-sorted tree flattened back to
+ * pre-order. Parent-child relationships are inferred from `serverId` by
+ * detecting the IMAP hierarchy separator (typically `.` or `/`).
+ *
+ * `expandedServerIds` controls which parent nodes show their children;
+ * collapsed parents are emitted as a single node.
+ */
+private fun buildFolderTree(
+    folders: List<MailFolder>,
+    expandedServerIds: Set<String>
+): List<FolderNode> {
+    if (folders.isEmpty()) return emptyList()
+
+    val separator = detectSeparator(folders)
+
+    // Compute parent-child relationships
+    val serverIdSet = folders.mapTo(HashSet()) { it.serverId }
+    val childrenByParent = mutableMapOf<String, MutableList<MailFolder>>()
+
+    for (folder in folders) {
+        val parentId = parentServerId(folder.serverId, separator)
+        if (parentId != null && parentId in serverIdSet) {
+            childrenByParent.getOrPut(parentId) { mutableListOf() }.add(folder)
+        }
+    }
+
+    // A folder is a root when its OWN parent does not exist in the folder
+    // list (or it has no parent at all).  Importantly this correctly keeps
+    // e.g. "INBOX" as a root even though it IS a parent of "INBOX.Sent";
+    // the old filter `it.serverId !in allParentIds` removed those folders
+    // entirely.
+    val rootFolders = folders.filter { folder ->
+        parentServerId(folder.serverId, separator) !in serverIdSet
+    }.toMutableList()
+
+    // Within each level sort by: special folders (by type ordinal) first,
+    // then alphabetically by name, so INBOX always rises to the top.
+    val levelComparator = compareBy<MailFolder>(
+        { it.type.ordinal },
+        { it.name.lowercase() }
+    )
+    rootFolders.sortWith(levelComparator)
+    childrenByParent.values.forEach { it.sortWith(levelComparator) }
+
+    val result = mutableListOf<FolderNode>()
+
+    fun addNode(folder: MailFolder, depth: Int) {
+        val hasChildren = childrenByParent.containsKey(folder.serverId)
+        val isExpanded = folder.serverId in expandedServerIds
+        result.add(FolderNode(folder, depth, hasChildren, isExpanded))
+        if (isExpanded && hasChildren) {
+            for (child in childrenByParent[folder.serverId].orEmpty()) {
+                addNode(child, depth + 1)
+            }
+        }
+    }
+
+    for (root in rootFolders) {
+        addNode(root, 0)
+    }
+
+    return result
+}
+
+/**
+ * Detect the IMAP folder hierarchy separator by examining the difference
+ * between `serverId` (full path) and `name` (leaf). Falls back to `.`
+ * when nothing can be inferred.
+ */
+private fun detectSeparator(folders: List<MailFolder>): Char {
+    for (folder in folders) {
+        if (folder.serverId != folder.name && folder.serverId.endsWith(folder.name)) {
+            val sep = folder.serverId[folder.serverId.length - folder.name.length - 1]
+            return sep
+        }
+    }
+    // Try common IMAP separators
+    for (sep in listOf('.', '/', '\\\\', '-', '_')) {
+        if (folders.any { it.serverId.contains(sep) }) return sep
+    }
+    return '.'
+}
+
+/**
+ * Return the parent's `serverId` by stripping the last path component.
+ * `null` means the folder is at the root of the hierarchy.
+ */
+private fun parentServerId(serverId: String, separator: Char): String? {
+    val idx = serverId.lastIndexOf(separator)
+    if (idx > 0) {
+        return serverId.substring(0, idx)
+    }
+    return null
+}
+
+/**
+ * Indent increment per tree depth level (in density-independent pixels).
+ * At depth 0 there is no extra indent; depth 1 adds 20.dp, etc.
+ */
+private val TREE_INDENT_PER_LEVEL = 20.dp
+
+/**
+ * Size of the expand/collapse chevron icon (or its spacer placeholder).
+ */
+private val CHEVRON_SIZE = 20.dp
+
 @Composable
 fun FolderDrawerContent(
     account: Account?,
@@ -98,21 +220,39 @@ fun FolderDrawerContent(
     onCalendar: () -> Unit,
     onSync: () -> Unit
 ) {
-    // Split folders into favorites + main list. The drawer renders favorites
-    // first (the user's mental model: a "pinned" shortcut list at the top)
-    // so the action targets for the real folder picker stay grouped below.
-    // `remember(folders)` keeps the partitioning stable across recompositions
-    // not driven by `folders`.
+    // Split folders into favorites + main list.
     val favoriteFolders = remember(folders) { folders.filter { it.isFavorite } }
     val normalFolders = remember(folders) { folders.filterNot { it.isFavorite } }
-
-    // Live reference to the favourites list. The drag gesture's `onDragEnd`
-    // closure captures this Compose state (which always reads the latest
-    // value) instead of the original `favoriteFolders` parameter - a mid-
-    // drag reorder that changed the list would otherwise be invisible to
-    // the closure, and the user could see their reorder "stick" against a
-    // stale snapshot.
     val favoriteFoldersState = rememberUpdatedState(favoriteFolders)
+
+    // --- Tree expand/collapse state ---
+    val expandedServerIds = remember { mutableStateOf<Set<String>>(emptySet()) }
+    val expanded = expandedServerIds.value
+
+    // Initialise: all parent nodes start expanded so the full hierarchy
+    // is visible on first open.
+    LaunchedEffect(normalFolders) {
+        if (expanded.isEmpty() && normalFolders.isNotEmpty()) {
+            val sep = detectSeparator(normalFolders)
+            expandedServerIds.value = buildSet {
+                for (folder in normalFolders) {
+                    parentServerId(folder.serverId, sep)?.let { add(it) }
+                }
+            }
+        }
+    }
+
+    val treeNodes = remember(normalFolders, expanded) {
+        buildFolderTree(normalFolders, expanded)
+    }
+
+    val onToggleFolderExpand: (String) -> Unit = { serverId ->
+        expandedServerIds.value = if (serverId in expanded) {
+            expanded - serverId
+        } else {
+            expanded + serverId
+        }
+    }
 
     ModalDrawerSheet {
         Column(modifier = Modifier.fillMaxHeight()) {
@@ -177,17 +317,12 @@ fun FolderDrawerContent(
 
             HorizontalDivider()
 
-            // Folder List (Scrollable). Emits three blocks:
-            //   1. Favorites header + long-press-draggable pinned rows
-            //      (only when there is an account AND at least one favorite)
-            //   2. The main folder list with star toggles on each row
-            // Both share a single LazyColumn so the scroll position behaves
-            // naturally and there is no divider chrome breaking the feel.
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
+                // ── Favorites section ──
                 if (account != null && favoriteFolders.isNotEmpty()) {
                     item(key = "favorites-header") {
                         Text(
@@ -201,37 +336,11 @@ fun FolderDrawerContent(
 
                     itemsIndexed(
                         favoriteFolders,
-                        // ServerId is the natural cross-table identifier;
-                        // using folder.id would force a full re-key on
-                        // every server sync that REPLACES folders.
                         key = { _, f -> "fav-${f.serverId}" }
                     ) { index, folder ->
-                        // Capture the row's actual measured height so the
-                        // per-row "row height" used to compute the drop
-                        // index matches whatever's currently laid out
-                        // (long folder names wrap, padding differs, etc.).
-                        // The default is `0f` because `Dp.toPx()` is
-                        // `@Composable` and cannot be called inside the
-                        // `remember { ... }` lambda (which is not a
-                        // composable context) - any non-zero literal
-                        // would be density-dependent pixels (e.g. `48f`
-                        // on a 3x display is ~16dp, far from the ~48dp
-                        // the original `48.dp.toPx()` produced). Using
-                        // `0f` lets the `rowHeightPx > 0f` guard in
-                        // `onDragEnd` be the single source of truth: a
-                        // drag that fires before `onSizeChanged` reports
-                        // the real measured height is treated as a
-                        // no-op rather than snapping to a wrong index.
                         var rowHeightPx by remember { mutableStateOf(0f) }
                         val haptics = LocalHapticFeedback.current
                         val dragInfo = remember { mutableStateOf<DragInfo?>(null) }
-                        // derivedStateOf so the boolean only flips on drag
-                        // start/stop edge, not on every pixel of accumulatorY
-                        // movement. Reading dragInfo.value directly in
-                        // `.zIndex(...)` would re-compose the whole Row on
-                        // every drag step; derivedStateOf collapses the
-                        // high-frequency reads to a single recomposition per
-                        // edge so the rest of the row stays still.
                         val isDragging by remember {
                             derivedStateOf { dragInfo.value?.fromIndex == index }
                         }
@@ -240,16 +349,8 @@ fun FolderDrawerContent(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .onSizeChanged { rowHeightPx = it.height.toFloat() }
-                                // Lift the dragged row above siblings so it
-                                // paints over the divider and the next
-                                // favourite instead of sliding under them.
                                 .zIndex(if (isDragging) 1f else 0f)
                                 .padding(horizontal = 12.dp, vertical = 4.dp)
-                                // Read dragInfo.value ONLY inside graphicsLayer
-                                // - reading it in the composition phase would
-                                // re-compose the whole Row on every pixel of
-                                // movement; inside the layer only the cheap
-                                // graphicsLayer apply runs.
                                 .graphicsLayer {
                                     val current = dragInfo.value
                                     if (current?.fromIndex == index) {
@@ -265,11 +366,7 @@ fun FolderDrawerContent(
                                 .pointerInput(favoriteFolders.size) {
                                     detectDragGesturesAfterLongPress(
                                         onDragStart = {
-                                            // Tactile cue that drag mode has
-                                            // engaged (long-press passed).
-                                            haptics.performHapticFeedback(
-                                                HapticFeedbackType.LongPress
-                                            )
+                                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                             dragInfo.value = DragInfo(
                                                 fromIndex = index,
                                                 fromServerId = folder.serverId,
@@ -284,13 +381,7 @@ fun FolderDrawerContent(
                                             )
                                         },
                                         onDragEnd = {
-                                            val final = dragInfo.value ?: run {
-                                                return@detectDragGesturesAfterLongPress
-                                            }
-                                            // Read the LIVE list, not the
-                                            // close-over snapshot. If favourites
-                                            // shrank to empty mid-drag, drop
-                                            // the reorder cleanly.
+                                            val final = dragInfo.value ?: return@detectDragGesturesAfterLongPress
                                             val live = favoriteFoldersState.value
                                             if (live.isEmpty()) {
                                                 dragInfo.value = null
@@ -298,17 +389,10 @@ fun FolderDrawerContent(
                                             }
                                             val steps = if (rowHeightPx > 0f) {
                                                 (final.accumulatorY / rowHeightPx).toInt()
-                                            } else {
-                                                0
-                                            }
-                                            // Bound the target so the user
-                                            // cannot drag the dragged row
-                                            // beyond either end of the
-                                            // favourites list. From index K,
-                                            // valid new indices are 0..N-1.
+                                            } else 0
                                             val targetIndex = (final.fromIndex + steps)
                                                 .coerceIn(0, live.lastIndex)
-                                            if (targetIndex != final.fromIndex && account != null) {
+                                            if (targetIndex != final.fromIndex) {
                                                 val newOrder = live.toMutableList()
                                                 val moved = newOrder.removeAt(final.fromIndex)
                                                 newOrder.add(
@@ -327,10 +411,6 @@ fun FolderDrawerContent(
                                 },
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Drag-handle icon: low-alpha visual contract
-                            // that says "this row reorders on long-press".
-                            // Kept low-alpha so it doesn't compete with
-                            // the star for attention.
                             Icon(
                                 imageVector = Icons.Default.DragHandle,
                                 contentDescription = null,
@@ -360,70 +440,20 @@ fun FolderDrawerContent(
                     }
                 }
 
-                items(normalFolders, key = { it.id }) { folder ->
-                    val isSelected = folder.id == selectedFolder?.id
-                    NavigationDrawerItem(
-                        icon = { Icon(iconFor(folder.type), contentDescription = null) },
-                        label = { Text(folder.name) },
-                        // Badge slot hosts BOTH the unread count (preserves the
-                        // pre-favoriteFolders visual cue for "this folder has
-                        // new mail") AND the star toggle for favoriting.
-                        badge = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (folder.unreadCount > 0) {
-                                    Text(
-                                        text = folder.unreadCount.toString(),
-                                        style = MaterialTheme.typography.labelLarge,
-                                        fontWeight = FontWeight.Medium,
-                                        color = if (isSelected) Color.White
-                                                else MaterialTheme.colorScheme.primary
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                }
-                                IconButton(onClick = { onToggleFavorite(folder) }) {
-                                    Icon(
-                                        imageVector = if (folder.isFavorite) Icons.Default.Star else Icons.Outlined.StarBorder,
-                                        contentDescription = stringResource(
-                                            if (folder.isFavorite) R.string.favorites_remove else R.string.favorites_add
-                                        ),
-                                        // Color chain: `when` (not chained `if`)
-                                        // so the selected state ALWAYS paints
-                                        // white-on-primary, even for favorited
-                                        // folders where priority order would
-                                        // otherwise be primary-on-primary (invisible).
-                                        tint = when {
-                                            isSelected -> Color.White
-                                            folder.isFavorite -> MaterialTheme.colorScheme.primary
-                                            else -> MaterialTheme.colorScheme.onSurfaceVariant
-                                        }
-                                    )
-                                }
-                            }
-                        },
-                        selected = isSelected,
-                        onClick = { onFolderClick(folder) },
-                        colors = NavigationDrawerItemDefaults.colors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primary,
-                            selectedIconColor = Color.White,
-                            selectedTextColor = Color.White,
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            unselectedTextColor = MaterialTheme.colorScheme.onSurface
-                        ),
-                        shape = CircleShape,
-                        modifier = Modifier
-                            .padding(NavigationDrawerItemDefaults.ItemPadding)
-                            .padding(vertical = 2.dp)
+                // ── Tree folder section ──
+                items(treeNodes, key = { "tree-${it.folder.id}" }) { node ->
+                    FolderTreeRow(
+                        node = node,
+                        isSelected = node.folder.id == selectedFolder?.id,
+                        onFolderClick = onFolderClick,
+                        onToggleExpand = { onToggleFolderExpand(node.folder.serverId) },
+                        onToggleFavorite = onToggleFavorite
                     )
                 }
             }
 
             HorizontalDivider()
 
-            // Footer. Refresh and Manage Folders are scoped to a configured
-            // account, so we hide them when there isn't one - tapping either
-            // without an account leads to confusing empty-state flows. Settings
-            // stays visible regardless so the user can still reach app-wide
-            // preferences even on a fresh install.
             Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                 if (account != null) {
                     FooterItem(
@@ -447,6 +477,125 @@ fun FolderDrawerContent(
         }
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Tree row composable
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun FolderTreeRow(
+    node: FolderNode,
+    isSelected: Boolean,
+    onFolderClick: (MailFolder) -> Unit,
+    onToggleExpand: () -> Unit,
+    onToggleFavorite: (MailFolder) -> Unit
+) {
+    val indentPadding = node.depth * TREE_INDENT_PER_LEVEL
+    val containerColor = if (isSelected) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        Color.Transparent
+    }
+    val contentColor = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+    val iconColor = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+    val badgeColor = if (isSelected) Color.White else MaterialTheme.colorScheme.primary
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp)
+            // The indentation sit at the very left, before the row chrome.
+            .then(
+                if (isSelected) {
+                    Modifier
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(containerColor)
+                } else {
+                    Modifier.background(containerColor)
+                }
+            )
+            .clickable { onFolderClick(node.folder) }
+            .padding(
+                start = 8.dp + indentPadding,
+                end = 8.dp,
+                top = 10.dp,
+                bottom = 10.dp
+            ),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // ── Chevron (or spacer for alignment) ──
+        if (node.hasChildren) {
+            Icon(
+                imageVector = Icons.Default.ExpandMore,
+                contentDescription = if (node.isExpanded) "Collapse" else "Expand",
+                modifier = Modifier
+                    .size(CHEVRON_SIZE)
+                    .clickable { onToggleExpand() }
+                    .rotate(if (node.isExpanded) 0f else -90f),
+                tint = iconColor.copy(alpha = 0.55f)
+            )
+        } else {
+            Spacer(Modifier.width(CHEVRON_SIZE))
+        }
+        Spacer(Modifier.width(8.dp))
+
+        // ── Folder type icon ──
+        Box(
+            modifier = Modifier.size(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = iconFor(node.folder.type),
+                contentDescription = null,
+                tint = iconColor,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+
+        // ── Folder name ──
+        Text(
+            text = node.folder.name,
+            style = MaterialTheme.typography.bodyMedium,
+            color = contentColor,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+
+        // ── Unread count + favourite star ──
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (node.folder.unreadCount > 0) {
+                Text(
+                    text = node.folder.unreadCount.toString(),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = badgeColor
+                )
+                Spacer(Modifier.width(8.dp))
+            }
+            IconButton(onClick = { onToggleFavorite(node.folder) }) {
+                Icon(
+                    imageVector = if (node.folder.isFavorite) Icons.Default.Star
+                    else Icons.Outlined.StarBorder,
+                    contentDescription = stringResource(
+                        if (node.folder.isFavorite) R.string.favorites_remove
+                        else R.string.favorites_add
+                    ),
+                    tint = when {
+                        isSelected -> Color.White
+                        node.folder.isFavorite -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                )
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Footer helpers
+// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun FooterItem(

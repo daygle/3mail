@@ -1,6 +1,7 @@
 package com.threemail.android.sync
 
 import android.content.Context
+import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.threemail.android.data.remote.MailRemoteFactory
@@ -36,25 +37,38 @@ class MailSyncWorker(
             } else {
                 allAccounts
             }
+            Log.d(TAG, "Starting sync for ${accounts.size} accounts")
             val notificationsEnabled = settingsRepository.settings.first().notificationsEnabled
             var newMessages = 0
 
             accounts.forEach { account ->
-                if (!account.syncEnabled) return@forEach
+                if (!account.syncEnabled) {
+                    Log.d(TAG, "Sync disabled for ${account.email}")
+                    return@forEach
+                }
                 if (account.accountType != AccountType.IMAP && account.accountType != AccountType.GMAIL) return@forEach
 
+                Log.d(TAG, "Syncing account: ${account.email}")
                 val remote = mailRemoteFactory.create(account)
-                val remoteFolders = remote.fetchFolders().getOrNull() ?: return@forEach
+                val remoteFolders = remote.fetchFolders().getOrElse {
+                    Log.e(TAG, "Failed to fetch folders for ${account.email}", it)
+                    return@forEach
+                }
+                Log.d(TAG, "Fetched ${remoteFolders.size} folders for ${account.email}")
                 val savedFolders = mailRepository.saveFolders(remoteFolders)
 
                 savedFolders.forEach { folder ->
                     // Only deep-sync the folders users care about most.
                     if (folder.type !in SYNCED_FOLDERS) return@forEach
 
-                    val fetch = remote.fetchMessages(folder, folder.syncVersion, limit = 100).getOrNull()
-                        ?: return@forEach
+                    Log.d(TAG, "Syncing folder: ${folder.name} (${folder.serverId}) [Type: ${folder.type}]")
+                    val fetch = remote.fetchMessages(folder, folder.syncVersion, limit = 100).getOrElse {
+                        Log.e(TAG, "Failed to fetch messages for folder ${folder.name}", it)
+                        return@forEach
+                    }
 
                     if (fetch.messages.isNotEmpty()) {
+                        Log.d(TAG, "Fetched ${fetch.messages.size} new messages for folder ${folder.name}")
                         val toSave = fetch.messages.map { it.copy(folderId = folder.id) }
                         mailRepository.saveMessages(toSave)
                         if (folder.type == FolderType.INBOX) {
@@ -71,11 +85,13 @@ class MailSyncWorker(
 
             Result.success()
         } catch (e: Exception) {
+            Log.e(TAG, "MailSyncWorker failed", e)
             Result.retry()
         }
     }
 
     companion object {
+        private const val TAG = "MailSyncWorker"
         private val SYNCED_FOLDERS = setOf(FolderType.INBOX, FolderType.SENT, FolderType.DRAFTS)
     }
 }

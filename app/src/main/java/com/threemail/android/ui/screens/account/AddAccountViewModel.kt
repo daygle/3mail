@@ -2,6 +2,7 @@ package com.threemail.android.ui.screens.account
 
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.threemail.android.R
@@ -9,6 +10,7 @@ import com.threemail.android.data.remote.MailRemoteFactory
 import com.threemail.android.data.remote.gmail.GoogleAuthHelper
 import com.threemail.android.data.remote.gmail.RecoverableAuthException
 import com.threemail.android.data.repository.AccountRepository
+import com.threemail.android.sync.SyncScheduler
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.AccountType
 import com.threemail.android.domain.model.Security
@@ -24,7 +26,8 @@ class AddAccountViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val accountRepository: AccountRepository,
     private val googleAuthHelper: GoogleAuthHelper,
-    private val mailRemoteFactory: MailRemoteFactory
+    private val mailRemoteFactory: MailRemoteFactory,
+    private val syncScheduler: SyncScheduler
 ) : ViewModel() {
 
     data class UiState(
@@ -154,12 +157,15 @@ class AddAccountViewModel @Inject constructor(
                     // already confirmed STARTTLS works on this server, and
                     // re-doing the connect costs ~300ms for nothing.
                     val finalAccount = buildAccount(_uiState.value)
-                    accountRepository.addAccount(finalAccount)
+                    val accountId = accountRepository.addAccount(finalAccount)
+                    syncScheduler.enqueueImmediateSync(accountId)
                     _uiState.value = _uiState.value.copy(isSaving = false, isSaved = true)
                 }.onFailure { error ->
+                    Log.e(TAG, "Save failed", error)
                     _uiState.value = _uiState.value.copy(isSaving = false, error = error.message)
                 }
             } catch (e: Exception) {
+                Log.e(TAG, "Save crashed", e)
                 _uiState.value = _uiState.value.copy(isSaving = false, error = e.message)
             }
         }
@@ -248,9 +254,11 @@ class AddAccountViewModel @Inject constructor(
                 )
                 val test = mailRemoteFactory.create(account).testConnection()
                 test.onSuccess {
-                    accountRepository.addAccount(account)
+                    val id = accountRepository.addAccount(account)
+                    syncScheduler.enqueueImmediateSync(id)
                     _uiState.value = _uiState.value.copy(isSaving = false, isSaved = true)
                 }.onFailure {
+                    Log.e(TAG, "Gmail save failed", it)
                     _uiState.value = _uiState.value.copy(isSaving = false, error = it.message)
                 }
             } catch (e: RecoverableAuthException) {
@@ -259,6 +267,7 @@ class AddAccountViewModel @Inject constructor(
                     recoverableAuthIntent = e.intent
                 )
             } catch (e: Exception) {
+                Log.e(TAG, "Gmail save crashed", e)
                 _uiState.value = _uiState.value.copy(isSaving = false, error = e.message)
             }
         }
@@ -267,5 +276,9 @@ class AddAccountViewModel @Inject constructor(
     fun retryAfterRecoverableAuth() {
         val state = _uiState.value
         saveGmailAccount(state.pendingGmailEmail, state.pendingGmailDisplayName)
+    }
+
+    private companion object {
+        private const val TAG = "AddAccountViewModel"
     }
 }

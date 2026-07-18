@@ -1,5 +1,6 @@
 package com.threemail.android.data.remote.imap
 
+import android.util.Log
 import com.sun.mail.imap.IMAPFolder
 import com.sun.mail.imap.IMAPStore
 import com.threemail.android.data.remote.MessageBody
@@ -45,7 +46,14 @@ class ImapClient(
     private val tokenProvider: suspend () -> String? = { null }
 ) {
 
-    private val session: Session by lazy { createSession() }
+    @Volatile
+    private var _session: Session? = null
+
+    private fun getSession(): Session {
+        return _session ?: synchronized(this) {
+            _session ?: createSession().also { _session = it }
+        }
+    }
 
     /**
      * The IMAP protocol name mirrors `account.security`: SSL_TLS uses
@@ -96,6 +104,13 @@ class ImapClient(
             // man-in-the-middle. Always on for both protocols.
             setProperty("mail.$protocol.ssl.checkserveridentity", "true")
             setProperty("mail.smtp.ssl.checkserveridentity", "true")
+
+            // Timeouts to prevent indefinite hanging in background workers.
+            setProperty("mail.$protocol.connectiontimeout", "15000")
+            setProperty("mail.$protocol.timeout", "15000")
+            setProperty("mail.smtp.connectiontimeout", "15000")
+            setProperty("mail.smtp.timeout", "15000")
+
             if (smtpStartTls) {
                 setProperty("mail.smtp.starttls.required", "true")
             }
@@ -131,7 +146,7 @@ class ImapClient(
     // region connection helpers
 
     private suspend fun connectStore(): Store {
-        val store = session.getStore(imapProtocol)
+        val store = getSession().getStore(imapProtocol)
         val server = account.incomingServer ?: getDefaultServer()
         when (account.accountType) {
             AccountType.GMAIL -> {
@@ -156,6 +171,7 @@ class ImapClient(
         try {
             val folder = store.getFolder(folderServerId) as IMAPFolder
             if (!folder.isOpen) folder.open(mode)
+            Log.d(TAG, "Opened folder $folderServerId (mode=$mode), msgCount=${folder.messageCount}")
             try {
                 block(folder)
             } finally {
@@ -282,7 +298,9 @@ class ImapClient(
             val store = connectStore()
             try {
                 val folders = store.defaultFolder.list("*")
+                Log.d(TAG, "Fetched ${folders.size} folders for ${account.email}")
                 Result.success(folders.map { folder ->
+                    Log.v(TAG, "  Folder: ${folder.fullName} (${folder.name})")
                     MailFolder(
                         accountId = account.id,
                         serverId = folder.fullName,
@@ -296,6 +314,7 @@ class ImapClient(
         } catch (e: RecoverableAuthException) {
             throw e
         } catch (e: MessagingException) {
+            Log.e(TAG, "Failed to fetch folders for ${account.email}", e)
             Result.failure(e)
         }
     }
@@ -483,7 +502,7 @@ class ImapClient(
             // SMTP host, STARTTLS, and ssl.checkserveridentity settings would
             // all be ignored. Connect the "smtp" transport explicitly so those
             // properties (and TLS verification) actually apply.
-            val transport = session.getTransport("smtp")
+            val transport = getSession().getTransport("smtp")
             try {
                 transport.connect(getSmtpServer(), getSmtpPort(), account.email, credential)
                 transport.sendMessage(mime, mime.allRecipients)
@@ -651,6 +670,8 @@ class ImapClient(
     // endregion
 
     private companion object {
+        private const val TAG = "ImapClient"
+
         /**
          * Capability keywords surfaced via [IMAPStore.hasCapability]. Picked
          * because each maps to a code branch somewhere in the app:
