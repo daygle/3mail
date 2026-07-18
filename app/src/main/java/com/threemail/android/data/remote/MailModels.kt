@@ -27,5 +27,13 @@ data class OutgoingMessage(
     val htmlBody: String? = null,
     val attachments: List<Attachment> = emptyList(),
     val inReplyTo: String? = null,
-    val references: String? = null
+    val references: String? = null,
+    /**
+     * Send-as identity override for the From header. When null the transport
+     * falls back to the account's primary address / display name.
+     */
+    val fromName: String? = null,
+    val fromAddress: String? = null,
+    /** When true, request a read receipt via a Disposition-Notification-To header. */
+    val requestReadReceipt: Boolean = false
 )

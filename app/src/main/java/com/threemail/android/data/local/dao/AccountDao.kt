@@ -42,6 +42,9 @@ interface AccountDao {
     @Query("UPDATE accounts SET notificationsEnabled = :enabled WHERE id = :id")
     suspend fun setNotificationsEnabled(id: Long, enabled: Boolean)
 
+    @Query("UPDATE accounts SET identitiesJson = :identitiesJson WHERE id = :id")
+    suspend fun setIdentitiesJson(id: Long, identitiesJson: String)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(account: AccountEntity): Long
 

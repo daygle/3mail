@@ -48,6 +48,17 @@
     <string name="swipe_action_toggle_star">Star</string>
     <string name="density_comfortable">Comfortable</string>
     <string name="density_compact">Compact</string>
+    <string name="from_label">From</string>
+    <string name="request_read_receipt">Request read receipt</string>
+    <string name="identities_section">Send-as identities</string>
+    <string name="identities_description">Extra addresses you can send from. Pick one in the composer\'s From selector.</string>
+    <string name="identity_add">Add identity</string>
+    <string name="identity_remove">Remove</string>
+    <string name="identity_display_name">Display name</string>
+    <string name="identity_email">Email address</string>
+    <string name="identity_signature">Signature (optional)</string>
+    <string name="identity_save">Save</string>
+    <string name="identity_email_required">An email address is required</string>
     <string name="no_accounts">No accounts added</string>
     <string name="add_account_prompt">Add an email account to get started</string>
     <string name="empty_state_add_account">Add Account</string>

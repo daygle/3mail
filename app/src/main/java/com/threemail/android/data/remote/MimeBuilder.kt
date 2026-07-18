@@ -29,13 +29,21 @@ object MimeBuilder {
         fromName: String?,
         message: OutgoingMessage
     ): MimeMessage = MimeMessage(session).apply {
-        setFrom(InternetAddress(fromEmail, fromName))
+        // A send-as identity on the message overrides the account default.
+        val effectiveFromEmail = message.fromAddress?.takeIf { it.isNotBlank() } ?: fromEmail
+        val effectiveFromName = message.fromName?.takeIf { it.isNotBlank() } ?: fromName
+        setFrom(InternetAddress(effectiveFromEmail, effectiveFromName))
         setRecipients(Message.RecipientType.TO, message.to.map { InternetAddress(it.address, it.name) }.toTypedArray())
         setRecipients(Message.RecipientType.CC, message.cc.map { InternetAddress(it.address, it.name) }.toTypedArray())
         setRecipients(Message.RecipientType.BCC, message.bcc.map { InternetAddress(it.address, it.name) }.toTypedArray())
         setSubject(message.subject, "utf-8")
         message.inReplyTo?.let { setHeader("In-Reply-To", angle(it)) }
         message.references?.let { setHeader("References", it) }
+        // Read-receipt request: RFC 3798 Disposition-Notification-To points at
+        // the sender so a conforming recipient client can send the MDN back.
+        if (message.requestReadReceipt) {
+            setHeader("Disposition-Notification-To", InternetAddress(effectiveFromEmail, effectiveFromName).toString())
+        }
         sentDate = Date()
 
         val inlineAttachments = message.attachments.filter { it.isInline }

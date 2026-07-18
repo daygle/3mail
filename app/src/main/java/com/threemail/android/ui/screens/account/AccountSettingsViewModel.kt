@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.settings.SettingsRepository
 import com.threemail.android.domain.model.Account
+import com.threemail.android.domain.model.Identity
 import com.threemail.android.push.PushController
 import com.threemail.android.sync.SyncScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -92,6 +93,21 @@ class AccountSettingsViewModel @Inject constructor(
     fun setNotificationsEnabled(enabled: Boolean) {
         updateAccount { it.copy(notificationsEnabled = enabled) }
         viewModelScope.launch { accountRepository.setNotificationsEnabled(accountId, enabled) }
+    }
+
+    fun addIdentity(identity: Identity) {
+        val current = _uiState.value.account ?: return
+        val updated = current.identities + identity
+        updateAccount { it.copy(identities = updated) }
+        viewModelScope.launch { accountRepository.setIdentities(accountId, updated) }
+    }
+
+    fun removeIdentity(index: Int) {
+        val current = _uiState.value.account ?: return
+        if (index !in current.identities.indices) return
+        val updated = current.identities.toMutableList().apply { removeAt(index) }
+        updateAccount { it.copy(identities = updated) }
+        viewModelScope.launch { accountRepository.setIdentities(accountId, updated) }
     }
 
     fun setPushEnabled(enabled: Boolean) {

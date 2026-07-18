@@ -29,6 +29,11 @@ data class OutboxMessageEntity(
     // hand-written migration matches Room's generated schema exactly.
     @ColumnInfo(name = "referencesHeader")
     val references: String? = null,
+    /** Send-as identity override: display name / address for the From header. Null => account default. */
+    val fromName: String? = null,
+    val fromAddress: String? = null,
+    /** When true, add a Disposition-Notification-To (read-receipt request) header. */
+    val requestReadReceipt: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
     val attemptCount: Int = 0,
     val lastAttemptAt: Long? = null,

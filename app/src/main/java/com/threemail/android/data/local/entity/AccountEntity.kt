@@ -57,5 +57,12 @@ data class AccountEntity(
      * master switch, so both must be on for this account to notify.
      */
     val notificationsEnabled: Boolean = true,
+    /**
+     * JSON-encoded list of additional send-as identities (aliases). Stored as a
+     * single column rather than a child table because identities are small,
+     * always loaded with the account, and never queried independently. Default
+     * `[]` keeps the v15 -> v16 migration a single additive `ALTER TABLE`.
+     */
+    val identitiesJson: String = "[]",
     val createdAt: Long = System.currentTimeMillis()
 )
