@@ -7,7 +7,12 @@ A modern, full-featured Android mail client supporting IMAP (push) and Gmail (OA
 
 ## Features
 
-- **Multi-account**: IMAP (with IDLE push notifications) and Gmail via OAuth2 - selected per account behind a `MailRemote` abstraction, so each account picks the right transport automatically.
+- **Multi-account**: IMAP (with IDLE push notifications), Gmail via OAuth2, and POP3 - selected per account behind a `MailRemote` abstraction, so each account picks the right transport automatically. POP3 is inbox-only with local-only read/star flags (no server folders or push), and still sends over SMTP.
+- **Unified inbox**: an all-accounts inbox view (drawer entry when more than one account is configured) backed by a reactive cross-account query over every INBOX folder.
+- **Multi-select triage**: long-press to enter selection mode, then batch archive / delete / mark read-unread / star / select-all from a contextual app bar; plus a mark-all-read action and Material 3 pull-to-refresh.
+- **Configurable swipe & density**: pick the left/right swipe action (none / archive / delete / read-unread / star), message-list density (comfortable / compact), and body-preview line count in Settings.
+- **Send-as identities**: multiple sender aliases per account with per-identity signatures, chosen from the composer's From selector; plus optional read-receipt (Disposition-Notification-To) requests.
+- **Folder visibility**: a Manage folders screen hides folders from the drawer while keeping them synced.
 - **Native Gmail sync**: Gmail REST API for labels-as-folders, server-side threads, and label-based read/star; IMAP/SMTP for everything else.
 - **Modern UI**: Material 3 + Jetpack Compose with dynamic color (Material You), light/dark/system themes, sender avatars, swipe-to-archive/delete, and a folder navigation drawer.
 - **Full message reading**: HTML bodies rendered in a `WebView` (remote images blocked by default), plain-text fallback, and on-demand body fetch.
@@ -55,6 +60,7 @@ A modern, full-featured Android mail client supporting IMAP (push) and Gmail (OA
 
 - `data/local` - Room database, DAOs, entities, and `Migrations.kt` (last exported schema JSON under `app/schemas/`; export is currently disabled, see `app/build.gradle.kts`).
 - `data/remote/imap` - JavaMail-backed IMAP client (`ImapClient`, `ImapClientFactory`, `ImapRemote`).
+- `data/remote/pop3` - JavaMail-backed POP3 client (`Pop3Client`, `Pop3Remote`); shared MIME walking in `data/remote/MimeParsing.kt`.
 - `data/remote/gmail` - Gmail REST API client, OAuth helper, recoverable-auth handling.
 - `data/remote/calendar` - Google Calendar API client.
 - `data/remote/idle` - IMAP IDLE loop (`IdleLoop`), events (`IdleEvent`), folder ops (`IdleFolderOps`).
@@ -90,8 +96,9 @@ A modern, full-featured Android mail client supporting IMAP (push) and Gmail (OA
 
 ## Next Steps
 
-- Unified inbox across accounts.
 - Instrumented UI tests (Espresso / Compose UI test).
+- OpenPGP / Autocrypt encryption.
+- Server-side IMAP folder subscribe/unsubscribe (current folder management is local visibility only).
 
 ## License
 
