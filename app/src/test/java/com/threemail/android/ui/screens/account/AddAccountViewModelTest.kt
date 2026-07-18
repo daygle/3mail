@@ -15,6 +15,7 @@ import com.threemail.android.data.remote.gmail.GoogleAuthHelper
 import com.threemail.android.data.remote.imap.ImapClientFactory
 import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.security.CredentialStore
+import com.threemail.android.sync.SyncScheduler
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.Attachment
 import com.threemail.android.domain.model.MailFolder
@@ -117,7 +118,8 @@ class AddAccountViewModelTest {
             context = context,
             accountRepository = accountRepository,
             googleAuthHelper = GoogleAuthHelper(context),
-            mailRemoteFactory = fakeFactory
+            mailRemoteFactory = fakeFactory,
+            syncScheduler = FakeSyncScheduler(context)
         )
 
         // User picks cleartext.
@@ -170,6 +172,18 @@ class AddAccountViewModelTest {
         override fun savePassword(email: String, password: String?) {}
         override fun getPassword(email: String): String? = null
         override fun deletePassword(email: String) {}
+    }
+
+    /**
+     * No-op [SyncScheduler] for Robolectric: the real
+     * [SyncScheduler.enqueueImmediateSync] calls `WorkManager.getInstance()`,
+     * which is not initialized in the unit-test environment and would throw,
+     * aborting save() before it reaches the isSaved terminal state. Overriding
+     * the enqueue to a no-op keeps the auto-upgrade assertions intact without
+     * needing a WorkManager test harness.
+     */
+    private class FakeSyncScheduler(context: Context) : SyncScheduler(context) {
+        override fun enqueueImmediateSync(accountId: Long) {}
     }
 
     /**
