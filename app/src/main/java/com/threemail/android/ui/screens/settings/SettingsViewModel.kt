@@ -4,7 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.settings.AppSettings
+import com.threemail.android.data.settings.MessageDensity
 import com.threemail.android.data.settings.SettingsRepository
+import com.threemail.android.data.settings.SwipeAction
 import com.threemail.android.data.settings.ThemeMode
 import com.threemail.android.sync.SyncScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -56,5 +58,21 @@ class SettingsViewModel @Inject constructor(
 
     fun setEmptyTrashOnQuit(enabled: Boolean) {
         viewModelScope.launch { settingsRepository.setEmptyTrashOnQuit(enabled) }
+    }
+
+    fun setSwipeRightAction(action: SwipeAction) {
+        viewModelScope.launch { settingsRepository.setSwipeRightAction(action) }
+    }
+
+    fun setSwipeLeftAction(action: SwipeAction) {
+        viewModelScope.launch { settingsRepository.setSwipeLeftAction(action) }
+    }
+
+    fun setMessageDensity(density: MessageDensity) {
+        viewModelScope.launch { settingsRepository.setMessageDensity(density) }
+    }
+
+    fun setPreviewLines(lines: Int) {
+        viewModelScope.launch { settingsRepository.setPreviewLines(lines) }
     }
 }

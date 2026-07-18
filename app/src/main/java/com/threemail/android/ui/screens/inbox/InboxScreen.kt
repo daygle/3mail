@@ -59,6 +59,8 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.threemail.android.R
+import com.threemail.android.data.settings.MessageDensity
+import com.threemail.android.data.settings.SwipeAction
 import com.threemail.android.domain.model.MailMessage
 import com.threemail.android.ui.components.EmptyState
 import com.threemail.android.ui.components.FolderDrawerContent
@@ -207,8 +209,13 @@ fun InboxScreen(
                                             message = message,
                                             selectionMode = state.selectionMode,
                                             selected = selected,
+                                            swipeRightAction = state.swipeRightAction,
+                                            swipeLeftAction = state.swipeLeftAction,
+                                            density = state.messageDensity,
+                                            previewLines = state.previewLines,
                                             onArchive = { viewModel.archive(message) },
                                             onDelete = { viewModel.delete(message) },
+                                            onToggleRead = { viewModel.markAsRead(message, !message.isRead) },
                                             onClick = {
                                                 if (state.selectionMode) {
                                                     viewModel.toggleSelection(message)
@@ -346,8 +353,13 @@ private fun SwipeableMailRow(
     message: MailMessage,
     selectionMode: Boolean,
     selected: Boolean,
+    swipeRightAction: SwipeAction,
+    swipeLeftAction: SwipeAction,
+    density: MessageDensity,
+    previewLines: Int,
     onArchive: () -> Unit,
     onDelete: () -> Unit,
+    onToggleRead: () -> Unit,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onToggleStar: () -> Unit
@@ -360,9 +372,21 @@ private fun SwipeableMailRow(
             onClick = onClick,
             onLongClick = onLongClick,
             selected = selected,
+            density = density,
+            previewLines = previewLines,
             onToggleStar = onToggleStar
         )
         return
+    }
+
+    val perform: (SwipeAction) -> Unit = { action ->
+        when (action) {
+            SwipeAction.ARCHIVE -> onArchive()
+            SwipeAction.DELETE -> onDelete()
+            SwipeAction.TOGGLE_READ -> onToggleRead()
+            SwipeAction.TOGGLE_STAR -> onToggleStar()
+            SwipeAction.NONE -> Unit
+        }
     }
 
     // `rememberSwipeToDismissBoxState` (and its `confirmValueChange`
@@ -376,21 +400,23 @@ private fun SwipeableMailRow(
     @Suppress("DEPRECATION")
     val dismissState = rememberSwipeToDismissBoxState()
 
-    // The viewmodel mutates `state.messages` synchronously when archive /
-    // delete succeeds, but on failure (e.g. offline, optimistic-only
-    // mutation) the row can stay alive long enough for the user to swipe it
-    // a *second* time — re-triggering a destructive action. The guard below
-    // ensures each row instance handles the gesture exactly once. The flag
-    // is keyed against this row's stable `message.id`, so a different row
-    // gets a fresh boolean.
+    // Guard so each row instance handles the gesture exactly once. For
+    // non-removing actions (mark-read, star, none) we spring the row back so
+    // it stays in the list; ARCHIVE/DELETE remove the row from the reactive
+    // feed, so the dismissed state is left in place.
     var handled by remember { mutableStateOf(false) }
     LaunchedEffect(dismissState.currentValue) {
         if (!handled && dismissState.currentValue != SwipeToDismissBoxValue.Settled) {
             handled = true
-            when (dismissState.currentValue) {
-                SwipeToDismissBoxValue.StartToEnd -> onArchive()
-                SwipeToDismissBoxValue.EndToStart -> onDelete()
-                SwipeToDismissBoxValue.Settled -> Unit
+            val action = when (dismissState.currentValue) {
+                SwipeToDismissBoxValue.StartToEnd -> swipeRightAction
+                SwipeToDismissBoxValue.EndToStart -> swipeLeftAction
+                SwipeToDismissBoxValue.Settled -> SwipeAction.NONE
+            }
+            perform(action)
+            if (action != SwipeAction.ARCHIVE && action != SwipeAction.DELETE) {
+                dismissState.reset()
+                handled = false
             }
         }
     }
@@ -398,30 +424,49 @@ private fun SwipeableMailRow(
     SwipeToDismissBox(
         state = dismissState,
         backgroundContent = {
-            val isArchive = dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd
-            val color = if (isArchive) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(color)
-                    .padding(horizontal = 24.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (isArchive) {
-                    Icon(Icons.Default.Archive, contentDescription = "Archive", tint = Color.White)
-                }
-                Spacer(Modifier.weight(1f))
-                if (!isArchive) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White)
-                }
-            }
+            val isStart = dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd
+            val action = if (isStart) swipeRightAction else swipeLeftAction
+            SwipeBackground(action = action, alignEnd = !isStart)
         }
     ) {
         MailListItem(
             message = message,
             onClick = onClick,
             onLongClick = onLongClick,
+            density = density,
+            previewLines = previewLines,
             onToggleStar = onToggleStar
         )
+    }
+}
+
+@Composable
+private fun SwipeBackground(action: SwipeAction, alignEnd: Boolean) {
+    val color = when (action) {
+        SwipeAction.ARCHIVE -> MaterialTheme.colorScheme.tertiary
+        SwipeAction.DELETE -> MaterialTheme.colorScheme.error
+        SwipeAction.TOGGLE_READ -> MaterialTheme.colorScheme.primary
+        SwipeAction.TOGGLE_STAR -> MaterialTheme.colorScheme.secondary
+        SwipeAction.NONE -> MaterialTheme.colorScheme.surfaceVariant
+    }
+    val icon = when (action) {
+        SwipeAction.ARCHIVE -> Icons.Default.Archive
+        SwipeAction.DELETE -> Icons.Default.Delete
+        SwipeAction.TOGGLE_READ -> Icons.Default.MarkEmailRead
+        SwipeAction.TOGGLE_STAR -> Icons.Default.Star
+        SwipeAction.NONE -> null
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(color)
+            .padding(horizontal = 24.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (alignEnd) Spacer(Modifier.weight(1f))
+        if (icon != null) {
+            Icon(icon, contentDescription = null, tint = Color.White)
+        }
+        if (!alignEnd) Spacer(Modifier.weight(1f))
     }
 }

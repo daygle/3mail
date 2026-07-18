@@ -8,6 +8,9 @@ import com.threemail.android.data.remote.gmail.RecoverableAuthException
 import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.repository.MailActions
 import com.threemail.android.data.repository.MailRepository
+import com.threemail.android.data.settings.MessageDensity
+import com.threemail.android.data.settings.SettingsRepository
+import com.threemail.android.data.settings.SwipeAction
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.MailFolder
 import com.threemail.android.domain.model.MailMessage
@@ -31,7 +34,8 @@ class InboxViewModel @Inject constructor(
     private val accountRepository: AccountRepository,
     private val mailRepository: MailRepository,
     private val mailActions: MailActions,
-    private val mailRemoteFactory: MailRemoteFactory
+    private val mailRemoteFactory: MailRemoteFactory,
+    private val settingsRepository: SettingsRepository
 ) : ViewModel() {
 
     data class UiState(
@@ -46,7 +50,13 @@ class InboxViewModel @Inject constructor(
         /** True when the cross-account unified inbox is shown instead of a single folder. */
         val unifiedInbox: Boolean = false,
         /** Ids of messages currently selected for a batch action. Empty => not in selection mode. */
-        val selectedIds: Set<Long> = emptySet()
+        val selectedIds: Set<Long> = emptySet(),
+        // Display preferences (mirrored from SettingsRepository so the row layout
+        // and swipe gestures react to changes without re-navigating).
+        val swipeRightAction: SwipeAction = SwipeAction.ARCHIVE,
+        val swipeLeftAction: SwipeAction = SwipeAction.DELETE,
+        val messageDensity: MessageDensity = MessageDensity.COMFORTABLE,
+        val previewLines: Int = 2
     ) {
         val selectionMode: Boolean get() = selectedIds.isNotEmpty()
     }
@@ -104,12 +114,16 @@ class InboxViewModel @Inject constructor(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState())
 
+    private val settingsFlow = settingsRepository.settings
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.threemail.android.data.settings.AppSettings())
+
     val uiState: StateFlow<UiState> = combine(
         baseState,
         _transient,
         _selectedIds,
-        _unifiedMode
-    ) { base, transient, selectedIds, unified ->
+        _unifiedMode,
+        settingsFlow
+    ) { base, transient, selectedIds, unified, settings ->
         base.copy(
             isSyncing = transient.isSyncing,
             error = transient.error,
@@ -118,7 +132,11 @@ class InboxViewModel @Inject constructor(
             selectedFolder = if (unified) null else base.selectedFolder,
             // Drop ids that scrolled out of the current feed so the selection
             // count never counts phantom rows.
-            selectedIds = selectedIds intersect base.messages.mapTo(HashSet()) { it.id }
+            selectedIds = selectedIds intersect base.messages.mapTo(HashSet()) { it.id },
+            swipeRightAction = settings.swipeRightAction,
+            swipeLeftAction = settings.swipeLeftAction,
+            messageDensity = settings.messageDensity,
+            previewLines = settings.previewLines
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState())
 

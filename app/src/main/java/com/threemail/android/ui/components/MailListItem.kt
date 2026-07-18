@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.threemail.android.data.settings.MessageDensity
 import com.threemail.android.domain.model.MailMessage
 import com.threemail.android.ui.theme.avatarColorFor
 import java.text.SimpleDateFormat
@@ -43,11 +44,17 @@ fun MailListItem(
     modifier: Modifier = Modifier,
     onToggleStar: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
-    selected: Boolean = false
+    selected: Boolean = false,
+    density: MessageDensity = MessageDensity.COMFORTABLE,
+    previewLines: Int = 2
 ) {
     val sender = message.from.firstOrNull()
     val senderLabel = sender?.name?.takeIf { it.isNotBlank() } ?: sender?.address ?: "(unknown)"
     val avatarColor = avatarColorFor(sender?.address ?: senderLabel)
+
+    val compact = density == MessageDensity.COMPACT
+    val rowPaddingV = if (compact) 8.dp else 12.dp
+    val avatarSize = if (compact) 36.dp else 44.dp
 
     val background = when {
         selected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
@@ -60,7 +67,7 @@ fun MailListItem(
             .fillMaxWidth()
             .background(background)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = rowPaddingV),
         verticalAlignment = Alignment.Top
     ) {
         // Sender avatar with deterministic color + initial. In selection mode a
@@ -68,7 +75,7 @@ fun MailListItem(
         Box(
             modifier = Modifier
                 .padding(top = 2.dp)
-                .size(44.dp)
+                .size(avatarSize)
                 .clip(CircleShape)
                 .background(
                     if (selected) MaterialTheme.colorScheme.primary
@@ -128,14 +135,18 @@ fun MailListItem(
                 overflow = TextOverflow.Ellipsis
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = message.bodyPreview,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
+                if (previewLines > 0) {
+                    Text(
+                        text = message.bodyPreview,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = previewLines,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                } else {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
                 if (onToggleStar != null) {
                     IconButton(onClick = onToggleStar, modifier = Modifier.size(28.dp)) {
                         Icon(
