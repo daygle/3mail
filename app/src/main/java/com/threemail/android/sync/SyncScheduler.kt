@@ -16,7 +16,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class SyncScheduler @Inject constructor(
+open class SyncScheduler @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
 
@@ -129,7 +129,7 @@ class SyncScheduler @Inject constructor(
      * push events from the same account collapse - we don't need to spam the
      * server with redundant refreshes.
      */
-    fun enqueueImmediateSync(accountId: Long) {
+    open fun enqueueImmediateSync(accountId: Long) {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
