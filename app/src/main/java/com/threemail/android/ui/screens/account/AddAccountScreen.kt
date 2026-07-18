@@ -20,7 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Login
+import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -117,7 +117,7 @@ fun AddAccountScreen(
                     .height(52.dp),
                 enabled = !state.isSaving
             ) {
-                Icon(Icons.Default.Login, contentDescription = null)
+                Icon(Icons.AutoMirrored.Filled.Login, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.sign_in_with_google))
             }
