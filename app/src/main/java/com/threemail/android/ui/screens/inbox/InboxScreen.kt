@@ -91,12 +91,14 @@ fun InboxScreen(
         drawerContent = {
             FolderDrawerContent(
                 account = state.selectedAccount,
+                accounts = state.accounts,
                 folders = state.folders,
                 selectedFolder = state.selectedFolder,
                 onFolderClick = { folder ->
                     viewModel.selectFolder(folder)
                     scope.launch { drawerState.close() }
                 },
+                onSelectAccount = { account -> viewModel.selectAccount(account) },
                 onToggleFavorite = { folder -> viewModel.toggleFavorite(folder) },
                 onReorderFavorite = { accountId, serverIds ->
                     viewModel.reorderFavorites(accountId, serverIds)
