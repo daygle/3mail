@@ -167,6 +167,10 @@ class MailActions @Inject constructor(
         messages.forEach { runCatching { archive(it) } }
     }
 
+    suspend fun markSpamBatch(messages: Collection<MailMessage>) {
+        messages.forEach { runCatching { markSpam(it) } }
+    }
+
     suspend fun move(message: MailMessage, target: MailFolder): Result<Unit> {
         val folders = mailRepository.getFoldersOnce(message.accountId)
         val source = folders.firstOrNull { it.id == message.folderId }
