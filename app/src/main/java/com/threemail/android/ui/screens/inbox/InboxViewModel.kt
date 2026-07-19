@@ -393,6 +393,21 @@ class InboxViewModel @Inject constructor(
     }
 
     /**
+     * Permanently delete every message in the currently-selected account's
+     * Trash folder. Server-first: marks each message DELETED on the remote
+     * then expunges the folder; only on server success do we drop the local
+     * cache for that folder. A confirmation dialog guards the call site.
+     */
+    fun emptyTrash() {
+        viewModelScope.launch {
+            val account = _selectedAccount.value ?: return@launch
+            val folders = mailRepository.getFoldersOnce(account.id)
+            val trash = folders.firstOrNull { it.type == FolderType.TRASH } ?: return@launch
+            mailActions.emptyTrash(account, trash)
+        }
+    }
+
+    /**
      * Toggle the favorite flag for a folder. Writes through the repository so
      * the joined `folder + folder_favorites` flow re-emits and the drawer's
      * favorites section + star icons update without a server round-trip.

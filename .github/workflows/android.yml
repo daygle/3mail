@@ -124,6 +124,10 @@ jobs:
           ram-size: 4096
           disk-size: 4096
           force-avd-creation: true
+          # macOS runners are shared and the AVD boot can be much slower than
+          # the 600 s default; raise it to 20 minutes so a cold boot (no cached
+          # snapshot) doesn't abort the CI run.
+          emulator-boot-timeout: 1200
           script: gradle connectedDebugAndroidTest --stacktrace
 
       - name: Upload instrumented test report

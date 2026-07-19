@@ -67,6 +67,7 @@ import com.threemail.android.R
 import com.threemail.android.data.repository.UndoKind
 import com.threemail.android.data.settings.MessageDensity
 import com.threemail.android.data.settings.SwipeAction
+import com.threemail.android.domain.model.FolderType
 import com.threemail.android.domain.model.MailMessage
 import com.threemail.android.ui.components.EmptyState
 import com.threemail.android.ui.components.FolderDrawerContent
@@ -133,6 +134,10 @@ fun InboxScreen(
     // at top-level so the dialog overlays both the Scaffold and the modal
     // navigation drawer.
     var confirmSpam by remember { mutableStateOf(false) }
+
+    // Confirmation dialog for emptying the Trash folder. Only active when the
+    // selected folder is the Trash folder (checked before setting to true).
+    var confirmEmptyTrash by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.recoverableAuthIntent) {
         state.recoverableAuthIntent?.let { intent -> recoverableAuthLauncher.launch(intent) }
@@ -202,6 +207,7 @@ fun InboxScreen(
                         onMarkSpam = { confirmSpam = true }
                     )
                 } else {
+                    val isTrashFolder = state.selectedFolder?.type == FolderType.TRASH
                     InboxTopBar(
                         title = when {
                             state.unifiedInbox -> stringResource(R.string.unified_inbox)
@@ -211,7 +217,9 @@ fun InboxScreen(
                         onOpenDrawer = { scope.launch { drawerState.open() } },
                         onSearch = onNavigateToSearch,
                         onSync = { viewModel.sync() },
-                        onMarkAllRead = { viewModel.markAllRead() }
+                        onMarkAllRead = { viewModel.markAllRead() },
+                        showEmptyTrash = isTrashFolder,
+                        onEmptyTrash = { confirmEmptyTrash = true }
                     )
                 }
             },
@@ -306,6 +314,25 @@ fun InboxScreen(
             }
         )
     }
+
+    if (confirmEmptyTrash) {
+        AlertDialog(
+            onDismissRequest = { confirmEmptyTrash = false },
+            title = { Text(stringResource(R.string.empty_trash_confirm_title)) },
+            text = { Text(stringResource(R.string.empty_trash_confirm_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmEmptyTrash = false
+                    viewModel.emptyTrash()
+                }) { Text(stringResource(R.string.delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmEmptyTrash = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -316,7 +343,9 @@ private fun InboxTopBar(
     onOpenDrawer: () -> Unit,
     onSearch: () -> Unit,
     onSync: () -> Unit,
-    onMarkAllRead: () -> Unit
+    onMarkAllRead: () -> Unit,
+    showEmptyTrash: Boolean = false,
+    onEmptyTrash: () -> Unit = {}
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     TopAppBar(
@@ -333,6 +362,14 @@ private fun InboxTopBar(
             IconButton(onClick = onSync) {
                 Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.sync))
             }
+            if (showEmptyTrash) {
+                IconButton(onClick = onEmptyTrash) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = stringResource(R.string.empty_trash_action)
+                    )
+                }
+            }
             IconButton(onClick = { menuOpen = true }) {
                 Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.settings))
             }
@@ -345,6 +382,28 @@ private fun InboxTopBar(
                         onMarkAllRead()
                     }
                 )
+                if (showEmptyTrash) {
+                    HorizontalDivider()
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                stringResource(R.string.empty_trash_action),
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        },
+                        onClick = {
+                            menuOpen = false
+                            onEmptyTrash()
+                        }
+                    )
+                }
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(

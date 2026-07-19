@@ -265,4 +265,9 @@
          server syncs via the message_flags side-table so the badge reappears
          on the same row after every Sent-folder re-fetch. -->
     <string name="sent_encrypted_content_description">Sent encrypted</string>
+
+    <!-- Empty Trash action (visible in the Trash folder's top bar and overflow menu) -->
+    <string name="empty_trash_action">Empty Trash</string>
+    <string name="empty_trash_confirm_title">Empty Trash?</string>
+    <string name="empty_trash_confirm_body">All messages in the Trash folder will be permanently deleted from the server. This cannot be undone.</string>
 </resources>
