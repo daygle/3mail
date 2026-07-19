@@ -28,13 +28,22 @@ import androidx.compose.material.icons.automirrored.filled.ReplyAll
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DriveFileMove
 import androidx.compose.material.icons.filled.MarkEmailUnread
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.Report
 import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -44,6 +53,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -82,6 +92,8 @@ fun MessageDetailScreen(
     val state by viewModel.uiState.collectAsState()
     val message = state.message
     val context = LocalContext.current
+    var menuOpen by remember { mutableStateOf(false) }
+    var showMoveDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.isDeleted) {
         if (state.isDeleted) onNavigateBack()
@@ -97,6 +109,36 @@ fun MessageDetailScreen(
             runCatching { context.startActivity(Intent.createChooser(intent, context.getString(R.string.open_with))) }
             viewModel.onFileOpened()
         }
+    }
+
+    if (showMoveDialog) {
+        AlertDialog(
+            onDismissRequest = { showMoveDialog = false },
+            title = { Text(stringResource(R.string.move_to_folder)) },
+            text = {
+                LazyColumn {
+                    items(state.moveTargets, key = { it.id }) { folder ->
+                        Text(
+                            text = folder.name,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    showMoveDialog = false
+                                    viewModel.moveToFolder(folder)
+                                }
+                                .padding(vertical = 12.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showMoveDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -124,6 +166,30 @@ fun MessageDetailScreen(
                     }
                     IconButton(onClick = { viewModel.delete() }) {
                         Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete))
+                    }
+                    IconButton(onClick = { menuOpen = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.more_options))
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.move_to_folder)) },
+                            leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null) },
+                            enabled = state.moveTargets.isNotEmpty(),
+                            onClick = {
+                                menuOpen = false
+                                showMoveDialog = true
+                            }
+                        )
+                        if (state.spamAvailable) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.mark_as_spam)) },
+                                leadingIcon = { Icon(Icons.Outlined.Report, contentDescription = null) },
+                                onClick = {
+                                    menuOpen = false
+                                    viewModel.markSpam()
+                                }
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

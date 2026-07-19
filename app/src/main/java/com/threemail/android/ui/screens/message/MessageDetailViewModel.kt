@@ -9,6 +9,8 @@ import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.repository.MailActions
 import com.threemail.android.data.repository.MailRepository
 import com.threemail.android.domain.model.Attachment
+import com.threemail.android.domain.model.FolderType
+import com.threemail.android.domain.model.MailFolder
 import com.threemail.android.domain.model.MailMessage
 import com.threemail.android.util.MailText
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -36,7 +38,11 @@ class MessageDetailViewModel @Inject constructor(
         val isDeleted: Boolean = false,
         val downloadingAttachment: String? = null,
         val openFile: File? = null,
-        val error: String? = null
+        val error: String? = null,
+        /** Candidate folders for the move picker (excludes the message's current folder). */
+        val moveTargets: List<MailFolder> = emptyList(),
+        /** Whether a Spam/Junk folder exists so the "Mark as spam" action can show. */
+        val spamAvailable: Boolean = false
     )
 
     private val _uiState = MutableStateFlow(UiState())
@@ -55,6 +61,7 @@ class MessageDetailViewModel @Inject constructor(
                 val message = mailRepository.getMessageById(messageId)
                 _uiState.value = UiState(message = message, isLoading = false)
                 message?.let {
+                    loadFolders(it)
                     // Mark read locally + on the server the first time it is opened.
                     if (!it.isRead) mailActions.setRead(it, true)
                     if (it.bodyHtml.isNullOrBlank() && it.bodyPlain.isNullOrBlank()) {
@@ -115,10 +122,22 @@ class MessageDetailViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Loads the account's folders once so the move picker + spam action know
+     * their targets. Excludes the message's current folder from the move list.
+     */
+    private suspend fun loadFolders(message: MailMessage) {
+        val folders = mailRepository.getFoldersOnce(message.accountId)
+        _uiState.value = _uiState.value.copy(
+            moveTargets = folders.filter { it.id != message.folderId },
+            spamAvailable = folders.any { it.type == FolderType.SPAM && it.id != message.folderId }
+        )
+    }
+
     fun delete() {
         val message = _uiState.value.message ?: return
         viewModelScope.launch {
-            mailActions.delete(message)
+            mailActions.deleteWithUndo(message)
             _uiState.value = _uiState.value.copy(isDeleted = true)
         }
     }
@@ -126,7 +145,26 @@ class MessageDetailViewModel @Inject constructor(
     fun archive() {
         val message = _uiState.value.message ?: return
         viewModelScope.launch {
-            mailActions.archive(message)
+            mailActions.archiveWithUndo(message)
+            _uiState.value = _uiState.value.copy(isDeleted = true)
+        }
+    }
+
+    /** Move to a user-picked folder; the inbox surfaces the undo snackbar on return. */
+    fun moveToFolder(target: MailFolder) {
+        val message = _uiState.value.message ?: return
+        viewModelScope.launch {
+            mailActions.moveWithUndo(message, target)
+            _uiState.value = _uiState.value.copy(isDeleted = true)
+        }
+    }
+
+    /** Move to the account's Spam/Junk folder, if one exists. */
+    fun markSpam() {
+        val message = _uiState.value.message ?: return
+        val spam = _uiState.value.moveTargets.firstOrNull { it.type == FolderType.SPAM } ?: return
+        viewModelScope.launch {
+            mailActions.moveWithUndo(message, spam, spam = true)
             _uiState.value = _uiState.value.copy(isDeleted = true)
         }
     }

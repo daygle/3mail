@@ -36,6 +36,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
@@ -59,6 +62,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.threemail.android.R
+import com.threemail.android.data.repository.UndoKind
 import com.threemail.android.data.settings.MessageDensity
 import com.threemail.android.data.settings.SwipeAction
 import com.threemail.android.domain.model.MailMessage
@@ -85,6 +89,32 @@ fun InboxScreen(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    // Undo snackbar for deferred archive/delete/move/spam actions.
+    val snackbarHostState = remember { SnackbarHostState() }
+    val undoPending by viewModel.undoPending.collectAsState()
+    val undoActionLabel = stringResource(R.string.action_undo)
+    val archivedLabel = stringResource(R.string.snackbar_archived)
+    val deletedLabel = stringResource(R.string.snackbar_deleted)
+    val movedLabel = stringResource(R.string.snackbar_moved)
+    val spamLabel = stringResource(R.string.snackbar_spam)
+    LaunchedEffect(undoPending) {
+        val pending = undoPending ?: return@LaunchedEffect
+        val message = when (pending.kind) {
+            UndoKind.ARCHIVE -> archivedLabel
+            UndoKind.DELETE -> deletedLabel
+            UndoKind.MOVE -> movedLabel
+            UndoKind.SPAM -> spamLabel
+        }
+        val result = snackbarHostState.showSnackbar(
+            message = message,
+            actionLabel = undoActionLabel,
+            withDismissAction = true
+        )
+        if (result == SnackbarResult.ActionPerformed) {
+            viewModel.undo()
+        }
+    }
 
     val recoverableAuthLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -147,6 +177,7 @@ fun InboxScreen(
     ) {
         Scaffold(
             modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+            snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 if (state.selectionMode) {
                     SelectionTopBar(
