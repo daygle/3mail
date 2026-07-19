@@ -48,4 +48,7 @@ class ImapRemote(private val client: ImapClient) : MailRemote {
 
     override suspend fun appendDraft(draftsFolder: MailFolder, message: OutgoingMessage): Result<Unit> =
         client.appendDraft(draftsFolder.serverId, message)
+
+    override suspend fun setSubscribed(folder: MailFolder, subscribed: Boolean): Result<Unit> =
+        client.setSubscribed(folder.serverId, subscribed)
 }

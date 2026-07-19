@@ -25,7 +25,8 @@ class MailActions @Inject constructor(
     private val accountRepository: AccountRepository,
     private val mailRepository: MailRepository,
     private val mailRemoteFactory: MailRemoteFactory,
-    private val imapClientFactory: ImapClientFactory
+    private val imapClientFactory: ImapClientFactory,
+    private val undoController: UndoController
 ) {
 
     suspend fun setRead(message: MailMessage, isRead: Boolean): Result<Unit> {
@@ -53,6 +54,65 @@ class MailActions @Inject constructor(
             ?: return delete(message)
         mailRepository.moveMessageToFolder(message.id, archive.id)
         return remote(message, source) { remote, folder -> remote.move(folder, message, archive) }
+    }
+
+    /**
+     * Undo-aware triage: apply the folder move locally now (so the row leaves
+     * the list immediately), then defer the server operation through
+     * [UndoController]. If the user taps Undo within the window, only the local
+     * move is reverted and the server is never touched; otherwise the server op
+     * commits after the window. See [UndoController] for why deferral matters on
+     * IMAP.
+     *
+     * The [message] snapshot captured here still points at its original folder /
+     * UID, which is exactly what the deferred server op needs.
+     */
+    suspend fun archiveWithUndo(message: MailMessage) {
+        val folders = mailRepository.getFoldersOnce(message.accountId)
+        val source = folders.firstOrNull { it.id == message.folderId }
+        val archive = folders.firstOrNull { it.type == FolderType.ARCHIVE || it.type == FolderType.ALL_MAIL }
+        if (source == null || archive == null) {
+            deleteWithUndo(message)
+            return
+        }
+        mailRepository.moveMessageToFolder(message.id, archive.id)
+        val account = accountRepository.getAccountById(message.accountId)
+        undoController.enqueue(
+            kind = UndoKind.ARCHIVE,
+            commit = { account?.let { mailRemoteFactory.create(it).move(source, message, archive) } },
+            revert = { mailRepository.moveMessageToFolder(message.id, source.id) }
+        )
+    }
+
+    suspend fun deleteWithUndo(message: MailMessage) {
+        val folders = mailRepository.getFoldersOnce(message.accountId)
+        val source = folders.firstOrNull { it.id == message.folderId }
+        val trash = folders.firstOrNull { it.type == FolderType.TRASH }
+        if (source == null || trash == null || trash.id == message.folderId) {
+            // Deleting from Trash, or no Trash folder (e.g. POP3): permanent,
+            // nothing to undo, so commit immediately.
+            delete(message)
+            return
+        }
+        mailRepository.moveMessageToFolder(message.id, trash.id)
+        val account = accountRepository.getAccountById(message.accountId)
+        undoController.enqueue(
+            kind = UndoKind.DELETE,
+            commit = { account?.let { mailRemoteFactory.create(it).delete(source, message, trash) } },
+            revert = { mailRepository.moveMessageToFolder(message.id, source.id) }
+        )
+    }
+
+    suspend fun moveWithUndo(message: MailMessage, target: MailFolder, spam: Boolean = false) {
+        val folders = mailRepository.getFoldersOnce(message.accountId)
+        val source = folders.firstOrNull { it.id == message.folderId }
+        mailRepository.moveMessageToFolder(message.id, target.id)
+        val account = accountRepository.getAccountById(message.accountId)
+        undoController.enqueue(
+            kind = if (spam) UndoKind.SPAM else UndoKind.MOVE,
+            commit = { if (source != null) account?.let { mailRemoteFactory.create(it).move(source, message, target) } },
+            revert = { source?.let { mailRepository.moveMessageToFolder(message.id, it.id) } }
+        )
     }
 
     /**

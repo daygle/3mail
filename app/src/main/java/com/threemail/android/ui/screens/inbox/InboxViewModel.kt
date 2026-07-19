@@ -8,6 +8,7 @@ import com.threemail.android.data.remote.gmail.RecoverableAuthException
 import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.repository.MailActions
 import com.threemail.android.data.repository.MailRepository
+import com.threemail.android.data.repository.UndoController
 import com.threemail.android.data.settings.MessageDensity
 import com.threemail.android.data.settings.SettingsRepository
 import com.threemail.android.data.settings.SwipeAction
@@ -35,8 +36,14 @@ class InboxViewModel @Inject constructor(
     private val mailRepository: MailRepository,
     private val mailActions: MailActions,
     private val mailRemoteFactory: MailRemoteFactory,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val undoController: UndoController
 ) : ViewModel() {
+
+    /** Pending undoable action (drives the inbox undo snackbar). */
+    val undoPending = undoController.pending
+
+    fun undo() = undoController.undo()
 
     data class UiState(
         val accounts: List<Account> = emptyList(),
@@ -309,11 +316,11 @@ class InboxViewModel @Inject constructor(
     }
 
     fun delete(message: MailMessage) {
-        viewModelScope.launch { mailActions.delete(message) }
+        viewModelScope.launch { mailActions.deleteWithUndo(message) }
     }
 
     fun archive(message: MailMessage) {
-        viewModelScope.launch { mailActions.archive(message) }
+        viewModelScope.launch { mailActions.archiveWithUndo(message) }
     }
 
     /**
