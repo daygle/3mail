@@ -311,7 +311,16 @@ class ImapClient(
                     MailFolder(
                         accountId = account.id,
                         serverId = folder.fullName,
-                        name = folder.name,
+                        // IMAP servers return the inbox leaf as "INBOX" per RFC 3501,
+                        // but every modern email client titles-cases it as "Inbox" in
+                        // the UI. Normalize the displayed name here so the change is
+                        // a single-source fix (drawer, folder management, favourites,
+                        // move-to-folder dialogs, etc.) without touching the
+                        // server-command `serverId`, which must remain the canonical
+                        // "INBOX" uppercase to pass `SELECT`/`EXAMINE` on every
+                        // server we talk to. Other folder names pass through
+                        // untouched (e.g. "Sent", "Drafts", "[Gmail]/All Mail").
+                        name = if (folder.name.equals("INBOX", ignoreCase = true)) "Inbox" else folder.name,
                         type = type,
                         // Hide unsubscribed folders by default, but never the
                         // inbox, and never when the server gave us no LSUB data.
