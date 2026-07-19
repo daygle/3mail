@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.outlined.Report
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -186,7 +187,8 @@ fun InboxScreen(
                         onMarkRead = { viewModel.markSelectedRead(true) },
                         onMarkUnread = { viewModel.markSelectedRead(false) },
                         onArchive = { viewModel.archiveSelected() },
-                        onDelete = { viewModel.deleteSelected() }
+                        onDelete = { viewModel.deleteSelected() },
+                        onMarkSpam = { viewModel.markSpamSelected() }
                     )
                 } else {
                     InboxTopBar(
@@ -329,7 +331,8 @@ private fun SelectionTopBar(
     onMarkRead: () -> Unit,
     onMarkUnread: () -> Unit,
     onArchive: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onMarkSpam: () -> Unit
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     TopAppBar(
@@ -345,6 +348,9 @@ private fun SelectionTopBar(
             }
             IconButton(onClick = onArchive) {
                 Icon(Icons.Default.Archive, contentDescription = stringResource(R.string.archive))
+            }
+            IconButton(onClick = onMarkSpam) {
+                Icon(Icons.Outlined.Report, contentDescription = stringResource(R.string.mark_as_spam))
             }
             IconButton(onClick = onDelete) {
                 Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete))

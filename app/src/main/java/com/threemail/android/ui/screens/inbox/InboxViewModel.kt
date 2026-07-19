@@ -358,6 +358,18 @@ class InboxViewModel @Inject constructor(
         viewModelScope.launch { mailActions.setReadBatch(batch, isRead) }
     }
 
+    /**
+     * Bulk-mark every selected message as spam. Routes through
+     * [MailActions.markSpamBatch] which silently skips messages whose
+     * account has no Spam/Junk folder (mirroring how archiveBatch /
+     * deleteBatch tolerate partial failures).
+     */
+    fun markSpamSelected() {
+        val batch = selectedMessages()
+        _selectedIds.value = emptySet()
+        viewModelScope.launch { mailActions.markSpamBatch(batch) }
+    }
+
     /** Mark every message in the current feed as read (server + local). */
     fun markAllRead() {
         val batch = messagesFlow.value.filterNot { it.isRead }

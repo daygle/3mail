@@ -218,9 +218,8 @@ class MessageDetailViewModel @Inject constructor(
     /** Move to the account's Spam/Junk folder, if one exists. */
     fun markSpam() {
         val message = _uiState.value.message ?: return
-        val spam = _uiState.value.moveTargets.firstOrNull { it.type == FolderType.SPAM } ?: return
         viewModelScope.launch {
-            mailActions.moveWithUndo(message, spam, spam = true)
+            mailActions.markSpamWithUndo(message)
             _uiState.value = _uiState.value.copy(isDeleted = true)
         }
     }

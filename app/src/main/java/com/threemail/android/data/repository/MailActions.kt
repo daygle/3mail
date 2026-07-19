@@ -111,6 +111,43 @@ class MailActions @Inject constructor(
     }
 
     /**
+     * Move a single message to its account's Spam/Junk folder immediately
+     * (server-first, no UndoController wiring). Mirrors [archive] / [delete] -
+     * used by [markSpamBatch] so a multi-select mark-as-spam completes
+     * once-through, matching the existing archiveBatch / deleteBatch
+     * convention. Silently no-ops when the account has no Spam folder.
+     */
+    suspend fun markSpam(message: MailMessage): Result<Unit> {
+        val folders = mailRepository.getFoldersOnce(message.accountId)
+        val source = folders.firstOrNull { it.id == message.folderId }
+        val spam = folders.firstOrNull { it.type == FolderType.SPAM }
+            ?: return Result.success(Unit)
+        if (source?.id == spam.id) return Result.success(Unit) // already in spam
+        mailRepository.moveMessageToFolder(message.id, spam.id)
+        return remote(message, source) { remote, folder -> remote.move(folder, message, spam) }
+    }
+
+    /**
+     * Single-message spam move that surfaces an Undo snackbar in the inbox.
+     * Mirrors [archiveWithUndo] / [deleteWithUndo]. Used by the message-detail
+     * screen's MoreVert overflow so the same action triggered from a single
+     * message keeps the existing single-action undo flow.
+     */
+    suspend fun markSpamWithUndo(message: MailMessage) {
+        val folders = mailRepository.getFoldersOnce(message.accountId)
+        val source = folders.firstOrNull { it.id == message.folderId }
+        val spam = folders.firstOrNull { it.type == FolderType.SPAM } ?: return
+        if (source?.id == spam.id) return // already in spam, no undo either
+        mailRepository.moveMessageToFolder(message.id, spam.id)
+        val account = accountRepository.getAccountById(message.accountId)
+        undoController.enqueue(
+            kind = UndoKind.SPAM,
+            commit = { if (source != null) account?.let { mailRemoteFactory.create(it).move(source, message, spam) } },
+            revert = { source?.let { mailRepository.moveMessageToFolder(message.id, it.id) } }
+        )
+    }
+
+    /**
      * Batch variants for multi-select triage. Each delegates to the
      * per-message path so local Room mutation and the provider-native remote
      * call (IMAP/Gmail) stay identical to the single-message actions. Failures
