@@ -16,6 +16,7 @@ import org.bouncycastle.openpgp.PGPCompressedDataGenerator
 import org.bouncycastle.openpgp.PGPEncryptedDataGenerator
 import org.bouncycastle.openpgp.PGPEncryptedDataList
 import org.bouncycastle.openpgp.PGPException
+import org.bouncycastle.openpgp.PGPKeyPair
 import org.bouncycastle.openpgp.PGPLiteralData
 import org.bouncycastle.openpgp.PGPLiteralDataGenerator
 import org.bouncycastle.openpgp.PGPObjectFactory
@@ -31,6 +32,7 @@ import org.bouncycastle.openpgp.PGPUtil
 import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentSignerBuilder
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider
+import org.bouncycastle.openpgp.operator.jcajce.JcaPGPDigestCalculatorProviderBuilder
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPKeyPair
 import org.bouncycastle.openpgp.operator.jcajce.JcePBESecretKeyDecryptorBuilder
 import org.bouncycastle.openpgp.operator.jcajce.JcePBESecretKeyEncryptorBuilder
@@ -363,24 +365,30 @@ class OpenPgpController @Inject constructor(
             pair,
             today
         )
-        // BC 1.78: JcePBESecretKeyEncryptorBuilder now takes either
-        // (int encAlgorithm) or (int encAlgorithm, PGPDigestCalculator).
-        // The previous (int, CharArray) shape was dropped - the
-        // passphrase is supplied via .build(char[], SecureRandom) on
-        // the returned builder.
+        // BC 1.78 PGPSecretKey ctor:
+        //   (certificationLevel, PGPKeyPair, id, checksumCalculator,
+        //    certificationSignerBuilder, keyEncryptor)
+        // The checksum digest calculator is SHA-1 (the standard S2K checksum),
+        // and JcePBESecretKeyEncryptorBuilder.build takes only the passphrase.
+        val sha1Calc = JcaPGPDigestCalculatorProviderBuilder()
+            .setProvider(PROVIDER)
+            .build()
+            .get(HashAlgorithmTags.SHA1)
         val secretKey = PGPSecretKey(
             PGPSignature.DEFAULT_CERTIFICATION,
-            pgpPair.publicKey,
-            pgpPair.privateKey,
-            today,
+            pgpPair,
+            "3mail:$accountId",
+            sha1Calc,
+            JcaPGPContentSignerBuilder(pgpPair.publicKey.algorithm, HashAlgorithmTags.SHA256)
+                .setProvider(PROVIDER),
             JcePBESecretKeyEncryptorBuilder(SymmetricKeyAlgorithmTags.AES_256)
                 .setProvider(PROVIDER)
-                .build(WRAPPING_ONLY.toCharArray(), SecureRandom())
+                .build(WRAPPING_ONLY.toCharArray())
         )
         val ring = PGPSecretKeyRing(secretKey)
         sec.writeText(armorBytes(ring.encoded))
         val publicRing = PGPPublicKeyRing(
-            PGPUtil.getDecoderStream(pgpPair.publicKey.encoded),
+            PGPUtil.getDecoderStream(ByteArrayInputStream(pgpPair.publicKey.encoded)),
             JcaKeyFingerprintCalculator()
         )
         pub.writeText(armorBytes(publicRing.encoded))
@@ -403,15 +411,16 @@ class OpenPgpController @Inject constructor(
      */
     private fun unlockPrivateKeyAndSigningState(
         ring: PGPSecretKeyRing
-    ): JcaPGPKeyPair {
+    ): PGPKeyPair {
         val secretKey = ring.secretKey
         val priv = secretKey.extractPrivateKey(
             JcePBESecretKeyDecryptorBuilder().setProvider(PROVIDER)
                 .build(WRAPPING_ONLY.toCharArray())
         )
-        // BC 1.78: JcaPGPKeyPair takes (PGPPublicKey, PGPPrivateKey)
-        // directly when both halves are already PGP-shaped.
-        return JcaPGPKeyPair(secretKey.publicKey, priv)
+        // Both halves are already PGP-shaped, so wrap them with the base
+        // PGPKeyPair(PGPPublicKey, PGPPrivateKey) ctor (JcaPGPKeyPair only
+        // accepts a JCE KeyPair).
+        return PGPKeyPair(secretKey.publicKey, priv)
     }
 
     /**

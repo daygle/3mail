@@ -417,15 +417,18 @@ class ImapClient(
             withFolder(folderServerId, Folder.READ_ONLY) { folder ->
                 val msg = folder.getMessageByUID(uid)
                     ?: return@withFolder emptyMap<String, List<String>>()
-                // `Message.getAllHeaders()` is declared with an `Array<Header>?`
-                // Java-platform return type, so Kotlin sees the element type as
-                // `Any!` and the lambda parameter can't be inferred. Type the
-                // lambda parameter explicitly so `header.name` / `header.value`
-                // resolve against `javax.mail.Header`.
-                msg.allHeaders?.associate { header: javax.mail.Header ->
-                    header.name to header.value.split('\n').map { it.trim() }
+                // `Message.getAllHeaders()` returns a `java.util.Enumeration`
+                // (not a Kotlin collection or array), so it has no `associate`.
+                // Walk it with the raw Enumeration API and cast each element to
+                // `javax.mail.Header`.
+                val headers = LinkedHashMap<String, List<String>>()
+                val enumeration = msg.allHeaders
+                while (enumeration != null && enumeration.hasMoreElements()) {
+                    val header = enumeration.nextElement() as javax.mail.Header
+                    headers[header.name] = header.value.split('\n').map { it.trim() }
                         .filter { it.isNotEmpty() }
-                } ?: emptyMap()
+                }
+                headers
             }.let { Result.success(it) }
         } catch (e: RecoverableAuthException) {
             throw e
