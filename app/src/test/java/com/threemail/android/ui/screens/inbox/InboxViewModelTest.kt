@@ -287,7 +287,7 @@ class InboxViewModelTest {
             return Result.success(RemoteFetch(emptyList(), sinceCursor))
         }
 
-        // Paths the viewmodel doesn't drive from these tests — failing loud
+        // Paths the viewmodel doesn't drive from these tests - failing loud
         // surfaces any future regression that re-wires one of them.
         override suspend fun fetchBody(folder: MailFolder, message: MailMessage): Result<MessageBody> = notStubbed()
         override suspend fun setSeen(folder: MailFolder, message: MailMessage, seen: Boolean): Result<Unit> = notStubbed()

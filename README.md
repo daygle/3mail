@@ -11,21 +11,21 @@ A modern, full-featured Android mail client supporting IMAP (push), Gmail (OAuth
 
 ## Features
 
-- **Multi-account**: IMAP (with IDLE push notifications), Gmail via OAuth2, and POP3 - selected per account behind a `MailRemote` abstraction, so each account picks the right transport automatically. POP3 is inbox-only with local-only read/star flags (no server folders or push), and still sends over SMTP.
+- **Multi-account**: IMAP (with IDLE push notifications), Gmail via OAuth2, and POP3 - selected per account behind a `MailRemote` abstraction, so each account picks the right transport automatically. POP3 is inbox-only with local-only read flags (no server folders or push), and still sends over SMTP.
 - **Unified inbox**: an all-accounts inbox view (drawer entry when more than one account is configured) backed by a reactive cross-account query over every INBOX folder.
-- **Multi-select triage**: long-press to enter selection mode, then batch archive / delete / mark read-unread / star / select-all from a contextual app bar; plus a mark-all-read action and Material 3 pull-to-refresh.
-- **Configurable swipe & density**: pick the left/right swipe action (none / archive / delete / read-unread / star), message-list density (comfortable / compact), and body-preview line count in Settings.
+- **Multi-select triage**: long-press to enter selection mode, then batch archive / delete / mark read-unread / select-all from a contextual app bar; plus a mark-all-read action and Material 3 pull-to-refresh.
+- **Configurable swipe & density**: pick the left/right swipe action (none / archive / delete / read-unread), message-list density (comfortable / compact), and body-preview line count in Settings.
 - **Send-as identities**: multiple sender aliases per account with per-identity signatures, chosen from the composer's From selector; plus optional read-receipt (Disposition-Notification-To) requests.
-- **Folder visibility**: a Manage folders screen hides folders from the drawer while keeping them synced.
-- **OpenPGP encryption (experimental)**: inline-PGP sign+encrypt on send and decrypt+verify on read, delegated to the external [OpenKeychain](https://www.openkeychain.org/) app via its OpenPGP API (the app never handles private keys itself). Opt-in per message; the compose encrypt toggle and the message-view decrypt/signature banner appear only when OpenKeychain is installed. PGP/MIME and Autocrypt are not yet implemented, and attachments are sent unencrypted in inline mode.
-- **Native Gmail sync**: Gmail REST API for labels-as-folders, server-side threads, and label-based read/star; IMAP/SMTP for everything else.
+- **Folder drawer & visibility**: tap a folder to select and instantly auto-sync its contents, or long-press to add / remove it from favourites via a small dropdown menu. A Manage folders screen hides folders from the drawer while keeping them synced.
+- **OpenPGP encryption (currently dormant)**: the OpenKeychain-brokered integration is preserved in source for future restoration, but the active dependency has been dropped and `OpenPgpController` is a stub: every operation funnels through `PgpResult.Unavailable` / `false`, so the compose Encrypt toggle stays hidden and message-view never enters its decrypt path. The app degrades to plaintext transparently until a working upstream `openpgp-api` coordinate resurfaces; see [`data/crypto/OpenPgpController.kt`](app/src/main/java/com/threemail/android/data/crypto/OpenPgpController.kt) for the restoration doc-comment.
+- **Native Gmail sync**: Gmail REST API for labels-as-folders, server-side threads, and label-based read; IMAP/SMTP for everything else.
 - **Modern UI**: Material 3 + Jetpack Compose with dynamic color (Material You), light/dark/system themes, sender avatars, swipe-to-archive/delete, and a folder navigation drawer.
 - **Full message reading**: HTML bodies rendered in a `WebView` (remote images blocked by default), plain-text fallback, and on-demand body fetch.
 - **Compose, reply, reply-all, and forward** with quoting and `Re:`/`Fwd:` handling.
 - **Rich-text compose**: bold / italic / lists / links toolbar, **inline images** sent as `multipart/related` with `cid:` references and `Content-Disposition: inline`, and the body encoded as multipart/alternative (plain + HTML).
 - **Contact autocomplete** for To/Cc/Bcc: tap-to-complete from system contacts, debounced, scoped to the typed-after-last-comma segment. `READ_CONTACTS` is requested on the user's first interaction with a recipient field (not on screen mount).
 - **Attachments**: view and download incoming attachments; attach files to outgoing mail.
-- **Two-way sync**: read/star flags and delete/archive/move actions mirror between local Room and the IMAP/Gmail server.
+- **Two-way sync**: read flags and delete/archive/move actions mirror between local Room and the IMAP/Gmail server.
 - **Conversation threading** derived from `References`/`In-Reply-To` headers, plus server-side Gmail threads when available.
 - **Drafts** saved to the server's Drafts folder.
 - **Offline outbox**: composed mail is queued locally and delivered by a `SendMailWorker` with network-constrained retry, so a send survives connectivity loss and process death instead of being lost on a failed immediate call.
@@ -34,7 +34,7 @@ A modern, full-featured Android mail client supporting IMAP (push), Gmail (OAuth
 - **Notifications** for new mail, plus a launcher-badge counter.
 - **Push for IMAP**: a foreground `ImapIdleService` keeps an idle connection per account, drives immediate sync on `IdleEvent.NewMail`, and survives process death via `START_STICKY`.
 - **Incremental background sync**: `MailSyncWorker` with UID pagination for IMAP and `internalDate` cursor for Gmail.
-- **Encrypted credential storage** via `EncryptedSharedPreferences` backed by Android Keystore (see `data/security/CredentialStore.kt`).
+- **Encrypted credential storage** via direct **Android Keystore** (AES-256/GCM, 12-byte IV, per-account email as AAD) over a base64-encoded `SharedPreferences` file (`threemail_credentials_v2`), replacing the deprecated `androidx.security.crypto.EncryptedSharedPreferences` (see [`data/security/CredentialStore.kt`](app/src/main/java/com/threemail/android/data/security/CredentialStore.kt)).
 - **Configurable signature**, sync frequency, push, notifications, theme, and **Empty trash on launch / quit** (server-first `EXPUNGE` then local Room prune, dispatched through WorkManager so it survives process death on background).
 - **Per-account settings**: each account has its own settings screen (open it from the Accounts list) for a per-account **signature** (falls back to the global signature when blank), a **mail-check frequency** override (a dedicated periodic `MailSyncWorker` per account; "Default" follows the app-wide interval), and per-account **sync**, **notifications**, and IMAP **push** toggles. The settings pages are built from a shared Material 3 grouped-card component set (`ui/components/SettingsComponents.kt`).
 - **Launcher badge** counter for unread mail.
@@ -110,7 +110,7 @@ The fix, [`sync/ThreeMailWorkerFactory.kt`](app/src/main/java/com/threemail/andr
 ## Next Steps
 
 - Instrumented UI tests (Espresso / Compose UI test).
-- OpenPGP: PGP/MIME (encrypting attachments + structured bodies) and Autocrypt header exchange, building on the inline-PGP support already in place.
+- OpenPGP: restore the upstream `openpgp-api` dependency and bring the OpenKeychain-brokered inline-PGP sign/encrypt + decrypt/verify path back online (currently stubbed), then layer PGP/MIME (encrypting attachments + structured bodies) and Autocrypt header exchange on top.
 
 ## License
 

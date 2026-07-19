@@ -142,7 +142,7 @@ class AddAccountViewModelTest {
         assertEquals("STARTTLS chip should be selected after auto-upgrade", Security.STARTTLS, state.security)
         assertEquals(
             "banner should explain the upgrade",
-            "Server supports STARTTLS — upgraded automatically.",
+            "Server supports STARTTLS - upgraded automatically.",
             state.upgradeBanner
         )
         assertTrue("save() should reach the saved terminal", state.isSaved)

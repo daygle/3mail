@@ -70,7 +70,7 @@ open class CredentialStore @Inject constructor(
 
     // Loading the AndroidKeyStore provider involves a Provider service lookup
     // and JCA initialisation. Cache the loaded instance so each
-    // encrypt/decrypt call doesn't redo that work — this is on the hot path
+    // encrypt/decrypt call doesn't redo that work - this is on the hot path
     // for every IMAP login.
     private val keystore: KeyStore by lazy {
         KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
@@ -126,7 +126,7 @@ open class CredentialStore @Inject constructor(
         val combined = try {
             Base64.decode(encoded, Base64.NO_WRAP)
         } catch (e: IllegalArgumentException) {
-            // Format we don't recognise — likely leftover data from a previous
+            // Format we don't recognise - likely leftover data from a previous
             // storage scheme or filesystem corruption. Drop it so we don't
             // keep returning null forever.
             Log.w(TAG, "Stored password for $email is not valid base64; dropping", e)
@@ -159,7 +159,7 @@ open class CredentialStore @Inject constructor(
             dropEntry(email)
             null
         } catch (e: GeneralSecurityException) {
-            // Likely transient — keystore key invalidated by an OEM bug,
+            // Likely transient - keystore key invalidated by an OEM bug,
             // provider unavailable, etc. Don't delete the entry; the caller
             // can retry or surface a re-auth flow.
             Log.w(TAG, "Could not decrypt stored password for $email", e)

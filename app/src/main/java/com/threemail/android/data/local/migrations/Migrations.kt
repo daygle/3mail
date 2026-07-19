@@ -236,8 +236,8 @@ val MIGRATION_11_12: Migration = object : Migration(11, 12) {
  * composite. The followup fixed `MIGRATION_6_7` to drop both, but
  * [androidx.room.migration.Migration]s only fire for the
  * (oldVersion, newVersion) pair they declare, so users who already
- * passed v7 — including anyone who jumped from v7 straight to v11 /
- * v12 — carry the broken state forward. None of MIGRATION_7_8 through
+ * passed v7 - including anyone who jumped from v7 straight to v11 /
+ * v12 - carry the broken state forward. None of MIGRATION_7_8 through
  * MIGRATION_11_12 touch `messages` indices, so opening the DB at
  * v12 against the current Room schema re-validates with the entity's
  * 4-index layout and aborts with
@@ -245,16 +245,16 @@ val MIGRATION_11_12: Migration = object : Migration(11, 12) {
  *
  * Strategy: idempotent drop + create. Every statement tolerates either
  * the broken (5-index) state or the already-correct (4-index) state
- * — it is safe to re-run if the user later downgrades and re-upgrades,
+ * - it is safe to re-run if the user later downgrades and re-upgrades,
  * and safe for users on a fresh v13 install (the `IF EXISTS` /
  * `IF NOT EXISTS` clauses turn into no-ops).
  *
  * Order matters only for safety: drop the old unique composite
  * (`accountId, folderId, messageId`) and the orphan `folderId`
  * standalone before creating the new ordered composite. SQLite
- * enforces foreign keys on the **parent** table (`folders.id`) — an
+ * enforces foreign keys on the **parent** table (`folders.id`) - an
  * index on the **child** table's `folderId` is purely a perf
- * optimization — so dropping a child-column index never violates FK
+ * optimization - so dropping a child-column index never violates FK
  * constraints, and the new unique composite subsumes the FK-rowid
  * coverage that Room requires.
  *

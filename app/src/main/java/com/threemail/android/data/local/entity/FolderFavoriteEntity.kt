@@ -44,7 +44,7 @@ data class FolderFavoriteEntity(
     val accountId: Long,
     val serverId: String,
     // 0-indexed slot within the user's pinned shortcut list. -1 means
-    // "not yet ranked" — used only on the moment-of-insert inside a single
+    // "not yet ranked" - used only on the moment-of-insert inside a single
     // transactional addFavorite; the DAO replaces -1 with the running max
     // plus one before INSERT so callers never see -1 in a query result.
     val position: Int = -1

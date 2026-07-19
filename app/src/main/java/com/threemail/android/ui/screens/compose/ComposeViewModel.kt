@@ -455,7 +455,7 @@ class ComposeViewModel @Inject constructor(
      * Sign+encrypt the body as inline PGP via OpenKeychain. Recipients are every
      * addressee plus the sender (so the sent copy stays readable). Returns the
      * outgoing message with the armored ciphertext as its plain-text body (and
-     * no HTML alternative), or null when the send can't proceed yet — either
+     * no HTML alternative), or null when the send can't proceed yet - either
      * because OpenKeychain needs user interaction (surfaced via [UiState.pgpUserAction]
      * for the screen to launch, then [onPgpUserActionResult] retries) or an error
      * occurred. Attachments are sent as-is (inline PGP encrypts the body only).

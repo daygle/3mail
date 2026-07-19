@@ -71,7 +71,7 @@ class SettingsRepository @Inject constructor(
                     emptyTrashOnQuit = prefs[Keys.EMPTY_TRASH_ON_QUIT] ?: false,
                     pushEnabled = prefs[Keys.PUSH_ENABLED] ?: true,
                     // Legacy prefs holding the now-removed "TOGGLE_STAR"
-                    // string coerce to ARCHIVE (right) / DELETE (left) —
+                    // string coerce to ARCHIVE (right) / DELETE (left) -
                     // the safe defaults. Intentional one-way migration;
                     // do not surface this as a visible error.
                     swipeRightAction = prefs[Keys.SWIPE_RIGHT]?.let { runCatching { SwipeAction.valueOf(it) }.getOrNull() } ?: SwipeAction.ARCHIVE,

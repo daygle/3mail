@@ -24,7 +24,7 @@ import org.robolectric.RobolectricTestRunner
  *
  * The user's request is: "insert three favorites, reorder to positions
  * [2,0,1], and confirm `getFavoritesByAccount` returns them in the new
- * order." We model `[2,0,1]` as the new list ordering — original tuples
+ * order." We model `[2,0,1]` as the new list ordering - original tuples
  * were [A,B,C] at positions [0,1,2], the drag takes C to the top so the
  * post-reorder sequence is [C,A,B] mapping to slots [0,1,2]. Position
  * numbers in the rowids themselves move with the slot.

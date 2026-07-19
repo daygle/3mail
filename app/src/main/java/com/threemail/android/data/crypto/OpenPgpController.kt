@@ -51,7 +51,7 @@ sealed interface PgpResult {
  * the context, so leaving the parameter in pressured KSP / Hilt to keep
  * the qualifier across all build variants (in particular the test
  * component graph). Removing it for the stub makes the Hilt graph the
- * simplest possible shape — `@Singleton @Inject constructor()` — with no
+ * simplest possible shape - `@Singleton @Inject constructor()` - with no
  * qualifier for KSP to retain or drop.
  *
  * Restoring the real implementation: re-add `openpgp-api` to
@@ -60,7 +60,7 @@ sealed interface PgpResult {
  * `OpenPgpController.kt` body back over this stub. The public method
  * signatures (`isKeychainInstalled`, `signAndEncrypt`, `decryptAndVerify`)
  * and the `PgpResult` shape are preserved, so the call sites in
- * `ComposeViewModel.kt` and `MessageDetailViewModel.kt` need no edits —
+ * `ComposeViewModel.kt` and `MessageDetailViewModel.kt` need no edits -
  * the original constructor must take `@ApplicationContext context: Context`
  * again so it can install the binding to OpenKeychain.
  */

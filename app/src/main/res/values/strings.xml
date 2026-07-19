@@ -231,7 +231,7 @@
     <!-- Non-blocking banner shown on the Add Account screen when the IMAP
          handshake surfaced STARTTLS while the user had picked cleartext; we
          auto-upgrade and explain. Tone is informational, not a warning. -->
-    <string name="security_starttls_auto_upgrade">Server supports STARTTLS — upgraded automatically.</string>
+    <string name="security_starttls_auto_upgrade">Server supports STARTTLS - upgraded automatically.</string>
 
     <!-- Favorite folders (drawer's pinned / starred section) -->
     <string name="favorites">Favorites</string>
