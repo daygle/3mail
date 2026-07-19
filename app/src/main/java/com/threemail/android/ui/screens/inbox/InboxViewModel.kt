@@ -392,18 +392,43 @@ class InboxViewModel @Inject constructor(
         viewModelScope.launch { mailActions.markSpamWithUndo(message) }
     }
 
+    /** Event emitted after an Empty Trash attempt. Collected by the
+     * composable to show a snackbar with the result.
+     */
+    sealed interface EmptyTrashEvent {
+        data class Success(val expungedCount: Int) : EmptyTrashEvent
+        /** Failure carries no user-facing text — the Screen uses the
+         * localized `empty_trash_failure` resource for all failures. */
+        data object Failure : EmptyTrashEvent
+    }
+
+    private val _emptyTrashEvents = MutableSharedFlow<EmptyTrashEvent>(extraBufferCapacity = 1)
+    val emptyTrashEvents: SharedFlow<EmptyTrashEvent> = _emptyTrashEvents
+
     /**
      * Permanently delete every message in the currently-selected account's
      * Trash folder. Server-first: marks each message DELETED on the remote
      * then expunges the folder; only on server success do we drop the local
      * cache for that folder. A confirmation dialog guards the call site.
+     *
+     * Emits [EmptyTrashEvent.Success] or [EmptyTrashEvent.Failure] on the
+     * [emptyTrashEvents] flow so the UI can surface a snackbar.
      */
     fun emptyTrash() {
         viewModelScope.launch {
-            val account = _selectedAccount.value ?: return@launch
+            val account = _selectedAccount.value ?: run {
+                _emptyTrashEvents.tryEmit(EmptyTrashEvent.Failure)
+                return@launch
+            }
             val folders = mailRepository.getFoldersOnce(account.id)
-            val trash = folders.firstOrNull { it.type == FolderType.TRASH } ?: return@launch
-            mailActions.emptyTrash(account, trash)
+            val trash = folders.firstOrNull { it.type == FolderType.TRASH } ?: run {
+                _emptyTrashEvents.tryEmit(EmptyTrashEvent.Failure)
+                return@launch
+            }
+            val result = mailActions.emptyTrash(account, trash)
+            result
+                .onSuccess { count -> _emptyTrashEvents.tryEmit(EmptyTrashEvent.Success(count)) }
+                .onFailure { _emptyTrashEvents.tryEmit(EmptyTrashEvent.Failure) }
         }
     }
 

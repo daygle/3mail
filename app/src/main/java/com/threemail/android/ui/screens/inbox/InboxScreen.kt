@@ -139,6 +139,27 @@ fun InboxScreen(
     // selected folder is the Trash folder (checked before setting to true).
     var confirmEmptyTrash by remember { mutableStateOf(false) }
 
+    // Snackbar messages for empty-trash result feedback. Read at composition
+    // time so they are available inside the LaunchedEffect collector below.
+    val emptyTrashSuccessTemplate = stringResource(R.string.empty_trash_success)
+    val emptyTrashFailureMessage = stringResource(R.string.empty_trash_failure)
+
+    // Collect empty-trash events and show a snackbar with the result.
+    // Uses Unit as the key so the collector lives for the screen's lifetime.
+    LaunchedEffect(Unit) {
+        viewModel.emptyTrashEvents.collect { event ->
+            when (event) {
+                is InboxViewModel.EmptyTrashEvent.Success -> {
+                    val msg = java.lang.String.format(emptyTrashSuccessTemplate, event.expungedCount)
+                    snackbarHostState.showSnackbar(msg)
+                }
+                InboxViewModel.EmptyTrashEvent.Failure -> {
+                    snackbarHostState.showSnackbar(emptyTrashFailureMessage)
+                }
+            }
+        }
+    }
+
     LaunchedEffect(state.recoverableAuthIntent) {
         state.recoverableAuthIntent?.let { intent -> recoverableAuthLauncher.launch(intent) }
     }

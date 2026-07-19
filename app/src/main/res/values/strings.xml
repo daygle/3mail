@@ -270,4 +270,6 @@
     <string name="empty_trash_action">Empty Trash</string>
     <string name="empty_trash_confirm_title">Empty Trash?</string>
     <string name="empty_trash_confirm_body">All messages in the Trash folder will be permanently deleted from the server. This cannot be undone.</string>
+    <string name="empty_trash_success">Trash emptied (%1$d messages)</string>
+    <string name="empty_trash_failure">Failed to empty trash</string>
 </resources>
