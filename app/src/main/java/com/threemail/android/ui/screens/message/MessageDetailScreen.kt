@@ -1,8 +1,12 @@
 package com.threemail.android.ui.screens.message
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -29,6 +33,7 @@ import androidx.compose.material.icons.automirrored.filled.ReplyAll
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MarkEmailUnread
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Report
@@ -73,6 +78,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.FileProvider
 import com.threemail.android.R
+import com.threemail.android.data.crypto.SignatureStatus
 import com.threemail.android.domain.model.Attachment
 import com.threemail.android.ui.components.LoadingIndicator
 import com.threemail.android.ui.theme.avatarColorFor
@@ -95,6 +101,20 @@ fun MessageDetailScreen(
 
     LaunchedEffect(state.isDeleted) {
         if (state.isDeleted) onNavigateBack()
+    }
+
+    // OpenKeychain passphrase prompt for decryption.
+    val pgpActionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            viewModel.onPgpUserActionResult()
+        }
+    }
+    LaunchedEffect(state.pgpUserAction) {
+        state.pgpUserAction?.let { pi ->
+            pgpActionLauncher.launch(IntentSenderRequest.Builder(pi.intentSender).build())
+        }
     }
 
     LaunchedEffect(state.openFile) {
@@ -261,12 +281,44 @@ fun MessageDetailScreen(
                         Spacer(modifier = Modifier.height(16.dp))
                     }
 
+                    if (state.isEncrypted) {
+                        EncryptionBanner(
+                            signature = state.signatureStatus,
+                            decrypting = state.isDecrypting
+                        )
+                        Spacer(Modifier.height(12.dp))
+                    }
+
                     when {
                         state.isLoadingBody -> {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 CircularProgressIndicator(modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.size(8.dp))
                                 Text(stringResource(R.string.loading_message), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        // Encrypted: show the decrypted plaintext once available.
+                        state.isEncrypted && state.decryptedBody != null -> Text(
+                            text = state.decryptedBody!!,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        state.isEncrypted && state.isDecrypting -> {
+                            Text(
+                                text = stringResource(R.string.decrypting),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        state.isEncrypted -> {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                state.pgpError?.let {
+                                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+                                }
+                                OutlinedButton(onClick = { viewModel.decrypt() }) {
+                                    Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.size(6.dp))
+                                    Text(stringResource(R.string.decrypt))
+                                }
                             }
                         }
                         !message.bodyHtml.isNullOrBlank() -> {
@@ -358,6 +410,41 @@ private fun HtmlEmailContent(
                 wv.destroy()
             }
             webView = null
+        }
+    }
+}
+
+/**
+ * A small banner shown above an encrypted message body summarizing its PGP
+ * state: encrypted, plus the signature verification result once decrypted.
+ */
+@Composable
+private fun EncryptionBanner(signature: SignatureStatus?, decrypting: Boolean) {
+    val (text, color) = when {
+        decrypting -> stringResource(R.string.decrypting) to MaterialTheme.colorScheme.onSurfaceVariant
+        signature == SignatureStatus.VALID ->
+            stringResource(R.string.pgp_signature_valid) to MaterialTheme.colorScheme.tertiary
+        signature == SignatureStatus.UNVERIFIED ->
+            stringResource(R.string.pgp_signature_unverified) to MaterialTheme.colorScheme.primary
+        signature == SignatureStatus.KEY_MISSING ->
+            stringResource(R.string.pgp_signature_key_missing) to MaterialTheme.colorScheme.onSurfaceVariant
+        signature == SignatureStatus.INVALID ->
+            stringResource(R.string.pgp_signature_invalid) to MaterialTheme.colorScheme.error
+        else -> stringResource(R.string.pgp_encrypted) to MaterialTheme.colorScheme.primary
+    }
+    Surface(
+        color = color.copy(alpha = 0.12f),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.Lock, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.size(8.dp))
+            Text(text, style = MaterialTheme.typography.bodyMedium, color = color)
         }
     }
 }

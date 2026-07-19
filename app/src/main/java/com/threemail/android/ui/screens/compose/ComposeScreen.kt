@@ -5,6 +5,7 @@ import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -33,6 +34,7 @@ import androidx.compose.material.icons.filled.FormatItalic
 import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MarkEmailRead
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Save
@@ -109,6 +111,20 @@ fun ComposeScreen(
 
     LaunchedEffect(state.recoverableAuthIntent) {
         state.recoverableAuthIntent?.let { intent -> recoverableAuthLauncher.launch(intent) }
+    }
+
+    // OpenKeychain passphrase / key-selection prompt for encryption.
+    val pgpActionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            viewModel.onPgpUserActionResult()
+        }
+    }
+    LaunchedEffect(state.pgpUserAction) {
+        state.pgpUserAction?.let { pi ->
+            pgpActionLauncher.launch(IntentSenderRequest.Builder(pi.intentSender).build())
+        }
     }
 
     val attachmentPicker = rememberLauncherForActivityResult(
@@ -316,18 +332,34 @@ fun ComposeScreen(
             )
 
             Spacer(Modifier.height(8.dp))
-            FilterChip(
-                selected = state.requestReadReceipt,
-                onClick = { viewModel.toggleReadReceipt() },
-                leadingIcon = {
-                    Icon(
-                        Icons.Default.MarkEmailRead,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = state.requestReadReceipt,
+                    onClick = { viewModel.toggleReadReceipt() },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.MarkEmailRead,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    label = { Text(stringResource(R.string.request_read_receipt)) }
+                )
+                if (state.pgpAvailable) {
+                    FilterChip(
+                        selected = state.encrypt,
+                        onClick = { viewModel.toggleEncrypt() },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.Lock,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        },
+                        label = { Text(stringResource(R.string.encrypt)) }
                     )
-                },
-                label = { Text(stringResource(R.string.request_read_receipt)) }
-            )
+                }
+            }
 
             if (state.attachments.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))

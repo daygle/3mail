@@ -139,6 +139,9 @@ dependencies {
     implementation(libs.google.api.services.gmail)
     implementation(libs.google.api.services.calendar)
 
+    // OpenPGP via OpenKeychain (delegates crypto to the external app)
+    implementation(libs.openpgp.api)
+
     // Image loading
     implementation(libs.io.coil.kt.compose)
 

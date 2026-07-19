@@ -1,9 +1,12 @@
 package com.threemail.android.ui.screens.compose
 
+import android.app.PendingIntent
 import android.content.Intent
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.threemail.android.data.crypto.OpenPgpController
+import com.threemail.android.data.crypto.PgpResult
 import com.threemail.android.data.remote.MailRemoteFactory
 import com.threemail.android.data.remote.OutgoingMessage
 import com.threemail.android.data.remote.gmail.RecoverableAuthException
@@ -46,6 +49,7 @@ class ComposeViewModel @Inject constructor(
     private val contactRepository: ContactRepository,
     private val outboxRepository: OutboxRepository,
     private val syncScheduler: SyncScheduler,
+    private val openPgpController: OpenPgpController,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -57,6 +61,12 @@ class ComposeViewModel @Inject constructor(
         val selectedIdentity: Identity? = null,
         /** Whether to request a read receipt for this message. */
         val requestReadReceipt: Boolean = false,
+        /** Whether OpenKeychain is installed so the encrypt toggle can be offered. */
+        val pgpAvailable: Boolean = false,
+        /** Whether to OpenPGP sign+encrypt this message on send (inline PGP). */
+        val encrypt: Boolean = false,
+        /** Set when OpenKeychain needs the user to act (passphrase / key pick) before we can encrypt. */
+        val pgpUserAction: PendingIntent? = null,
         val to: String = "",
         val cc: String = "",
         val bcc: String = "",
@@ -152,6 +162,7 @@ class ComposeViewModel @Inject constructor(
                     selectedAccount = self,
                     identities = identities,
                     selectedIdentity = selectedIdentity,
+                    pgpAvailable = openPgpController.isKeychainInstalled(),
                     to = to,
                     cc = cc,
                     subject = subject,
@@ -387,40 +398,83 @@ class ComposeViewModel @Inject constructor(
         RecipientField.BCC -> _uiState.value.bcc
     }
 
+    fun toggleEncrypt() {
+        _uiState.value = _uiState.value.copy(encrypt = !_uiState.value.encrypt)
+    }
+
+    /** Called by the screen after the OpenKeychain user-interaction intent returns; retries the send. */
+    fun onPgpUserActionResult() {
+        _uiState.value = _uiState.value.copy(pgpUserAction = null)
+        send()
+    }
+
     fun send() {
         val account = _uiState.value.selectedAccount ?: run {
             _uiState.value = _uiState.value.copy(error = noAccountMessage())
             return
         }
-        _uiState.value = _uiState.value.copy(isSending = true, error = null, recoverableAuthIntent = null)
+        _uiState.value = _uiState.value.copy(isSending = true, error = null, recoverableAuthIntent = null, pgpUserAction = null)
         viewModelScope.launch {
             try {
-                val body = _uiState.value.body
-                // Persist to the outbox and let SendMailWorker deliver it. The
-                // send now survives network loss and process death instead of
-                // being lost if the immediate SMTP/Gmail call fails.
                 val identity = _uiState.value.selectedIdentity
-                outboxRepository.enqueue(
-                    account.id,
-                    OutgoingMessage(
-                        to = AddressParser.parse(_uiState.value.to),
-                        cc = AddressParser.parse(_uiState.value.cc),
-                        bcc = AddressParser.parse(_uiState.value.bcc),
-                        subject = _uiState.value.subject,
-                        textBody = body,
-                        htmlBody = Markdown.toHtml(body),
-                        attachments = _uiState.value.attachments,
-                        inReplyTo = inReplyTo,
-                        references = references,
-                        fromName = identity?.displayName,
-                        fromAddress = identity?.email,
-                        requestReadReceipt = _uiState.value.requestReadReceipt
-                    )
+                val body = _uiState.value.body
+                val base = OutgoingMessage(
+                    to = AddressParser.parse(_uiState.value.to),
+                    cc = AddressParser.parse(_uiState.value.cc),
+                    bcc = AddressParser.parse(_uiState.value.bcc),
+                    subject = _uiState.value.subject,
+                    textBody = body,
+                    htmlBody = Markdown.toHtml(body),
+                    attachments = _uiState.value.attachments,
+                    inReplyTo = inReplyTo,
+                    references = references,
+                    fromName = identity?.displayName,
+                    fromAddress = identity?.email,
+                    requestReadReceipt = _uiState.value.requestReadReceipt
                 )
+
+                val outgoing = if (_uiState.value.encrypt && openPgpController.isKeychainInstalled()) {
+                    val encrypted = encryptBody(account, base) ?: return@launch
+                    encrypted
+                } else {
+                    base
+                }
+
+                // Persist to the outbox and let SendMailWorker deliver it, so a
+                // send survives network loss / process death.
+                outboxRepository.enqueue(account.id, outgoing)
                 syncScheduler.enqueueSendMail()
                 _uiState.value = _uiState.value.copy(isSending = false, isSent = true)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isSending = false, error = e.message)
+            }
+        }
+    }
+
+    /**
+     * Sign+encrypt the body as inline PGP via OpenKeychain. Recipients are every
+     * addressee plus the sender (so the sent copy stays readable). Returns the
+     * outgoing message with the armored ciphertext as its plain-text body (and
+     * no HTML alternative), or null when the send can't proceed yet — either
+     * because OpenKeychain needs user interaction (surfaced via [UiState.pgpUserAction]
+     * for the screen to launch, then [onPgpUserActionResult] retries) or an error
+     * occurred. Attachments are sent as-is (inline PGP encrypts the body only).
+     */
+    private suspend fun encryptBody(account: Account, base: OutgoingMessage): OutgoingMessage? {
+        val recipients = (base.to + base.cc + base.bcc).map { it.address } + account.email
+        return when (val result = openPgpController.signAndEncrypt(base.textBody.toByteArray(), recipients)) {
+            is PgpResult.Success -> base.copy(textBody = String(result.data), htmlBody = null)
+            is PgpResult.NeedUserInteraction -> {
+                _uiState.value = _uiState.value.copy(isSending = false, pgpUserAction = result.pendingIntent)
+                null
+            }
+            is PgpResult.Error -> {
+                _uiState.value = _uiState.value.copy(isSending = false, error = result.message)
+                null
+            }
+            PgpResult.Unavailable -> {
+                _uiState.value = _uiState.value.copy(isSending = false, error = "OpenKeychain is not available")
+                null
             }
         }
     }
