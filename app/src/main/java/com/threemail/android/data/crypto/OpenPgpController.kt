@@ -6,21 +6,19 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * Package name of the OpenKeychain app that, if installed, would have handled
- * all real OpenPGP crypto. Kept as a constant so the UI can label itself
- * consistently and so the binding can be restored if an upstream artifact
- * becomes available again.
- */
-const val KEYCHAIN_PACKAGE = "org.sufficientlysecure.keychain"
-
 /** Verification outcome of a decrypted/verified message's signature. */
 enum class SignatureStatus { NONE, VALID, UNVERIFIED, KEY_MISSING, INVALID }
 
 /**
- * Result of an OpenPGP operation. The shape is preserved verbatim from the
- * real OpenKeychain-backed implementation so the compose / message-detail
- * view models keep compiling against the stub without change.
+ * Result of an OpenPGP operation. Shape preserved verbatim from the original
+ * OpenKeychain-backed controller so callers keep compiling against the same
+ * sealed surface.
+ *
+ * Note for restorers: `PgpResult.Success.data` is a `ByteArray`, so two
+ * `Success` instances with equal-bytes payloads are NOT equal under Kotlin's
+ * default data-class semantics (ByteArray equality is reference-based). Add a
+ * test or override `equals`/`hashCode` via `Arrays.contentEquals` if you need
+ * value equality.
  */
 sealed interface PgpResult {
     data class Success(
@@ -37,38 +35,33 @@ sealed interface PgpResult {
 }
 
 /**
- * Stub for the OpenKeychain-backed OpenPGP integration.
+ * Stub for the OpenKeychain-backed OpenPGP integration. See PR #25 history
+ * (commits 1745110 / 3135744 / 685351d / <this>) for the full
+ * upstream-coordinate investigation; no published coordinate for the
+ * `openpgp-api` artifact resolves at this time so the real
+ * OpenKeychain-brokered implementation has been stubbed out.
  *
- * The original implementation delegated crypto to the external OpenKeychain
- * app through the openpgp-api library (org.openintents.openpgp / AIDL). That
- * artifact has had no reliable published coordinate since JCenter sunset:
- * - Maven Central returns no results for `org.sufficientlysecure:openpgp-api` or `org.openintents:openpgp-api`.
- * - JitPack (`com.github.open-keychain:openpgp-api`) reports builds as `ok` /
- *   `Error` across v8..v12 but every tag's module list is empty and the
- *   canonical jar URLs all return 404.
- *
- * Until a working upstream coordinate is found, this stub keeps the public
- * API intact and forces every operation down the
- * `PgpResult.Unavailable` / `false` path. The UI callers already render that
- * branch as "Install OpenKeychain" / hide the encrypt toggle, so the rest of
- * the app degrades to plaintext transparently and continues to compile +
- * test against the same `PgpResult` sealed interface.
+ * Until a working upstream coordinate resurfaces, every operation funnels
+ * through `PgpResult.Unavailable` / `false` and the rest of the app
+ * degrades to plaintext transparently: the compose screen hides the Encrypt
+ * toggle when `isKeychainInstalled()` is false, the message-detail screen
+ * never enters its decrypt path, and existing tests (none of which
+ * reference `OpenPgpController` or `PgpResult`) compile unchanged.
  *
  * Restoring the real implementation: re-add `openpgp-api` to
- * gradle/libs.versions.toml, add jitpack.io to
+ * gradle/libs.versions.toml, declare jitpack.io in
  * settings.gradle.kts dependencyResolutionManagement.repositories, then
- * paste the original OpenPgpController / PgpText body back in front of this
- * stub. Callers should not need any changes.
+ * paste the original `OpenPgpController.kt` body back over this stub. The
+ * public method signatures (`isKeychainInstalled`, `signAndEncrypt`,
+ * `decryptAndVerify`) and the `PgpResult` shape are preserved, so the call
+ * sites in `ComposeViewModel.kt` and `MessageDetailViewModel.kt` need no
+ * edits.
  */
 @Singleton
 class OpenPgpController @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext context: Context
 ) {
 
-    @Suppress("unused")
-    private val appContext: Context = context.applicationContext
-
-    /** Always reports the keychain as missing until the upstream library is restored. */
     fun isKeychainInstalled(): Boolean = false
 
     suspend fun signAndEncrypt(plain: ByteArray, recipients: List<String>): PgpResult =
