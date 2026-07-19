@@ -2,6 +2,7 @@ package com.threemail.android.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,7 +35,6 @@ import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.outlined.Report
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -402,6 +402,16 @@ fun FolderDrawerContent(
                         val isDragging by remember {
                             derivedStateOf { dragInfo.value?.fromIndex == index }
                         }
+                        // Mirror the tree-row selected pill so a favorite folder
+                        // that happens to be the current mailbox is also
+                        // highlighted here - users can otherwise lose track of
+                        // which row corresponds to the currently-open folder.
+                        val isSelected = folder.id == selectedFolder?.id
+                        val contentTint = if (isSelected) {
+                            Color.White
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
 
                         Row(
                             modifier = Modifier
@@ -409,6 +419,15 @@ fun FolderDrawerContent(
                                 .onSizeChanged { rowHeightPx = it.height.toFloat() }
                                 .zIndex(if (isDragging) 1f else 0f)
                                 .padding(horizontal = 12.dp, vertical = 4.dp)
+                                .then(
+                                    if (isSelected) {
+                                        Modifier
+                                            .clip(RoundedCornerShape(28.dp))
+                                            .background(MaterialTheme.colorScheme.primary)
+                                    } else {
+                                        Modifier
+                                    }
+                                )
                                 .graphicsLayer {
                                     val current = dragInfo.value
                                     if (current?.fromIndex == index) {
@@ -472,20 +491,21 @@ fun FolderDrawerContent(
                             Icon(
                                 imageVector = Icons.Default.DragHandle,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    .copy(alpha = 0.5f)
+                                tint = contentTint.copy(alpha = 0.5f)
                             )
-                            Icon(
-                                imageVector = Icons.Default.Star,
-                                contentDescription = stringResource(R.string.favorites_remove),
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(start = 4.dp)
-                            )
-                            Spacer(Modifier.width(16.dp))
+                            Spacer(Modifier.width(12.dp))
+                            // Tapping the label selects the mailbox; long-press
+                            // still triggers the drag-reorder gesture. The
+                            // decorative "this row is pinned" star indicator
+                            // is gone - FAVORITES section header carries the
+                            // context now.
                             Text(
                                 text = folder.name,
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = contentTint,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { onFolderClick(folder) }
                             )
                         }
                     }
@@ -500,13 +520,38 @@ fun FolderDrawerContent(
 
                 // ── Tree folder section ──
                 items(treeNodes, key = { "tree-${it.folder.id}" }) { node ->
-                    FolderTreeRow(
-                        node = node,
-                        isSelected = node.folder.id == selectedFolder?.id,
-                        onFolderClick = onFolderClick,
-                        onToggleExpand = { onToggleFolderExpand(node.folder.serverId) },
-                        onToggleFavorite = onToggleFavorite
-                    )
+                    // Per-row state for the overflow menu surfaced by long-
+                    // press. Each item gets its own SnapshotState, so opening
+                    // a menu on one row never opens one on its neighbours.
+                    var showMenu by remember { mutableStateOf(false) }
+                    Box {
+                        FolderTreeRow(
+                            node = node,
+                            isSelected = node.folder.id == selectedFolder?.id,
+                            onFolderClick = onFolderClick,
+                            onLongClick = { showMenu = true },
+                            onToggleExpand = { onToggleFolderExpand(node.folder.serverId) }
+                        )
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        stringResource(
+                                            if (node.folder.isFavorite) R.string.favorites_remove
+                                            else R.string.favorites_add
+                                        )
+                                    )
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    onToggleFavorite(node.folder)
+                                }
+                            )
+                        }
+                    }
                 }
             }
             }
@@ -604,8 +649,8 @@ private fun FolderTreeRow(
     node: FolderNode,
     isSelected: Boolean,
     onFolderClick: (MailFolder) -> Unit,
-    onToggleExpand: () -> Unit,
-    onToggleFavorite: (MailFolder) -> Unit
+    onLongClick: (MailFolder) -> Unit,
+    onToggleExpand: () -> Unit
 ) {
     val indentPadding = TREE_INDENT_PER_LEVEL * node.depth
     val containerColor = if (isSelected) {
@@ -631,7 +676,14 @@ private fun FolderTreeRow(
                     Modifier.background(containerColor)
                 }
             )
-            .clickable { onFolderClick(node.folder) }
+            // Tap selects the mail folder; long-press opens the per-row
+            // overflow menu (Add to / Remove from Favorites). Compose
+            // resolves the tap-vs-long-press race correctly via
+            // combinedClickable - no conflict with surrounding pointerInputs.
+            .combinedClickable(
+                onClick = { onFolderClick(node.folder) },
+                onLongClick = { onLongClick(node.folder) }
+            )
             .padding(
                 start = 8.dp + indentPadding,
                 end = 8.dp,
@@ -680,32 +732,16 @@ private fun FolderTreeRow(
             modifier = Modifier.weight(1f)
         )
 
-        // ── Unread count + favourite star ──
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (node.folder.unreadCount > 0) {
-                Text(
-                    text = node.folder.unreadCount.toString(),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Medium,
-                    color = badgeColor
-                )
-                Spacer(Modifier.width(8.dp))
-            }
-            IconButton(onClick = { onToggleFavorite(node.folder) }) {
-                Icon(
-                    imageVector = if (node.folder.isFavorite) Icons.Default.Star
-                    else Icons.Outlined.StarBorder,
-                    contentDescription = stringResource(
-                        if (node.folder.isFavorite) R.string.favorites_remove
-                        else R.string.favorites_add
-                    ),
-                    tint = when {
-                        isSelected -> Color.White
-                        node.folder.isFavorite -> MaterialTheme.colorScheme.primary
-                        else -> MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-                )
-            }
+        // ── Unread count badge only. The per-row favourite star toggle
+        //   has been removed from the visible chrome; long-press the row
+        //   to add or remove the favourite via the overflow menu. ──
+        if (node.folder.unreadCount > 0) {
+            Text(
+                text = node.folder.unreadCount.toString(),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium,
+                color = badgeColor
+            )
         }
     }
 }
@@ -815,7 +851,7 @@ private fun FooterItem(
 }
 
 private fun iconFor(type: FolderType): ImageVector = when (type) {
-    FolderType.INBOX -> Icons.Default.Inbox
+    FolderType.Inbox -> Icons.Default.Inbox
     FolderType.SENT -> Icons.AutoMirrored.Filled.Send
     FolderType.DRAFTS -> Icons.Default.Drafts
     FolderType.TRASH -> Icons.Default.Delete
