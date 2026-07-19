@@ -2,33 +2,25 @@ package com.threemail.android.data.crypto
 
 import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withContext
-import org.openintents.openpgp.IOpenPgpService2
-import org.openintents.openpgp.OpenPgpError
-import org.openintents.openpgp.OpenPgpSignatureResult
-import org.openintents.openpgp.util.OpenPgpApi
-import org.openintents.openpgp.util.OpenPgpServiceConnection
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.coroutines.resume
 
-/** Package name of the OpenKeychain app we delegate all OpenPGP crypto to. */
+/**
+ * Package name of the OpenKeychain app that, if installed, would have handled
+ * all real OpenPGP crypto. Kept as a constant so the UI can label itself
+ * consistently and so the binding can be restored if an upstream artifact
+ * becomes available again.
+ */
 const val KEYCHAIN_PACKAGE = "org.sufficientlysecure.keychain"
 
 /** Verification outcome of a decrypted/verified message's signature. */
 enum class SignatureStatus { NONE, VALID, UNVERIFIED, KEY_MISSING, INVALID }
 
 /**
- * Result of an OpenPGP operation. All real cryptography happens inside
- * OpenKeychain; this app only brokers the request. [NeedUserInteraction] carries
- * a [PendingIntent] the UI must launch (passphrase entry, key selection, key
- * confirmation) before retrying the same call.
+ * Result of an OpenPGP operation. The shape is preserved verbatim from the
+ * real OpenKeychain-backed implementation so the compose / message-detail
+ * view models keep compiling against the stub without change.
  */
 sealed interface PgpResult {
     data class Success(
@@ -45,106 +37,43 @@ sealed interface PgpResult {
 }
 
 /**
- * Thin coroutine wrapper over the OpenKeychain OpenPGP API. Binds to the
- * OpenKeychain service on demand and runs the (blocking) `executeApi` calls off
- * the main thread. The whole feature is opt-in and degrades gracefully: with no
- * OpenKeychain installed every call returns [PgpResult.Unavailable] and mail
- * continues to work unencrypted.
+ * Stub for the OpenKeychain-backed OpenPGP integration.
  *
- * Note: this integration delegates to an external app and its passphrase /
- * key-selection flow needs on-device testing; it is intentionally isolated so
- * the rest of the app never depends on it.
+ * The original implementation delegated crypto to the external OpenKeychain
+ * app through the openpgp-api library (org.openintents.openpgp / AIDL). That
+ * artifact has had no reliable published coordinate since JCenter sunset:
+ * - Maven Central returns no results for `org.sufficientlysecure:openpgp-api` or `org.openintents:openpgp-api`.
+ * - JitPack (`com.github.open-keychain:openpgp-api`) reports builds as `ok` /
+ *   `Error` across v8..v12 but every tag's module list is empty and the
+ *   canonical jar URLs all return 404.
+ *
+ * Until a working upstream coordinate is found, this stub keeps the public
+ * API intact and forces every operation down the
+ * `PgpResult.Unavailable` / `false` path. The UI callers already render that
+ * branch as "Install OpenKeychain" / hide the encrypt toggle, so the rest of
+ * the app degrades to plaintext transparently and continues to compile +
+ * test against the same `PgpResult` sealed interface.
+ *
+ * Restoring the real implementation: re-add `openpgp-api` to
+ * gradle/libs.versions.toml, add jitpack.io to
+ * settings.gradle.kts dependencyResolutionManagement.repositories, then
+ * paste the original OpenPgpController / PgpText body back in front of this
+ * stub. Callers should not need any changes.
  */
 @Singleton
 class OpenPgpController @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
 
-    @Volatile
-    private var connection: OpenPgpServiceConnection? = null
+    @Suppress("unused")
+    private val appContext: Context = context.applicationContext
 
-    fun isKeychainInstalled(): Boolean = try {
-        context.packageManager.getPackageInfo(KEYCHAIN_PACKAGE, 0)
-        true
-    } catch (e: Exception) {
-        false
-    }
+    /** Always reports the keychain as missing until the upstream library is restored. */
+    fun isKeychainInstalled(): Boolean = false
 
-    private suspend fun ensureApi(): OpenPgpApi? {
-        if (!isKeychainInstalled()) return null
-        connection?.let { existing ->
-            if (existing.service != null) return OpenPgpApi(context, existing.service)
-        }
-        val bound = suspendCancellableCoroutine<OpenPgpServiceConnection?> { cont ->
-            lateinit var conn: OpenPgpServiceConnection
-            conn = OpenPgpServiceConnection(
-                context.applicationContext,
-                KEYCHAIN_PACKAGE,
-                object : OpenPgpServiceConnection.OnBound {
-                    override fun onBound(service: IOpenPgpService2) {
-                        if (cont.isActive) cont.resume(conn)
-                    }
+    suspend fun signAndEncrypt(plain: ByteArray, recipients: List<String>): PgpResult =
+        PgpResult.Unavailable
 
-                    override fun onError(e: Exception) {
-                        if (cont.isActive) cont.resume(null)
-                    }
-                }
-            )
-            connection = conn
-            conn.bindToService()
-        }
-        val service = bound?.service ?: return null
-        return OpenPgpApi(context, service)
-    }
-
-    /**
-     * Sign and encrypt [plain] to [recipients] (email user-ids). No explicit
-     * signing key is passed, so OpenKeychain prompts for one on first use and
-     * remembers it. Output is ASCII-armored (inline PGP).
-     */
-    suspend fun signAndEncrypt(plain: ByteArray, recipients: List<String>): PgpResult {
-        val intent = Intent(OpenPgpApi.ACTION_SIGN_AND_ENCRYPT).apply {
-            putExtra(OpenPgpApi.EXTRA_USER_IDS, recipients.toTypedArray())
-            putExtra(OpenPgpApi.EXTRA_REQUEST_ASCII_ARMOR, true)
-        }
-        return execute(intent, plain)
-    }
-
-    /** Decrypt and verify an ASCII-armored PGP message. */
     suspend fun decryptAndVerify(cipher: ByteArray): PgpResult =
-        execute(Intent(OpenPgpApi.ACTION_DECRYPT_VERIFY), cipher)
-
-    @Suppress("DEPRECATION")
-    private suspend fun execute(intent: Intent, input: ByteArray): PgpResult = withContext(Dispatchers.IO) {
-        val api = ensureApi() ?: return@withContext PgpResult.Unavailable
-        try {
-            val out = ByteArrayOutputStream()
-            val result = api.executeApi(intent, ByteArrayInputStream(input), out)
-            when (result.getIntExtra(OpenPgpApi.RESULT_CODE, OpenPgpApi.RESULT_CODE_ERROR)) {
-                OpenPgpApi.RESULT_CODE_SUCCESS -> {
-                    val sig = result.getParcelableExtra<OpenPgpSignatureResult>(OpenPgpApi.RESULT_SIGNATURE)
-                    PgpResult.Success(out.toByteArray(), sig.toStatus(), sig?.primaryUserId)
-                }
-                OpenPgpApi.RESULT_CODE_USER_INTERACTION_REQUIRED -> {
-                    val pi = result.getParcelableExtra<PendingIntent>(OpenPgpApi.RESULT_INTENT)
-                    if (pi != null) PgpResult.NeedUserInteraction(pi)
-                    else PgpResult.Error("OpenKeychain requires user interaction")
-                }
-                else -> {
-                    val err = result.getParcelableExtra<OpenPgpError>(OpenPgpApi.RESULT_ERROR)
-                    PgpResult.Error(err?.message ?: "OpenPGP operation failed")
-                }
-            }
-        } catch (e: Exception) {
-            PgpResult.Error(e.message ?: "OpenPGP operation failed")
-        }
-    }
-
-    private fun OpenPgpSignatureResult?.toStatus(): SignatureStatus = when (this?.result) {
-        null, OpenPgpSignatureResult.RESULT_NO_SIGNATURE -> SignatureStatus.NONE
-        OpenPgpSignatureResult.RESULT_VALID_KEY_CONFIRMED -> SignatureStatus.VALID
-        OpenPgpSignatureResult.RESULT_VALID_KEY_UNCONFIRMED -> SignatureStatus.UNVERIFIED
-        OpenPgpSignatureResult.RESULT_KEY_MISSING -> SignatureStatus.KEY_MISSING
-        else -> SignatureStatus.INVALID
-    }
+        PgpResult.Unavailable
 }

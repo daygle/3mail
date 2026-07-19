@@ -10,15 +10,6 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
 
-    <!-- Package visibility (Android 11+) so the app can detect and bind to
-         OpenKeychain for OpenPGP encryption/decryption. -->
-    <queries>
-        <package android:name="org.sufficientlysecure.keychain" />
-        <intent>
-            <action android:name="org.openintents.openpgp.IOpenPgpService2" />
-        </intent>
-    </queries>
-
     <application
         android:name=".ThreeMailApplication"
         android:allowBackup="true"
