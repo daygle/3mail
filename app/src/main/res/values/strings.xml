@@ -35,10 +35,10 @@
     <string name="clear_selection">Clear selection</string>
     <string name="pull_to_refresh_hint">Pull down to refresh</string>
     <string name="display_section">Message list</string>
-    <string name="swipe_right_label">Swipe right action</string>
-    <string name="swipe_left_label">Swipe left action</string>
-    <string name="density_label">List density</string>
-    <string name="preview_lines_label">Preview lines</string>
+    <string name="swipe_right_label">Swipe Right Action</string>
+    <string name="swipe_left_label">Swipe Left Action</string>
+    <string name="density_label">List Density</string>
+    <string name="preview_lines_label">Preview Lines</string>
     <string name="swipe_action_none">None</string>
     <string name="swipe_action_archive">Archive</string>
     <string name="swipe_action_delete">Delete</string>
@@ -51,9 +51,9 @@
     <string name="identities_description">Extra addresses you can send from. Pick one in the composer\'s From selector.</string>
     <string name="identity_add">Add identity</string>
     <string name="identity_remove">Remove</string>
-    <string name="identity_display_name">Display name</string>
-    <string name="identity_email">Email address</string>
-    <string name="identity_signature">Signature (optional)</string>
+    <string name="identity_display_name">Display Name</string>
+    <string name="identity_email">Email Address</string>
+    <string name="identity_signature">Signature (Optional)</string>
     <string name="identity_save">Save</string>
     <string name="identity_email_required">An email address is required</string>
     <string name="protocol_label">Protocol</string>
@@ -104,9 +104,9 @@
     <!-- Trash policy settings -->
     <string name="trash_settings_section">Trash</string>
     <string name="trash_settings_description">Permanently delete messages in each account\'s Trash folder. Runs server-first, then clears the local cache.</string>
-    <string name="empty_trash_on_launch_title">Empty trash on app open</string>
+    <string name="empty_trash_on_launch_title">Empty Trash on App Open</string>
     <string name="empty_trash_on_launch_subtitle">Permanently delete trash emails when 3mail opens.</string>
-    <string name="empty_trash_on_quit_title">Empty trash on app close</string>
+    <string name="empty_trash_on_quit_title">Empty Trash on App Close</string>
     <string name="empty_trash_on_quit_subtitle">Permanently delete trash emails when 3mail goes to background.</string>
 
     <!-- Trash cleanup failure notification -->
@@ -141,31 +141,31 @@
 
     <!-- Account management -->
     <string name="add_account_imap_label">Or add an IMAP account manually</string>
-    <string name="display_name">Display name</string>
+    <string name="display_name">Display Name</string>
     <string name="remove_account">Remove account</string>
     <string name="remove_account_title">Remove account?</string>
     <string name="remove_account_body">This signs %1$s out of 3mail and clears its locally cached mail and calendar. Your messages stay on the server.</string>
     <string name="remove">Remove</string>
-    <string name="account_push_label">Push for new mail</string>
+    <string name="account_push_label">Push for New Mail</string>
     <string name="account_push_subtitle">Get notified the moment a new message arrives on this account.</string>
 
     <!-- Per-account settings -->
-    <string name="account_settings_title">Account settings</string>
+    <string name="account_settings_title">Account Settings</string>
     <string name="account_settings_general">General</string>
     <string name="account_settings_display_name_subtitle">The name shown on mail you send from this account.</string>
     <string name="account_settings_signature_section">Signature</string>
-    <string name="account_settings_signature_label">Signature for this account</string>
+    <string name="account_settings_signature_label">Signature for This Account</string>
     <string name="account_settings_signature_placeholder">e.g. Sent from my phone</string>
-    <string name="account_settings_signature_hint">Appended to new mail from this account. Leave blank to use the global signature.</string>
+    <string name="account_settings_signature_hint">Appended to new mail from this account. Leave blank to omit a signature.</string>
     <string name="account_settings_sync_section">Mail checking</string>
-    <string name="account_settings_sync_enabled_title">Sync this account</string>
+    <string name="account_settings_sync_enabled_title">Sync This Account</string>
     <string name="account_settings_sync_enabled_subtitle">Fetch new mail for this account in the background.</string>
-    <string name="account_settings_frequency_title">Check frequency</string>
+    <string name="account_settings_frequency_title">Check Frequency</string>
     <string name="account_settings_frequency_default">Default (%1$s)</string>
     <string name="account_settings_notifications_section">Notifications</string>
-    <string name="account_settings_notifications_title">New mail notifications</string>
+    <string name="account_settings_notifications_title">New Mail Notifications</string>
     <string name="account_settings_notifications_subtitle">Notify me about new mail on this account.</string>
-    <string name="account_settings_open">Open settings</string>
+    <string name="account_settings_open">Open Settings</string>
     <string name="account_not_found">Account not found.</string>
     <string name="frequency_minutes">%1$dm</string>
     <string name="frequency_hours">%1$dh</string>
@@ -240,4 +240,7 @@
     <string name="favorites_header" translatable="false">FAVORITES</string>
     <string name="favorites_add">Add to favorites</string>
     <string name="favorites_remove">Remove from favorites</string>
+    <!-- Screen-reader label for the leading icon on each favorite row, whose
+         only purpose is the drag-reorder gesture. -->
+    <string name="favorites_drag_handle">Drag to reorder</string>
 </resources>
