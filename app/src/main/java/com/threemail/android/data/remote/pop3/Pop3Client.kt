@@ -131,7 +131,7 @@ class Pop3Client(private val account: Account) {
         accountId = account.id,
         serverId = "INBOX",
         name = "Inbox",
-        type = FolderType.INBOX
+        type = FolderType.Inbox
     )
 
     /**

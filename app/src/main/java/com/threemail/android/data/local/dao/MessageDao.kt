@@ -36,7 +36,7 @@ interface MessageDao {
     @Query(
         "SELECT m.* FROM messages m " +
             "JOIN folders f ON m.folderId = f.id " +
-            "WHERE f.type = 'INBOX' " +
+            "WHERE f.type = 'Inbox' " +
             "ORDER BY m.date DESC LIMIT :limit"
     )
     fun observeUnifiedInbox(limit: Int): Flow<List<MessageEntity>>
@@ -114,7 +114,7 @@ interface MessageDao {
     @Query(
         "SELECT COUNT(*) FROM messages m " +
             "JOIN folders f ON m.folderId = f.id " +
-            "WHERE f.type = 'INBOX' AND m.isRead = 0"
+            "WHERE f.type = 'Inbox' AND m.isRead = 0"
     )
     fun observeTotalUnreadAcrossInboxes(): Flow<Int>
 }

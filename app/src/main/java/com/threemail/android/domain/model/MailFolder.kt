@@ -26,7 +26,7 @@ data class MailFolder(
 )
 
 enum class FolderType {
-    INBOX,
+    Inbox,
     SENT,
     DRAFTS,
     TRASH,

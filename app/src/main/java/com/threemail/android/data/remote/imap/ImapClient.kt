@@ -325,7 +325,7 @@ class ImapClient(
                         // Hide unsubscribed folders by default, but never the
                         // inbox, and never when the server gave us no LSUB data.
                         isHidden = subscribed.isNotEmpty() &&
-                            type != FolderType.INBOX &&
+                            type != FolderType.Inbox &&
                             folder.fullName !in subscribed
                     )
                 })
@@ -674,7 +674,7 @@ class ImapClient(
     }
 
     private fun mapFolderType(name: String): FolderType = when (name.lowercase()) {
-        "inbox" -> FolderType.INBOX
+        "inbox" -> FolderType.Inbox
         "sent", "sent items", "sent mail" -> FolderType.SENT
         "drafts" -> FolderType.DRAFTS
         "trash", "deleted items", "bin" -> FolderType.TRASH

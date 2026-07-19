@@ -77,7 +77,7 @@ class MailSyncWorker(
                         mailRepository.saveMessages(toSave)
                         // Only feed the aggregate new-mail notification when this
                         // account opts in; the global switch is applied once below.
-                        if (folder.type == FolderType.INBOX && account.notificationsEnabled) {
+                        if (folder.type == FolderType.Inbox && account.notificationsEnabled) {
                             newMessages += toSave.count { !it.isRead }
                         }
                     }
@@ -98,6 +98,6 @@ class MailSyncWorker(
 
     companion object {
         private const val TAG = "MailSyncWorker"
-        private val SYNCED_FOLDERS = setOf(FolderType.INBOX, FolderType.SENT, FolderType.DRAFTS)
+        private val SYNCED_FOLDERS = setOf(FolderType.Inbox, FolderType.SENT, FolderType.DRAFTS)
     }
 }
