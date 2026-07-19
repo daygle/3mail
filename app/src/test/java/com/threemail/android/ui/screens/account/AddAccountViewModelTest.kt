@@ -223,6 +223,9 @@ class AddAccountViewModelTest {
         override suspend fun setSyncEnabled(id: Long, enabled: Boolean) {}
         override suspend fun setNotificationsEnabled(id: Long, enabled: Boolean) {}
         override suspend fun setIdentitiesJson(id: Long, identitiesJson: String) {}
+        override suspend fun setFolderRolesJson(id: Long, folderRolesJson: String) {}
+        override suspend fun setAutocryptKeysJson(id: Long, autocryptKeysJson: String) {}
+        override suspend fun getAutocryptKeysJson(id: Long): String? = null
         override suspend fun update(account: AccountEntity) { rows[account.email] = account }
         override suspend fun delete(account: AccountEntity) { rows.remove(account.email) }
     }
@@ -270,6 +273,7 @@ class AddAccountViewModelTest {
             dest: java.io.File
         ): Result<java.io.File> = notStubbed()
         override suspend fun send(message: OutgoingMessage): Result<Unit> = notStubbed()
+        override suspend fun sendRaw(messageBytes: ByteArray): Result<Unit> = notStubbed()
         override suspend fun appendDraft(draftsFolder: MailFolder, message: OutgoingMessage): Result<Unit> = notStubbed()
 
         private fun notStubbed(): Nothing =
