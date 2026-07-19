@@ -20,7 +20,10 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -169,6 +172,48 @@ class InboxViewModel @Inject constructor(
             }.onFailure { e ->
                 _transient.value = _transient.value.copy(error = e.message ?: "Failed to load inbox")
             }
+        }
+        // Auto-sync when the user is now looking at a different folder.
+        //
+        // Why this is needed: `selectFolder()` / `selectAccount()` only update
+        // the reactive `_selectedFolder` selector; the messagesFlow then
+        // re-subscribes to `mailRepository.observeFolder`, which is a Room
+        // observer and does NOT trigger a remote fetch. Remote fetches only
+        // happen via `MailSyncWorker` (which is limited to INBOX/SENT/
+        // DRAFTS — `SYNCED_FOLDERS` in MailSyncWorker) or via this VM's
+        // `sync()`, which is only called manually via the refresh button or
+        // pull-to-refresh. The result was that opening any folder the worker
+        // hasn't fetched yet — e.g. custom folders, sub-folders, or a freshly
+        // added account's INBOX — presented an empty list until the user hit
+        // refresh by hand.
+        //
+        // This collector fires whenever the now-displayed folder changes:
+        //   1. Initial app launch — the bootstrap above sets `_selectedFolder`
+        //      to the INBOX on its first emit, and we sync it immediately.
+        //   2. User taps a folder in the drawer — `selectFolder()` updates the
+        //      flow value and we fetch that folder.
+        //   3. User switches accounts — `selectAccount()` re-nulls the
+        //      selector, the bootstrap picks the new account's INBOX, and we
+        //      sync it.
+        //
+        // `distinctUntilChanged()` deduplicates re-selects of the same folder
+        // (e.g. picking INBOX, then picking a different folder, then picking
+        // INBOX again yields a fresh sync each time — picking the same folder
+        // twice in a row does NOT spam the server). `filterNotNull()` skips the
+        // transient null state `selectAccount()` leaves behind before the
+        // bootstrap re-picks.
+        //
+        // `collectLatest` (vs. plain `collect`) cancels the previous sync's
+        // coroutine when a new folder is selected before the previous fetch
+        // has finished, so rapid A→B→C taps don't fan out into three parallel
+        // network calls — only the latest folder wins. This matches the
+        // `flatMapLatest` idiom already used for `messagesFlow` and
+        // `foldersFlow` above.
+        viewModelScope.launch {
+            _selectedFolder
+                .filterNotNull()
+                .distinctUntilChanged()
+                .collectLatest { sync() }
         }
     }
 
