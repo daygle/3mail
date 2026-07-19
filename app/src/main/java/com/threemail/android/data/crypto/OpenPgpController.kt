@@ -365,22 +365,21 @@ class OpenPgpController @Inject constructor(
             pair,
             today
         )
-        // BC 1.78 PGPSecretKey ctor:
-        //   (certificationLevel, PGPKeyPair, id, checksumCalculator,
-        //    certificationSignerBuilder, keyEncryptor)
-        // The checksum digest calculator is SHA-1 (the standard S2K checksum),
-        // and JcePBESecretKeyEncryptorBuilder.build takes only the passphrase.
+        // BC 1.78 PGPSecretKey ctor available here:
+        //   (PGPPrivateKey, PGPPublicKey, PGPDigestCalculator checksumCalc,
+        //    PBESecretKeyEncryptor keyEncryptor)
+        // This is the no-self-signature secret key, which is all the local
+        // wrapping keyring needs (sign/encrypt/decrypt with the same key). The
+        // checksum digest is SHA-1 (the standard S2K checksum) and
+        // JcePBESecretKeyEncryptorBuilder.build takes only the passphrase.
         val sha1Calc = JcaPGPDigestCalculatorProviderBuilder()
             .setProvider(PROVIDER)
             .build()
             .get(HashAlgorithmTags.SHA1)
         val secretKey = PGPSecretKey(
-            PGPSignature.DEFAULT_CERTIFICATION,
-            pgpPair,
-            "3mail:$accountId",
+            pgpPair.privateKey,
+            pgpPair.publicKey,
             sha1Calc,
-            JcaPGPContentSignerBuilder(pgpPair.publicKey.algorithm, HashAlgorithmTags.SHA256)
-                .setProvider(PROVIDER),
             JcePBESecretKeyEncryptorBuilder(SymmetricKeyAlgorithmTags.AES_256)
                 .setProvider(PROVIDER)
                 .build(WRAPPING_ONLY.toCharArray())
