@@ -235,5 +235,4 @@ private fun swipeActionLabel(action: SwipeAction): Int = when (action) {
     SwipeAction.ARCHIVE -> R.string.swipe_action_archive
     SwipeAction.DELETE -> R.string.swipe_action_delete
     SwipeAction.TOGGLE_READ -> R.string.swipe_action_toggle_read
-    SwipeAction.TOGGLE_STAR -> R.string.swipe_action_toggle_star
 }
