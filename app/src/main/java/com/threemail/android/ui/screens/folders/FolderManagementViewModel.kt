@@ -2,6 +2,7 @@ package com.threemail.android.ui.screens.folders
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.threemail.android.data.remote.MailRemoteFactory
 import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.repository.MailRepository
 import com.threemail.android.domain.model.Account
@@ -27,7 +28,8 @@ import javax.inject.Inject
 @HiltViewModel
 class FolderManagementViewModel @Inject constructor(
     private val accountRepository: AccountRepository,
-    private val mailRepository: MailRepository
+    private val mailRepository: MailRepository,
+    private val mailRemoteFactory: MailRemoteFactory
 ) : ViewModel() {
 
     data class UiState(
@@ -73,6 +75,16 @@ class FolderManagementViewModel @Inject constructor(
     }
 
     fun setHidden(folder: MailFolder, hidden: Boolean) {
-        viewModelScope.launch { mailRepository.setFolderHidden(folder.id, hidden) }
+        viewModelScope.launch {
+            // Local visibility drives the drawer immediately.
+            mailRepository.setFolderHidden(folder.id, hidden)
+            // Propagate to the server as an IMAP (un)subscribe so other clients
+            // honor it. No-op success for Gmail/POP3, and a server failure must
+            // not undo the local hide, so it's best-effort.
+            val account = _selectedAccount.value ?: accountRepository.getAccountById(folder.accountId)
+            if (account != null) {
+                runCatching { mailRemoteFactory.create(account).setSubscribed(folder, !hidden) }
+            }
+        }
     }
 }

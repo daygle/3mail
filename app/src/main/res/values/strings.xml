@@ -66,7 +66,7 @@
     <string name="protocol_pop3_subtitle">Downloads inbox mail. No server folders, flags, or push.</string>
     <string name="pop3_server">POP3 server</string>
     <string name="manage_folders_title">Manage folders</string>
-    <string name="manage_folders_description">Turn a folder off to hide it from the navigation drawer. It stays on the server and keeps syncing.</string>
+    <string name="manage_folders_description">Turn a folder off to hide it from the navigation drawer. On IMAP this also unsubscribes it on the server so other apps hide it too; the folder stays on the server and keeps syncing.</string>
     <string name="action_undo">Undo</string>
     <string name="snackbar_archived">Archived</string>
     <string name="snackbar_deleted">Moved to Trash</string>

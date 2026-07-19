@@ -54,4 +54,12 @@ interface MailRemote {
     suspend fun send(message: OutgoingMessage): Result<Unit>
 
     suspend fun appendDraft(draftsFolder: MailFolder, message: OutgoingMessage): Result<Unit>
+
+    /**
+     * Subscribe / unsubscribe a folder on the server (IMAP LSUB). Controls
+     * whether other clients list the folder by default. No-op success for
+     * transports without a subscription concept (Gmail REST, POP3), so callers
+     * can invoke it uniformly.
+     */
+    suspend fun setSubscribed(folder: MailFolder, subscribed: Boolean): Result<Unit> = Result.success(Unit)
 }

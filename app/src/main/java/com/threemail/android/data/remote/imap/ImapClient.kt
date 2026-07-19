@@ -298,14 +298,26 @@ class ImapClient(
             val store = connectStore()
             try {
                 val folders = store.defaultFolder.list("*")
-                Log.d(TAG, "Fetched ${folders.size} folders for ${account.email}")
+                // Server subscription set (LSUB). Used only to pick the *initial*
+                // hidden state of newly-discovered folders; the repository
+                // preserves the user's local hide choice for folders it already
+                // knows, so re-syncing never re-hides a folder the user un-hid.
+                val subscribed = runCatching {
+                    store.defaultFolder.listSubscribed("*").mapNotNullTo(HashSet()) { it.fullName }
+                }.getOrDefault(HashSet())
+                Log.d(TAG, "Fetched ${folders.size} folders (${subscribed.size} subscribed) for ${account.email}")
                 Result.success(folders.map { folder ->
-                    Log.v(TAG, "  Folder: ${folder.fullName} (${folder.name})")
+                    val type = mapFolderType(folder.name)
                     MailFolder(
                         accountId = account.id,
                         serverId = folder.fullName,
                         name = folder.name,
-                        type = mapFolderType(folder.name)
+                        type = type,
+                        // Hide unsubscribed folders by default, but never the
+                        // inbox, and never when the server gave us no LSUB data.
+                        isHidden = subscribed.isNotEmpty() &&
+                            type != FolderType.INBOX &&
+                            folder.fullName !in subscribed
                     )
                 })
             } finally {
@@ -318,6 +330,24 @@ class ImapClient(
             Result.failure(e)
         }
     }
+
+    /** Subscribe / unsubscribe a folder on the server (IMAP LSUB). */
+    suspend fun setSubscribed(folderServerId: String, subscribed: Boolean): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            try {
+                val store = connectStore()
+                try {
+                    store.getFolder(folderServerId).setSubscribed(subscribed)
+                    Result.success(Unit)
+                } finally {
+                    runCatching { store.close() }
+                }
+            } catch (e: RecoverableAuthException) {
+                throw e
+            } catch (e: MessagingException) {
+                Result.failure(e)
+            }
+        }
 
     suspend fun fetchMessages(folderServerId: String, limit: Int = 50): Result<List<MailMessage>> =
         try {
