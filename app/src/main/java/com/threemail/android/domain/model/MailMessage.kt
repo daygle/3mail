@@ -16,6 +16,12 @@ data class MailMessage(
     val bodyHtml: String? = null,
     val bodyPlain: String? = null,
     val isRead: Boolean = false,
+    /**
+     * Populated by remote ingest from the server's \Flagged flag. The
+     * user-visible star feature has been removed from the UI, but this
+     * field is intentionally retained so incoming starred mail keeps
+     * round-tripping through Room. Do not delete.
+     */
     val isStarred: Boolean = false,
     val isDraft: Boolean = false,
     val attachments: List<Attachment> = emptyList(),

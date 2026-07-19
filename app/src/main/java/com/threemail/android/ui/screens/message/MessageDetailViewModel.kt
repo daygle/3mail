@@ -105,14 +105,6 @@ class MessageDetailViewModel @Inject constructor(
         }
     }
 
-    fun toggleStar() {
-        val message = _uiState.value.message ?: return
-        viewModelScope.launch {
-            mailActions.setStarred(message, !message.isStarred)
-            _uiState.value = _uiState.value.copy(message = message.copy(isStarred = !message.isStarred))
-        }
-    }
-
     fun toggleRead() {
         val message = _uiState.value.message ?: return
         viewModelScope.launch {

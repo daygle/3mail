@@ -24,7 +24,6 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -186,7 +185,6 @@ fun InboxScreen(
                         onSelectAll = { viewModel.selectAll() },
                         onMarkRead = { viewModel.markSelectedRead(true) },
                         onMarkUnread = { viewModel.markSelectedRead(false) },
-                        onStar = { viewModel.starSelected(true) },
                         onArchive = { viewModel.archiveSelected() },
                         onDelete = { viewModel.deleteSelected() }
                     )
@@ -260,8 +258,7 @@ fun InboxScreen(
                                                     onNavigateToMessage(message.id)
                                                 }
                                             },
-                                            onLongClick = { viewModel.toggleSelection(message) },
-                                            onToggleStar = { viewModel.toggleStar(message) }
+                                            onLongClick = { viewModel.toggleSelection(message) }
                                         )
                                         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
                                     }
@@ -331,7 +328,6 @@ private fun SelectionTopBar(
     onSelectAll: () -> Unit,
     onMarkRead: () -> Unit,
     onMarkUnread: () -> Unit,
-    onStar: () -> Unit,
     onArchive: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -363,11 +359,6 @@ private fun SelectionTopBar(
                     onClick = { menuOpen = false; onMarkUnread() }
                 )
                 DropdownMenuItem(
-                    text = { Text(stringResource(R.string.star)) },
-                    leadingIcon = { Icon(Icons.Default.Star, contentDescription = null) },
-                    onClick = { menuOpen = false; onStar() }
-                )
-                DropdownMenuItem(
                     text = { Text(stringResource(R.string.select_all)) },
                     leadingIcon = { Icon(Icons.Default.SelectAll, contentDescription = null) },
                     onClick = { menuOpen = false; onSelectAll() }
@@ -397,8 +388,7 @@ private fun SwipeableMailRow(
     onDelete: () -> Unit,
     onToggleRead: () -> Unit,
     onClick: () -> Unit,
-    onLongClick: () -> Unit,
-    onToggleStar: () -> Unit
+    onLongClick: () -> Unit
 ) {
     // In selection mode swipe-to-dismiss is suppressed: the row is a tap
     // target for (de)selection, not a destructive gesture surface.
@@ -409,8 +399,7 @@ private fun SwipeableMailRow(
             onLongClick = onLongClick,
             selected = selected,
             density = density,
-            previewLines = previewLines,
-            onToggleStar = onToggleStar
+            previewLines = previewLines
         )
         return
     }
@@ -420,7 +409,6 @@ private fun SwipeableMailRow(
             SwipeAction.ARCHIVE -> onArchive()
             SwipeAction.DELETE -> onDelete()
             SwipeAction.TOGGLE_READ -> onToggleRead()
-            SwipeAction.TOGGLE_STAR -> onToggleStar()
             SwipeAction.NONE -> Unit
         }
     }
@@ -437,9 +425,9 @@ private fun SwipeableMailRow(
     val dismissState = rememberSwipeToDismissBoxState()
 
     // Guard so each row instance handles the gesture exactly once. For
-    // non-removing actions (mark-read, star, none) we spring the row back so
-    // it stays in the list; ARCHIVE/DELETE remove the row from the reactive
-    // feed, so the dismissed state is left in place.
+    // non-removing actions (#1) we spring the row back so it stays in the
+    // list; ARCHIVE/DELETE remove the row from the reactive feed, so the
+    // dismissed state is left in place.
     var handled by remember { mutableStateOf(false) }
     LaunchedEffect(dismissState.currentValue) {
         if (!handled && dismissState.currentValue != SwipeToDismissBoxValue.Settled) {
@@ -470,8 +458,7 @@ private fun SwipeableMailRow(
             onClick = onClick,
             onLongClick = onLongClick,
             density = density,
-            previewLines = previewLines,
-            onToggleStar = onToggleStar
+            previewLines = previewLines
         )
     }
 }
@@ -482,14 +469,12 @@ private fun SwipeBackground(action: SwipeAction, alignEnd: Boolean) {
         SwipeAction.ARCHIVE -> MaterialTheme.colorScheme.tertiary
         SwipeAction.DELETE -> MaterialTheme.colorScheme.error
         SwipeAction.TOGGLE_READ -> MaterialTheme.colorScheme.primary
-        SwipeAction.TOGGLE_STAR -> MaterialTheme.colorScheme.secondary
         SwipeAction.NONE -> MaterialTheme.colorScheme.surfaceVariant
     }
     val icon = when (action) {
         SwipeAction.ARCHIVE -> Icons.Default.Archive
         SwipeAction.DELETE -> Icons.Default.Delete
         SwipeAction.TOGGLE_READ -> Icons.Default.MarkEmailRead
-        SwipeAction.TOGGLE_STAR -> Icons.Default.Star
         SwipeAction.NONE -> null
     }
     Row(

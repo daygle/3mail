@@ -15,7 +15,7 @@ import javax.inject.Singleton
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 /** Action performed when a message row is swiped. */
-enum class SwipeAction { NONE, ARCHIVE, DELETE, TOGGLE_READ, TOGGLE_STAR }
+enum class SwipeAction { NONE, ARCHIVE, DELETE, TOGGLE_READ }
 
 /** Vertical density of the message list. */
 enum class MessageDensity { COMFORTABLE, COMPACT }
@@ -70,6 +70,10 @@ class SettingsRepository @Inject constructor(
                     emptyTrashOnLaunch = prefs[Keys.EMPTY_TRASH_ON_LAUNCH] ?: false,
                     emptyTrashOnQuit = prefs[Keys.EMPTY_TRASH_ON_QUIT] ?: false,
                     pushEnabled = prefs[Keys.PUSH_ENABLED] ?: true,
+                    // Legacy prefs holding the now-removed "TOGGLE_STAR"
+                    // string coerce to ARCHIVE (right) / DELETE (left) —
+                    // the safe defaults. Intentional one-way migration;
+                    // do not surface this as a visible error.
                     swipeRightAction = prefs[Keys.SWIPE_RIGHT]?.let { runCatching { SwipeAction.valueOf(it) }.getOrNull() } ?: SwipeAction.ARCHIVE,
                     swipeLeftAction = prefs[Keys.SWIPE_LEFT]?.let { runCatching { SwipeAction.valueOf(it) }.getOrNull() } ?: SwipeAction.DELETE,
                     messageDensity = prefs[Keys.MESSAGE_DENSITY]?.let { runCatching { MessageDensity.valueOf(it) }.getOrNull() } ?: MessageDensity.COMFORTABLE,

@@ -22,18 +22,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.automirrored.filled.Forward
 import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.automirrored.filled.ReplyAll
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DriveFileMove
 import androidx.compose.material.icons.filled.MarkEmailUnread
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Report
-import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -151,13 +149,6 @@ fun MessageDetailScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.toggleStar() }) {
-                        Icon(
-                            imageVector = if (message?.isStarred == true) Icons.Default.Star else Icons.Outlined.StarBorder,
-                            contentDescription = "Star",
-                            tint = if (message?.isStarred == true) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
                     IconButton(onClick = { viewModel.toggleRead() }) {
                         Icon(Icons.Default.MarkEmailUnread, contentDescription = stringResource(R.string.mark_as_unread))
                     }
@@ -173,7 +164,7 @@ fun MessageDetailScreen(
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.move_to_folder)) },
-                            leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null) },
+                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = null) },
                             enabled = state.moveTargets.isNotEmpty(),
                             onClick = {
                                 menuOpen = false

@@ -16,7 +16,7 @@ import javax.inject.Singleton
 
 /**
  * Coordinates message mutations so that local state and the remote server stay in
- * sync. Message actions (read/star/delete/archive/move) go through [MailRemote] so
+ * sync. Message actions (read/delete/archive/move) go through [MailRemote] so
  * IMAP and Gmail accounts are handled by their native transport. Emptying trash
  * uses the IMAP expunge path directly (efficient bulk delete).
  */
@@ -32,11 +32,6 @@ class MailActions @Inject constructor(
     suspend fun setRead(message: MailMessage, isRead: Boolean): Result<Unit> {
         mailRepository.updateReadStatus(message.id, isRead)
         return remote(message) { remote, folder -> remote.setSeen(folder, message, isRead) }
-    }
-
-    suspend fun setStarred(message: MailMessage, isStarred: Boolean): Result<Unit> {
-        mailRepository.updateStarred(message.id, isStarred)
-        return remote(message) { remote, folder -> remote.setFlagged(folder, message, isStarred) }
     }
 
     suspend fun delete(message: MailMessage): Result<Unit> {
@@ -125,10 +120,6 @@ class MailActions @Inject constructor(
      */
     suspend fun setReadBatch(messages: Collection<MailMessage>, isRead: Boolean) {
         messages.forEach { runCatching { setRead(it, isRead) } }
-    }
-
-    suspend fun setStarredBatch(messages: Collection<MailMessage>, isStarred: Boolean) {
-        messages.forEach { runCatching { setStarred(it, isStarred) } }
     }
 
     suspend fun deleteBatch(messages: Collection<MailMessage>) {

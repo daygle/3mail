@@ -113,7 +113,7 @@ class InboxViewModel @Inject constructor(
     ) { accounts, folders, messages, selectedAccount, selectedFolder ->
         val account = selectedAccount ?: accounts.firstOrNull()
         val folder = selectedFolder
-            ?: folders.firstOrNull { it.type == FolderType.INBOX }
+            ?: folders.firstOrNull { it.type == FolderType.Inbox }
             ?: folders.firstOrNull()
         UiState(
             accounts = accounts,
@@ -166,52 +166,70 @@ class InboxViewModel @Inject constructor(
             runCatching {
             foldersFlow.collect { folders ->
                 if (_selectedFolder.value == null && folders.isNotEmpty()) {
-                    _selectedFolder.value = folders.firstOrNull { it.type == FolderType.INBOX } ?: folders.first()
+                    _selectedFolder.value = folders.firstOrNull { it.type == FolderType.Inbox } ?: folders.first()
                 }
             }
             }.onFailure { e ->
                 _transient.value = _transient.value.copy(error = e.message ?: "Failed to load inbox")
             }
         }
-        // Auto-sync when the user is now looking at a different folder.
+        // Auto-sync whenever the active view changes — either the selected
+        // folder (single-folder view) or the unified-inbox toggle.
         //
-        // Why this is needed: `selectFolder()` / `selectAccount()` only update
-        // the reactive `_selectedFolder` selector; the messagesFlow then
-        // re-subscribes to `mailRepository.observeFolder`, which is a Room
-        // observer and does NOT trigger a remote fetch. Remote fetches only
-        // happen via `MailSyncWorker` (which is limited to INBOX/SENT/
-        // DRAFTS — `SYNCED_FOLDERS` in MailSyncWorker) or via this VM's
-        // `sync()`, which is only called manually via the refresh button or
-        // pull-to-refresh. The result was that opening any folder the worker
-        // hasn't fetched yet — e.g. custom folders, sub-folders, or a freshly
-        // added account's INBOX — presented an empty list until the user hit
-        // refresh by hand.
+        // Why this is needed: `selectFolder()` / `selectAccount()` /
+        // `selectUnifiedInbox()` only update the reactive selectors; the
+        // `messagesFlow` then re-subscribes to the matching Room observer,
+        // and a Room observer does NOT trigger a remote fetch — it just
+        // re-emits whatever is already in the local cache. Remote fetches
+        // happen via `MailSyncWorker` (limited to INBOX/SENT/DRAFTS via
+        // `SYNCED_FOLDERS`) or via this VM's `sync()`. Without this
+        // collector, tapping any folder the worker hasn't fetched yet —
+        // custom folders, sub-folders, the unified cross-account inbox,
+        // or a freshly-added account's INBOX — shows an empty list until
+        // the user hits Refresh by hand.
         //
-        // This collector fires whenever the now-displayed folder changes:
-        //   1. Initial app launch — the bootstrap above sets `_selectedFolder`
-        //      to the INBOX on its first emit, and we sync it immediately.
-        //   2. User taps a folder in the drawer — `selectFolder()` updates the
-        //      flow value and we fetch that folder.
-        //   3. User switches accounts — `selectAccount()` re-nulls the
-        //      selector, the bootstrap picks the new account's INBOX, and we
-        //      sync it.
+        // The (unified, folder) pair reactively mirrors the UI:
+        //   1. Initial bootstrap — sets the inbox and we sync it immediately.
+        //   2. `selectFolder(X)` — pair changes from (false, inbox) to
+        //      (false, X) and we fetch X.
+        //   3. `selectUnifiedInbox()` — pair changes to (true, inbox) and
+        //      we fetch every account's INBOX (the unified view's data).
+        //   4. `selectAccount(other)` — re-nulls the selector, the
+        //      bootstrap picks the new account's INBOX, and we sync it
+        //      as part of the same transition.
         //
-        // `distinctUntilChanged()` deduplicates re-selects of the same folder
-        // (e.g. picking INBOX, then picking a different folder, then picking
-        // INBOX again yields a fresh sync each time — picking the same folder
-        // twice in a row does NOT spam the server). `filterNotNull()` skips the
-        // transient null state `selectAccount()` leaves behind before the
-        // bootstrap re-picks.
+        // `distinctUntilChanged` dedupes re-selects of the same pair; tapping
+        // the same row twice does not spam the server. `filterNotNull` skips
+        // the transient null state `selectAccount` leaves behind before the
+        // bootstrap re-picks. `collectLatest` cancels the previous sync
+        // when a new target is selected before it finishes, so rapid
+        // A→B→C taps do not fan out into three parallel network calls —
+        // they mirror the `flatMapLatest` idiom already used by
+        // `messagesFlow` and `foldersFlow` above.
         //
-        // `collectLatest` (vs. plain `collect`) cancels the previous sync's
-        // coroutine when a new folder is selected before the previous fetch
-        // has finished, so rapid A→B→C taps don't fan out into three parallel
-        // network calls — only the latest folder wins. This matches the
-        // `flatMapLatest` idiom already used for `messagesFlow` and
-        // `foldersFlow` above.
+        // `MutableStateFlow` already conflates same-value writes
+        // (re-selecting the same folder is a no-op on the wire), and
+        // `distinctUntilChanged` is the safety net above that for the
+        // synthesized (unified, folder) pair emissions.
+        //
+        // No `runCatching { }.onFailure { /* surface */ }` wrapper here,
+        // unlike the two sibling bootstrap collectors above: `sync()` itself
+        // routes its remote failures through `_transient.error` and
+        // `recoverableAuthIntent`, and the only thing that could throw in
+        // this collector is the `combine` plumbing itself, which should
+        // crash (a broken contract is a bug, not a recoverable user error).
+        //
+        // `combine` only emits once BOTH legs have produced a value. On a
+        // brand-new install that flips `_unifiedMode` to true before the
+        // bootstrap picks an inbox (so `_selectedFolder.filterNotNull()` has
+        // never emitted), the auto-sync intentionally sits idle until the
+        // bootstrap delivers the first non-null folder - that is the right
+        // behaviour, not a stuck state.
         viewModelScope.launch {
-            _selectedFolder
-                .filterNotNull()
+            combine(
+                _unifiedMode,
+                _selectedFolder.filterNotNull().distinctUntilChanged()
+            ) { unified, folder -> unified to folder }
                 .distinctUntilChanged()
                 .collectLatest { sync() }
         }
@@ -282,7 +300,7 @@ class InboxViewModel @Inject constructor(
         val accounts = accountsFlow.value
         for (account in accounts) {
             val folders = mailRepository.getFoldersOnce(account.id)
-            val inbox = folders.firstOrNull { it.type == FolderType.INBOX } ?: continue
+            val inbox = folders.firstOrNull { it.type == FolderType.Inbox } ?: continue
             try {
                 val remote = mailRemoteFactory.create(account)
                 val fetch = remote.fetchMessages(inbox, inbox.syncVersion, limit = 100).getOrThrow()
@@ -340,12 +358,6 @@ class InboxViewModel @Inject constructor(
         viewModelScope.launch { mailActions.setReadBatch(batch, isRead) }
     }
 
-    fun starSelected(isStarred: Boolean) {
-        val batch = selectedMessages()
-        _selectedIds.value = emptySet()
-        viewModelScope.launch { mailActions.setStarredBatch(batch, isStarred) }
-    }
-
     /** Mark every message in the current feed as read (server + local). */
     fun markAllRead() {
         val batch = messagesFlow.value.filterNot { it.isRead }
@@ -354,10 +366,6 @@ class InboxViewModel @Inject constructor(
 
     fun markAsRead(message: MailMessage, isRead: Boolean) {
         viewModelScope.launch { mailActions.setRead(message, isRead) }
-    }
-
-    fun toggleStar(message: MailMessage) {
-        viewModelScope.launch { mailActions.setStarred(message, !message.isStarred) }
     }
 
     fun delete(message: MailMessage) {

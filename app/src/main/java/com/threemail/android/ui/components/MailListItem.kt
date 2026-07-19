@@ -15,8 +15,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,7 +40,6 @@ fun MailListItem(
     message: MailMessage,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    onToggleStar: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
     selected: Boolean = false,
     density: MessageDensity = MessageDensity.COMFORTABLE,
@@ -146,16 +143,6 @@ fun MailListItem(
                     )
                 } else {
                     Spacer(modifier = Modifier.weight(1f))
-                }
-                if (onToggleStar != null) {
-                    IconButton(onClick = onToggleStar, modifier = Modifier.size(28.dp)) {
-                        Icon(
-                            imageVector = if (message.isStarred) Icons.Default.Star else Icons.Outlined.StarBorder,
-                            contentDescription = "Star",
-                            modifier = Modifier.size(18.dp),
-                            tint = if (message.isStarred) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
                 }
             }
         }
