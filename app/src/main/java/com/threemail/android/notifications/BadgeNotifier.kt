@@ -23,8 +23,17 @@ class SystemBadgeNotifier @Inject constructor(
     @ApplicationContext private val context: Context
 ) : BadgeNotifier {
     override fun post(notification: Notification) {
-        NotificationManagerCompat.from(context)
-            .notify(NotificationHelper.BADGE_NOTIFICATION_ID, notification)
+        val manager = NotificationManagerCompat.from(context)
+        // POST_NOTIFICATIONS (API 33+) is revocable; if the user has notifications
+        // off there's nothing to badge. Guard first, then still catch the race
+        // where the grant is pulled between the check and the notify() call so a
+        // background badge update never crashes the caller.
+        if (!manager.areNotificationsEnabled()) return
+        try {
+            manager.notify(NotificationHelper.BADGE_NOTIFICATION_ID, notification)
+        } catch (e: SecurityException) {
+            // Permission revoked mid-flight; drop the badge silently.
+        }
     }
 
     override fun cancel() {
