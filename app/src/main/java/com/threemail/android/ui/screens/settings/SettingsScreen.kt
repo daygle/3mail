@@ -89,8 +89,8 @@ fun SettingsScreen(
                     }
                 }
                 SettingsSwitchRow(
-                    title = "Dynamic color",
-                    subtitle = "Match your wallpaper (Android 12+)",
+                    title = "Dynamic Color",
+                    subtitle = "Match your wallpaper (Android 12+).",
                     icon = Icons.Default.Colorize,
                     checked = settings.useDynamicColor,
                     onCheckedChange = viewModel::setDynamicColor
@@ -99,7 +99,7 @@ fun SettingsScreen(
 
             SettingsGroup(title = "Sync") {
                 SettingsContentRow {
-                    Text("Default check frequency", style = MaterialTheme.typography.bodyLarge)
+                    Text("Default Check Frequency", style = MaterialTheme.typography.bodyLarge)
                     Text(
                         text = "Applies to accounts without their own frequency. Set a per-account override in Accounts.",
                         style = MaterialTheme.typography.bodySmall,
@@ -177,8 +177,8 @@ fun SettingsScreen(
 
             SettingsGroup(title = "Notifications") {
                 SettingsSwitchRow(
-                    title = "New mail notifications",
-                    subtitle = "Notify me when new mail arrives",
+                    title = "New Mail Notifications",
+                    subtitle = "Notify me when new mail arrives.",
                     icon = Icons.Default.Notifications,
                     checked = settings.notificationsEnabled,
                     onCheckedChange = viewModel::setNotificationsEnabled
@@ -214,7 +214,7 @@ fun SettingsScreen(
                     OutlinedTextField(
                         value = settings.signature,
                         onValueChange = viewModel::setSignature,
-                        label = { Text("Global signature") },
+                        label = { Text("Global Signature") },
                         placeholder = { Text("Sent from 3mail") },
                         minLines = 2,
                         modifier = Modifier.fillMaxWidth()
