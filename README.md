@@ -17,6 +17,7 @@ A modern, full-featured Android mail client supporting IMAP (push), Gmail (OAuth
 - **Configurable swipe & density**: pick the left/right swipe action (none / archive / delete / read-unread / star), message-list density (comfortable / compact), and body-preview line count in Settings.
 - **Send-as identities**: multiple sender aliases per account with per-identity signatures, chosen from the composer's From selector; plus optional read-receipt (Disposition-Notification-To) requests.
 - **Folder visibility**: a Manage folders screen hides folders from the drawer while keeping them synced.
+- **OpenPGP encryption (experimental)**: inline-PGP sign+encrypt on send and decrypt+verify on read, delegated to the external [OpenKeychain](https://www.openkeychain.org/) app via its OpenPGP API (the app never handles private keys itself). Opt-in per message; the compose encrypt toggle and the message-view decrypt/signature banner appear only when OpenKeychain is installed. PGP/MIME and Autocrypt are not yet implemented, and attachments are sent unencrypted in inline mode.
 - **Native Gmail sync**: Gmail REST API for labels-as-folders, server-side threads, and label-based read/star; IMAP/SMTP for everything else.
 - **Modern UI**: Material 3 + Jetpack Compose with dynamic color (Material You), light/dark/system themes, sender avatars, swipe-to-archive/delete, and a folder navigation drawer.
 - **Full message reading**: HTML bodies rendered in a `WebView` (remote images blocked by default), plain-text fallback, and on-demand body fetch.
@@ -109,8 +110,7 @@ The fix, [`sync/ThreeMailWorkerFactory.kt`](app/src/main/java/com/threemail/andr
 ## Next Steps
 
 - Instrumented UI tests (Espresso / Compose UI test).
-- OpenPGP / Autocrypt encryption.
-- Server-side IMAP folder subscribe/unsubscribe (current folder management is local visibility only).
+- OpenPGP: PGP/MIME (encrypting attachments + structured bodies) and Autocrypt header exchange, building on the inline-PGP support already in place.
 
 ## License
 

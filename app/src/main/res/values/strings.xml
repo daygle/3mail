@@ -72,6 +72,14 @@
     <string name="move_to_folder">Move to folder</string>
     <string name="mark_as_spam">Mark as spam</string>
     <string name="more_options">More options</string>
+    <string name="encrypt">Encrypt</string>
+    <string name="decrypt">Decrypt</string>
+    <string name="decrypting">Decrypting…</string>
+    <string name="pgp_encrypted">Encrypted message</string>
+    <string name="pgp_signature_valid">Encrypted · signature verified</string>
+    <string name="pgp_signature_unverified">Encrypted · signed (sender not verified)</string>
+    <string name="pgp_signature_key_missing">Encrypted · signer key missing</string>
+    <string name="pgp_signature_invalid">Encrypted · invalid signature</string>
     <string name="no_accounts">No accounts added</string>
     <string name="add_account_prompt">Add an email account to get started</string>
     <string name="empty_state_add_account">Add Account</string>

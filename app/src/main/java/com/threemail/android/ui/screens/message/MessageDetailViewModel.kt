@@ -3,7 +3,12 @@ package com.threemail.android.ui.screens.message
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.app.PendingIntent
 import android.content.Context
+import com.threemail.android.data.crypto.OpenPgpController
+import com.threemail.android.data.crypto.PgpResult
+import com.threemail.android.data.crypto.PgpText
+import com.threemail.android.data.crypto.SignatureStatus
 import com.threemail.android.data.remote.MailRemoteFactory
 import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.repository.MailActions
@@ -28,6 +33,7 @@ class MessageDetailViewModel @Inject constructor(
     private val accountRepository: AccountRepository,
     private val mailActions: MailActions,
     private val mailRemoteFactory: MailRemoteFactory,
+    private val openPgpController: OpenPgpController,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -42,7 +48,16 @@ class MessageDetailViewModel @Inject constructor(
         /** Candidate folders for the move picker (excludes the message's current folder). */
         val moveTargets: List<MailFolder> = emptyList(),
         /** Whether a Spam/Junk folder exists so the "Mark as spam" action can show. */
-        val spamAvailable: Boolean = false
+        val spamAvailable: Boolean = false,
+        /** True when the body is an inline PGP encrypted block. */
+        val isEncrypted: Boolean = false,
+        val isDecrypting: Boolean = false,
+        /** Decrypted plaintext once OpenKeychain has decrypted the body. */
+        val decryptedBody: String? = null,
+        val signatureStatus: SignatureStatus? = null,
+        /** Set when OpenKeychain needs the user to act (passphrase) before decrypting. */
+        val pgpUserAction: PendingIntent? = null,
+        val pgpError: String? = null
     )
 
     private val _uiState = MutableStateFlow(UiState())
@@ -66,6 +81,8 @@ class MessageDetailViewModel @Inject constructor(
                     if (!it.isRead) mailActions.setRead(it, true)
                     if (it.bodyHtml.isNullOrBlank() && it.bodyPlain.isNullOrBlank()) {
                         fetchBody(it)
+                    } else {
+                        maybeDecrypt(it)
                     }
                 }
             } catch (e: Exception) {
@@ -96,6 +113,7 @@ class MessageDetailViewModel @Inject constructor(
                         attachments = body.attachments
                     )
                     _uiState.value = _uiState.value.copy(message = updated, isLoadingBody = false)
+                    maybeDecrypt(updated)
                 }.onFailure {
                     _uiState.value = _uiState.value.copy(isLoadingBody = false, error = it.message)
                 }
@@ -103,6 +121,52 @@ class MessageDetailViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(isLoadingBody = false, error = e.message)
             }
         }
+    }
+
+    /** Body text used for PGP detection: prefer plain text, fall back to stripped HTML. */
+    private fun pgpText(message: MailMessage): String =
+        message.bodyPlain?.takeIf { it.isNotBlank() }
+            ?: message.bodyHtml?.let { MailText.stripHtml(it) }
+            ?: ""
+
+    /** If the body is an inline PGP block, flag it and kick off decryption. */
+    private fun maybeDecrypt(message: MailMessage) {
+        if (!PgpText.isEncrypted(pgpText(message))) return
+        _uiState.value = _uiState.value.copy(isEncrypted = true)
+        decrypt()
+    }
+
+    fun decrypt() {
+        val message = _uiState.value.message ?: return
+        val armored = PgpText.extractArmored(pgpText(message))
+        _uiState.value = _uiState.value.copy(isDecrypting = true, pgpError = null, pgpUserAction = null)
+        viewModelScope.launch {
+            when (val result = openPgpController.decryptAndVerify(armored.toByteArray())) {
+                is PgpResult.Success -> _uiState.value = _uiState.value.copy(
+                    isDecrypting = false,
+                    decryptedBody = String(result.data),
+                    signatureStatus = result.signature
+                )
+                is PgpResult.NeedUserInteraction -> _uiState.value = _uiState.value.copy(
+                    isDecrypting = false,
+                    pgpUserAction = result.pendingIntent
+                )
+                is PgpResult.Error -> _uiState.value = _uiState.value.copy(
+                    isDecrypting = false,
+                    pgpError = result.message
+                )
+                PgpResult.Unavailable -> _uiState.value = _uiState.value.copy(
+                    isDecrypting = false,
+                    pgpError = "Install OpenKeychain to decrypt this message"
+                )
+            }
+        }
+    }
+
+    /** Called after the OpenKeychain passphrase intent returns; retries decryption. */
+    fun onPgpUserActionResult() {
+        _uiState.value = _uiState.value.copy(pgpUserAction = null)
+        decrypt()
     }
 
     fun toggleRead() {
