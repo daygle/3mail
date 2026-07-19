@@ -291,7 +291,7 @@ val MIGRATION_13_14: Migration = object : Migration(13, 14) {
  *
  * All three are additive `ALTER TABLE … ADD COLUMN`s with defaults that
  * preserve existing behaviour:
- *  - `signature = ''` → the composer keeps falling back to the global signature.
+ *  - `signature = ''` → the composer treats blank as "no signature" (no global fallback).
  *  - `syncIntervalMinutes = 0` → every account keeps the app-wide sync cadence
  *    until the user sets a per-account override.
  *  - `notificationsEnabled = 1` → accounts keep notifying exactly as before,

@@ -208,24 +208,6 @@ fun SettingsScreen(
                     onCheckedChange = viewModel::setEmptyTrashOnQuit
                 )
             }
-
-            SettingsGroup(title = "Signature") {
-                SettingsContentRow {
-                    OutlinedTextField(
-                        value = settings.signature,
-                        onValueChange = viewModel::setSignature,
-                        label = { Text("Global Signature") },
-                        placeholder = { Text("Sent from 3mail") },
-                        minLines = 2,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Text(
-                        text = "Used for accounts that don't set their own signature.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
         }
     }
 }

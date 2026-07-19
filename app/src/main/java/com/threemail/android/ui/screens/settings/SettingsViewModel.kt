@@ -26,10 +26,6 @@ class SettingsViewModel @Inject constructor(
     val settings: StateFlow<AppSettings> = settingsRepository.settings
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppSettings())
 
-    fun setSignature(value: String) {
-        viewModelScope.launch { settingsRepository.setSignature(value) }
-    }
-
     fun setSyncInterval(minutes: Long) {
         viewModelScope.launch {
             settingsRepository.setSyncInterval(minutes)

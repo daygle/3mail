@@ -39,8 +39,7 @@ data class AccountEntity(
     /**
      * Per-account signature appended to composed mail from this account. Empty
      * means "no signature for this account"; the composer treats a blank value
-     * as a fall-through to the global signature in
-     * [com.threemail.android.data.settings.SettingsRepository].
+     * as no signature at all (no global fallback).
      */
     val signature: String = "",
     /**

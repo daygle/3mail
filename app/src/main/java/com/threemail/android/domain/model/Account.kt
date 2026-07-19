@@ -29,7 +29,7 @@ enum class Security { NONE, STARTTLS, SSL_TLS }
 data class Identity(
     val displayName: String = "",
     val email: String,
-    /** Per-identity signature; blank falls back to the account/global signature. */
+    /** Per-identity signature; blank falls back to the account signature, then omits entirely. */
     val signature: String = ""
 )
 
@@ -51,7 +51,7 @@ data class Account(
     val syncEnabled: Boolean = true,
     val calendarSyncEnabled: Boolean = true,
     val pushEnabled: Boolean = true,
-    /** Per-account signature; blank falls back to the global signature. */
+    /** Per-account signature; blank means no signature on outgoing mail from this account. */
     val signature: String = "",
     /**
      * Per-account mail-check frequency in minutes. `0` means "use the global

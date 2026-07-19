@@ -14,7 +14,6 @@ import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.repository.ContactRepository
 import com.threemail.android.data.repository.MailRepository
 import com.threemail.android.data.repository.OutboxRepository
-import com.threemail.android.data.settings.SettingsRepository
 import com.threemail.android.sync.SyncScheduler
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.Attachment
@@ -44,7 +43,6 @@ enum class RecipientField { TO, CC, BCC }
 class ComposeViewModel @Inject constructor(
     private val accountRepository: AccountRepository,
     private val mailRepository: MailRepository,
-    private val settingsRepository: SettingsRepository,
     private val mailRemoteFactory: MailRemoteFactory,
     private val contactRepository: ContactRepository,
     private val outboxRepository: OutboxRepository,
@@ -99,9 +97,6 @@ class ComposeViewModel @Inject constructor(
     private var inReplyTo: String? = null
     private var references: String? = null
 
-    /** Global signature fallback for accounts that don't define their own. */
-    private var globalSignature: String = ""
-
     /**
      * The signature block currently applied to the body. Tracked so that
      * switching accounts in a fresh "new" compose can swap the signature only
@@ -117,12 +112,11 @@ class ComposeViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching {
                 val accounts = accountRepository.getAccounts().first()
-                globalSignature = settingsRepository.settings.first().signature
                 val self = accounts.firstOrNull()
                 val identities = identitiesFor(self)
                 val selectedIdentity = identities.firstOrNull()
-                // Prefer the identity's own signature, then the account's, then
-                // the global one.
+                // Prefer the identity's own signature, then the account's; a
+                // blank value at both layers omits the signature entirely.
                 val signature = effectiveSignature(self, selectedIdentity)
                 appliedSignatureBlock = signatureBlock(signature)
                 val original = if (refId >= 0) mailRepository.getMessageById(refId) else null
@@ -197,11 +191,11 @@ class ComposeViewModel @Inject constructor(
     private fun signatureBlock(signature: String): String =
         if (signature.isBlank()) "" else "\n\n-- \n$signature"
 
-    /** Identity signature when set, else the account's, else the global one. */
+    /** Identity signature when set, else the account's; blank omits the signature entirely. */
     private fun effectiveSignature(account: Account?, identity: Identity?): String =
         identity?.signature?.takeIf { it.isNotBlank() }
             ?: account?.signature?.takeIf { it.isNotBlank() }
-            ?: globalSignature
+            ?: ""
 
     /** The account's primary address as the first identity, then its aliases. */
     private fun identitiesFor(account: Account?): List<Identity> {

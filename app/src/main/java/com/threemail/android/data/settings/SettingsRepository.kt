@@ -21,7 +21,6 @@ enum class SwipeAction { NONE, ARCHIVE, DELETE, TOGGLE_READ }
 enum class MessageDensity { COMFORTABLE, COMPACT }
 
 data class AppSettings(
-    val signature: String = "",
     val syncIntervalMinutes: Long = 15,
     val notificationsEnabled: Boolean = true,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
@@ -44,7 +43,6 @@ class SettingsRepository @Inject constructor(
 ) {
 
     private object Keys {
-        val SIGNATURE = stringPreferencesKey("signature")
         val SYNC_INTERVAL = longPreferencesKey("sync_interval_minutes")
         val NOTIFICATIONS = booleanPreferencesKey("notifications_enabled")
         val THEME = stringPreferencesKey("theme_mode")
@@ -61,9 +59,8 @@ class SettingsRepository @Inject constructor(
     val settings: Flow<AppSettings> = flow {
         dataStore.data.collect { prefs ->
             emit(
-                AppSettings(
-                    signature = prefs[Keys.SIGNATURE] ?: "",
-                    syncIntervalMinutes = prefs[Keys.SYNC_INTERVAL] ?: 15L,
+            AppSettings(
+                syncIntervalMinutes = prefs[Keys.SYNC_INTERVAL] ?: 15L,
                     notificationsEnabled = prefs[Keys.NOTIFICATIONS] ?: true,
                     themeMode = prefs[Keys.THEME]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: ThemeMode.SYSTEM,
                     useDynamicColor = prefs[Keys.DYNAMIC_COLOR] ?: true,
@@ -83,7 +80,6 @@ class SettingsRepository @Inject constructor(
         }
     }
 
-    suspend fun setSignature(value: String) = dataStore.edit { it[Keys.SIGNATURE] = value }
     suspend fun setSyncInterval(minutes: Long) = dataStore.edit { it[Keys.SYNC_INTERVAL] = minutes }
     suspend fun setNotificationsEnabled(enabled: Boolean) = dataStore.edit { it[Keys.NOTIFICATIONS] = enabled }
     suspend fun setThemeMode(mode: ThemeMode) = dataStore.edit { it[Keys.THEME] = mode.name }
