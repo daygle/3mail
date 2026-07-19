@@ -33,6 +33,7 @@ import com.threemail.android.domain.model.MailFolder
 import com.threemail.android.domain.model.MailMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
@@ -148,7 +149,7 @@ class InboxViewModelTest {
         // Pin the active account so the bootstrap race (foldersFlow re-emit
         // after selectAccount) doesn't leave _selectedFolder on null when
         // the assertion runs.
-        val account = accountRepository.getAccountById(seededAccountId)
+        val account = runBlocking { accountRepository.getAccountById(seededAccountId) }
             ?: error("seeded account missing")
         viewModel.selectAccount(account)
         ShadowLooper.idleMainLooper()
@@ -175,7 +176,7 @@ class InboxViewModelTest {
 
     @Test
     fun `selectFolder of the same folder twice does not re-fetch`() {
-        val account = accountRepository.getAccountById(seededAccountId)
+        val account = runBlocking { accountRepository.getAccountById(seededAccountId) }
             ?: error("seeded account missing")
         viewModel.selectAccount(account)
         ShadowLooper.idleMainLooper()
@@ -200,36 +201,38 @@ class InboxViewModelTest {
     }
 
     private fun seedFixtures() {
-        db.accountDao().insert(
-            AccountEntity(
-                id = seededAccountId,
-                email = "user@example.com",
-                displayName = "User",
-                accountType = AccountType.IMAP,
-                incomingServer = "imap.example.com",
-                outgoingServer = "smtp.example.com",
-                useEncryption = true,
-                password = null
+        runBlocking {
+            db.accountDao().insert(
+                AccountEntity(
+                    id = seededAccountId,
+                    email = "user@example.com",
+                    displayName = "User",
+                    accountType = AccountType.IMAP,
+                    incomingServer = "imap.example.com",
+                    outgoingServer = "smtp.example.com",
+                    useEncryption = true,
+                    password = null
+                )
             )
-        )
-        db.folderDao().insert(
-            FolderEntity(
-                id = seededInboxId,
-                accountId = seededAccountId,
-                serverId = "INBOX",
-                name = "Inbox",
-                type = FolderType.Inbox
+            db.folderDao().insert(
+                FolderEntity(
+                    id = seededInboxId,
+                    accountId = seededAccountId,
+                    serverId = "INBOX",
+                    name = "Inbox",
+                    type = FolderType.Inbox
+                )
             )
-        )
-        db.folderDao().insert(
-            FolderEntity(
-                id = seededSentId,
-                accountId = seededAccountId,
-                serverId = "Sent",
-                name = "Sent",
-                type = FolderType.SENT
+            db.folderDao().insert(
+                FolderEntity(
+                    id = seededSentId,
+                    accountId = seededAccountId,
+                    serverId = "Sent",
+                    name = "Sent",
+                    type = FolderType.SENT
+                )
             )
-        )
+        }
     }
 
     private fun realSettingsRepository(context: Context): SettingsRepository {
