@@ -17,18 +17,22 @@ package com.threemail.android.domain.model
  * Gmail accounts ignore this entirely: they authenticate via OAuth XOAUTH2
  * and the Gmail REST API rather than IMAP/SMTP.
  */
-enum class Security { NONE, STARTTLS, SSL_TLS }
-
-/**
+enum class Security { NONE, STARTTLS, SSL_TLS }/**
  * The folder type a server-side folder maps to on a single account. Used by
  * the per-account folder-role override UI: each account's
  * [com.threemail.android.domain.model.Account.folderRoles] map keys a
  * [FolderType] to the IMAP `folder.fullName` chosen to occupy that role.
  *
- * The default heuristic mapping (name-based match in the IMAP LIST response:
- * "inbox" -> Inbox, "spam"/"junk" -> SPAM, etc.) still drives re-syncs when
- * the override map is empty.
- */ Lets a user send from a different
+ * `FolderType` itself is declared in [com.threemail.android.domain.model.MailFolder.kt]
+ * (same package) - this comment block exists here purely so the
+ * [com.threemail.android.domain.model.Account] data class below has the
+ * reference target it can KDoc-link to. Adding a second `enum class FolderType`
+ * in this file would conflict, so the type lives next to the `MailFolder`
+ * value class it parameterises.
+ */
+
+/**
+ * Lets a user send from a different
  * address / display name than the account's primary address (e.g. a shared or
  * plus-addressed alias), each with its own optional signature. Persisted as a
  * JSON list on the account row (see

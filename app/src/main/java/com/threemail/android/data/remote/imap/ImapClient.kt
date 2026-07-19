@@ -25,6 +25,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.util.Properties
 import javax.mail.Address
@@ -416,10 +417,15 @@ class ImapClient(
             withFolder(folderServerId, Folder.READ_ONLY) { folder ->
                 val msg = folder.getMessageByUID(uid)
                     ?: return@withFolder emptyMap<String, List<String>>()
-                msg.getAllHeaders().associate { header ->
+                // `Message.getAllHeaders()` is declared with an `Array<Header>?`
+                // Java-platform return type, so Kotlin sees the element type as
+                // `Any!` and the lambda parameter can't be inferred. Type the
+                // lambda parameter explicitly so `header.name` / `header.value`
+                // resolve against `javax.mail.Header`.
+                msg.allHeaders?.associate { header: javax.mail.Header ->
                     header.name to header.value.split('\n').map { it.trim() }
                         .filter { it.isNotEmpty() }
-                }
+                } ?: emptyMap()
             }.let { Result.success(it) }
         } catch (e: RecoverableAuthException) {
             throw e
@@ -741,7 +747,7 @@ class ImapClient(
 
     private fun resolveFolderType(
         account: Account,
-        folder: ImapFolder
+        folder: javax.mail.Folder
     ): FolderType {
         // User-set override wins: if this folder's fullName is mapped to any
         // role in the account's override JSON, use that role exactly.

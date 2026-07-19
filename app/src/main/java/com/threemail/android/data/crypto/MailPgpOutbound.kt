@@ -9,6 +9,7 @@ import org.bouncycastle.bcpg.ArmoredOutputStream
 import org.bouncycastle.openpgp.PGPPublicKey
 import org.bouncycastle.openpgp.PGPPublicKeyRing
 import org.bouncycastle.openpgp.PGPUtil
+import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator
 import java.io.ByteArrayInputStream
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -209,7 +210,13 @@ class MailPgpOutbound @Inject constructor(
         val input = PGPUtil.getDecoderStream(
             ByteArrayInputStream(armored.toByteArray(Charsets.UTF_8))
         )
-        val ring = PGPPublicKeyRing(input)
+        // BC 1.78 dropped the single-arg PGPPublicKeyRing(InputStream)
+        // overload from Kotlin overload resolution's "preferred" set,
+        // making Kotlin pick the (List<PGPPublicKey>) ctor instead.
+        // Force the (InputStream, KeyFingerPrintCalculator) shape explicitly
+        // so the resulting `ring` is unambiguously a PGPPublicKeyRing rather
+        // than a list cast.
+        val ring = PGPPublicKeyRing(input, JcaKeyFingerprintCalculator())
         ring.publicKeys.firstOrNull { it.isEncryptionKey } ?: ring.publicKey
     }.getOrNull()
 

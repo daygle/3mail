@@ -10,6 +10,7 @@ import com.threemail.android.data.remote.MailRemoteFactory
 import com.threemail.android.data.remote.MimeBuilder
 import com.threemail.android.data.remote.gmail.RecoverableAuthException
 import com.threemail.android.data.repository.AccountRepository
+import com.threemail.android.data.repository.OutboxEntry
 import com.threemail.android.data.repository.OutboxRepository
 import com.threemail.android.domain.model.Account
 import java.io.ByteArrayInputStream
@@ -143,17 +144,19 @@ class SendMailWorker(
         // path: failing the second case would silently shrink the
         // wire body's recipient set, which is the cryptographic
         // correctness issue the strict rule is meant to prevent.
-        val allResolved = outcome.unresolvable.isEmpty() && outcome.unparseable.isEmpty()
-
-        val remote = mailRemoteFactory.create(account)
-        return if (envelopeBytes != null && allResolved) {
-            // Strict-mode encrypted path.
-            val outerMime = buildOuterEncryptedMime(plaintextMime, envelopeBytes)
-            val outerBytes = ByteArrayOutputStream().also { outerMime.writeTo(it) }.toByteArray()
-            val result = remote.sendRaw(outerBytes)
-            val outgoingMessageId = plaintextMime.messageID
-                ?.trim()?.removePrefix("<")?.removeSuffix(">")?.orEmpty()
-            if (result.isSuccess && outgoingMessageId.isNotBlank()) {
+        val allResolved = outcome.unresolvable.isEmpty() && outcome.unparseable.isEmpty()            val remote = mailRemoteFactory.create(account)
+            return if (envelopeBytes != null && allResolved) {
+                // Strict-mode encrypted path.
+                val outerMime = buildOuterEncryptedMime(plaintextMime, envelopeBytes)
+                val outerBytes = ByteArrayOutputStream().also { outerMime.writeTo(it) }.toByteArray()
+                val result = remote.sendRaw(outerBytes)
+                // JavaMail `MimeMessage.getMessageID()` returns `String` but
+                // tends to be null on freshly composed MimeMessages; the
+                // `?.` chain plus `orEmpty()` keeps the receiver typed as
+                // non-nullable String for the isNotBlank check below.
+                val outgoingMessageId = plaintextMime.messageID
+                    ?.trim()?.removePrefix("<")?.removeSuffix(">").orEmpty()
+                if (result.isSuccess && outgoingMessageId.isNotBlank()) {
                 runCatching {
                     messageFlagDao.insertOrIgnore(
                         MessageFlagEntity(

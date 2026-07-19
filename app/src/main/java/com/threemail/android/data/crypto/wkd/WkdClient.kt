@@ -3,6 +3,7 @@ package com.threemail.android.data.crypto.wkd
 import com.threemail.android.data.crypto.ZBase32
 import org.bouncycastle.openpgp.PGPPublicKeyRing
 import org.bouncycastle.openpgp.PGPUtil
+import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
@@ -124,7 +125,12 @@ class WkdClient @Inject constructor() {
     private fun parseArmoredRing(stream: java.io.InputStream): PGPPublicKeyRing? {
         return runCatching {
             val input = PGPUtil.getDecoderStream(stream)
-            org.bouncycastle.openpgp.PGPPublicKeyRing(input)
+            // BC 1.78: the single-arg (InputStream) ctor still exists at
+            // runtime but Kotlin's overload-resolution picks the List<...>
+            // ic variant for the typeless stream. Pass an explicit
+            // JcaKeyFingerprintCalculator so the resulting KFC-disambiguated
+            // ctor wins.
+            org.bouncycastle.openpgp.PGPPublicKeyRing(input, JcaKeyFingerprintCalculator())
         }.getOrNull()
     }
 
