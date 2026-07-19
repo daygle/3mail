@@ -75,9 +75,11 @@ jobs:
 
   # Compose UI test runner: instrumented `connectedDebugAndroidTest`. Only
   # runs on merges to main (not on PRs) to keep macos emulator minutes
-  # reasonable - reactivecircus/android-emulator-runner@v3 needs macos for
+  # reasonable - reactivecircus/android-emulator-runner@v2 needs macos for
   # x86_64 host-accelerated boot and the AVD startup is slow enough that
   # running on every PR would dominate our CI budget.
+  # (The action's latest published major is v2.x; prefix with @v2 so it
+  # tracks the most recent patch release without pinning a frozen SHA.)
   android-test:
     name: Compose UI tests (instrumented)
     runs-on: macos-latest
@@ -101,7 +103,7 @@ jobs:
           gradle-version: "9.6.1"
 
       - name: Run instrumented Compose UI tests
-        uses: reactivecircus/android-emulator-runner@v3
+        uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 30
           target: google_apis

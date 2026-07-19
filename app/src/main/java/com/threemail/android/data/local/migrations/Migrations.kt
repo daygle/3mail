@@ -401,6 +401,23 @@ val MIGRATION_19_20: Migration = object : Migration(19, 20) {
                 "FOREIGN KEY(`accountId`) REFERENCES `accounts`(`id`) " +
                 "ON UPDATE NO ACTION ON DELETE CASCADE)"
         )
+        // Explicit named index for the FK child column. Room's KSP-generated
+        // DDL emits `index_message_flags_accountId` because the
+        // MessageFlagEntity annotation declares
+        // `indices = [Index(value = ["accountId"])]`; SQLite's composite
+        // primary key only creates an *implicit* b-tree on the leading
+        // column, which Room's `room_master_table` checksum does NOT accept
+        // as a substitute. Without this line users upgrading from v19 -> v20
+        // crash at open with "Migration didn't properly handle:
+        // message_flags". The `IF NOT EXISTS` keeps it idempotent on fresh
+        // v20 installs (Room creates the equivalent index from the
+        // auto-generated CREATE TABLE so this becomes a no-op for them).
+        // Mirrors MIGRATION_10_11 which carries the same shape for
+        // folder_favorites.
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_message_flags_accountId` " +
+                "ON `message_flags`(`accountId`)"
+        )
     }
 }
 

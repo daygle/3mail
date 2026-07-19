@@ -2,7 +2,7 @@ package com.threemail.android.data.local.entity
 
 import androidx.room.Entity
 import androidx.room.ForeignKey
-import androidx.room.PrimaryKey
+import androidx.room.Index
 
 /**
  * Per-message side-table holding local-only flags that need to survive
@@ -26,6 +26,7 @@ import androidx.room.PrimaryKey
  */
 @Entity(
     tableName = "message_flags",
+    primaryKeys = ["accountId", "messageId"],
     foreignKeys = [
         ForeignKey(
             entity = AccountEntity::class,
@@ -33,12 +34,17 @@ import androidx.room.PrimaryKey
             childColumns = ["accountId"],
             onDelete = ForeignKey.CASCADE
         )
-    ]
+    ],
+    // Mirrors FolderFavoriteEntity: Room requires the FK child column to be
+    // covered by an explicit Index annotation, even when SQLite's COMPOSITE
+    // primary key already creates an implicit b-tree on the leading column.
+    // Failing to declare this surfaces as a KSP warning at compile time and
+    // (in some Room versions) a schema-checksum mismatch when the auto-generated
+    // DDL is compared against the migration SQL.
+    indices = [Index(value = ["accountId"])]
 )
 data class MessageFlagEntity(
-    @PrimaryKey
     val accountId: Long,
-    @PrimaryKey
     val messageId: String,
     /** True when this message was sent (or, on ingest, received) as PGP/MIME. */
     val isEncrypted: Boolean = false
