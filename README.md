@@ -109,8 +109,11 @@ The fix, [`sync/ThreeMailWorkerFactory.kt`](app/src/main/java/com/threemail/andr
 
 ## Next Steps
 
-- Instrumented UI tests (Espresso / Compose UI test).
-- OpenPGP: restore the upstream `openpgp-api` dependency and bring the OpenKeychain-brokered inline-PGP sign/encrypt + decrypt/verify path back online (currently stubbed), then layer PGP/MIME (encrypting attachments + structured bodies) and Autocrypt header exchange on top.
+- Compose UI test scaffolding is in (`app/src/androidTest/java/com/threemail/android/ui/InboxSettingsTitleCaseTest.kt`); the remaining piece is a **CI emulator job** wiring `connectedDebugAndroidTest` on top of the existing `testDebugUnitTest` workflow.
+- Future hardening for the in-app OpenPGP path (BC-backed `OpenPgpController`):
+  - PGP/MIME multipart/encrypted for attachments + structured bodies (`protocol="application/pgp-encrypted"`).
+  - Autocrypt header exchange (RFC 8180) with a per-peer key cache in DataStore.
+  - WKD recipient-key discovery so `signAndEncrypt` encrypts to real recipient keys rather than the current self-only fallback.
 
 ## License
 

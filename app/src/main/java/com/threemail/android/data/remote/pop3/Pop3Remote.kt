@@ -59,6 +59,16 @@ class Pop3Remote(private val client: Pop3Client) : MailRemote {
 
     override suspend fun send(message: OutgoingMessage): Result<Unit> = client.sendMessage(message)
 
+    /**
+     * POP3 itself doesn't carry an SMTP submission channel, so the
+     * opportunistic-encryption path is unsupported on this transport.
+     * The worker should fall back to [send] before reaching here; if
+     * it doesn't, report the unavailability so the failure surfaces
+     * in the retry counter instead of silently dropping the message.
+     */
+    override suspend fun sendRaw(messageBytes: ByteArray): Result<Unit> =
+        Result.failure(UnsupportedOperationException("POP3 accounts do not support sending raw / encrypted MIME"))
+
     // POP3 offers no server-side drafts folder; keep the composer's save path
     // non-disruptive by reporting success (the draft simply isn't stored remotely).
     override suspend fun appendDraft(draftsFolder: MailFolder, message: OutgoingMessage): Result<Unit> =

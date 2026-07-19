@@ -15,7 +15,7 @@ import javax.inject.Singleton
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 /** Action performed when a message row is swiped. */
-enum class SwipeAction { NONE, ARCHIVE, DELETE, TOGGLE_READ }
+enum class SwipeAction { NONE, ARCHIVE, DELETE, TOGGLE_READ, MARK_SPAM }
 
 /** Vertical density of the message list. */
 enum class MessageDensity { COMFORTABLE, COMPACT }

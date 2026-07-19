@@ -150,6 +150,16 @@ dependencies {
     // for the Google's Credential Manager sign-in flow. Not bundled with credentials-play-services-auth.
     implementation(libs.androidx.googleid)
 
+    // In-app OpenPGP provider. See OpenPgpController.kt for the rationale:
+    // the upstream openpgp-api artifact hasn't shipped a public release since
+    // 2014 and the OpenKeychain-brokered path requires their app to be
+    // installed - we run our own cryptographic operations against Bouncy Castle.
+    // The Android Keystore-backed CredentialStore is used to wrap the private
+    // key at rest so the keyring in the app's private files dir never holds
+    // plaintext bytes.
+    implementation(libs.org.bouncycastle.bcpg)
+    implementation(libs.org.bouncycastle.bcprov)
+
     // Testing
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

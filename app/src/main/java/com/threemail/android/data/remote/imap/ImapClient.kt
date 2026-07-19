@@ -307,7 +307,7 @@ class ImapClient(
                 }.getOrDefault(HashSet())
                 Log.d(TAG, "Fetched ${folders.size} folders (${subscribed.size} subscribed) for ${account.email}")
                 Result.success(folders.map { folder ->
-                    val type = mapFolderType(folder.name)
+                    val type = resolveFolderType(account, folder)
                     MailFolder(
                         accountId = account.id,
                         serverId = folder.fullName,
@@ -392,6 +392,38 @@ class ImapClient(
         } catch (e: RecoverableAuthException) {
             throw e
         } catch (e: MessagingException) {
+            Result.failure(e)
+        }
+
+    /**
+     * Fetches only the envelope headers (RFC 5322 §3.6.1 plus any MIME
+     * extensions like `Autocrypt` / `Autocrypt-Gossip`). Cheaper than
+     * [fetchBody] for the opportunistic Autocrypt-key-learning path
+     * because headers are delivered as one block per message and are
+     * typically tens of KB - the entire MIME body is never read.
+     *
+     * JavaMail exposes headers as a flat list of `name: value` lines
+     * via [javax.mail.Message.getAllHeaders]. Multi-value headers
+     * (References, Received) are split on newline into a list so the
+     * caller doesn't have to re-parse.
+     *
+     * Returns an empty map when the message is not found so callers
+     * can iterate `fetchMessages*` results and synchronously call this
+     * helper without a per-UID exception path.
+     */
+    suspend fun fetchMessageHeaders(folderServerId: String, uid: Long): Result<Map<String, List<String>>> =
+        try {
+            withFolder(folderServerId, Folder.READ_ONLY) { folder ->
+                val msg = folder.getMessageByUID(uid)
+                    ?: return@withFolder emptyMap<String, List<String>>()
+                msg.getAllHeaders().associate { header ->
+                    header.name to header.value.split('\n').map { it.trim() }
+                        .filter { it.isNotEmpty() }
+                }
+            }.let { Result.success(it) }
+        } catch (e: RecoverableAuthException) {
+            throw e
+        } catch (e: Exception) {
             Result.failure(e)
         }
 
@@ -556,6 +588,40 @@ class ImapClient(
         }
     }
 
+    /**
+     * Sends a pre-built RFC 5322 wire-format message (e.g. a
+     * multipart/encrypted envelope from [com.threemail.android.data.crypto.MailPgpOutbound])
+     * over the same SMTP transport as [sendMessage]. The bytes are parsed
+     * into a [MimeMessage] via an empty [Properties] session so JavaMail
+     * stays out of header rewriting and trusts the wire form verbatim;
+     * the SMTP transport itself is this client's configured session
+     * (STARTTLS / SSL_TLS / ssl.checkserveridentity are unchanged).
+     *
+     * Anything that needs to bypass [MimeBuilder.build] - because the
+     * outbound payload is already encrypted Mime - goes here.
+     */
+    suspend fun sendEncryptedMessage(messageBytes: ByteArray): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val mime = javax.mail.internet.MimeMessage(
+                javax.mail.Session.getInstance(java.util.Properties()),
+                ByteArrayInputStream(messageBytes)
+            )
+            val credential = credential()
+            val transport = getSession().getTransport("smtp")
+            try {
+                transport.connect(getSmtpServer(), getSmtpPort(), account.email, credential)
+                transport.sendMessage(mime, mime.allRecipients)
+            } finally {
+                runCatching { transport.close() }
+            }
+            Result.success(Unit)
+        } catch (e: RecoverableAuthException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     /** Appends a message to the Drafts folder without sending it. */
     suspend fun appendDraft(draftsServerId: String, message: OutgoingMessage): Result<Unit> =
         try {
@@ -671,6 +737,22 @@ class ImapClient(
         } catch (_: Exception) {
             null
         }
+    }
+
+    private fun resolveFolderType(
+        account: Account,
+        folder: ImapFolder
+    ): FolderType {
+        // User-set override wins: if this folder's fullName is mapped to any
+        // role in the account's override JSON, use that role exactly.
+        account.folderRoles.entries.firstOrNull { it.value == folder.fullName }
+            ?.let { return it.key }
+        // Otherwise ask the name heuristic, but make sure the heuristic
+        // doesn't pre-empt a role that's already been claimed by the user
+        // for a different server folder (avoids two folders both tagged as
+        // Inbox, etc.).
+        val heuristic = mapFolderType(folder.name)
+        return if (heuristic in account.folderRoles.keys) FolderType.CUSTOM else heuristic
     }
 
     private fun mapFolderType(name: String): FolderType = when (name.lowercase()) {

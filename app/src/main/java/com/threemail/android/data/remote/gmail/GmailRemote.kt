@@ -167,6 +167,15 @@ class GmailRemote(
         Unit
     }
 
+    override suspend fun sendRaw(messageBytes: ByteArray): Result<Unit> = gmail { svc ->
+        val raw = android.util.Base64.encodeToString(
+            messageBytes,
+            android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING
+        )
+        svc.users().messages().send(USER, GmailMessage().setRaw(raw)).execute()
+        Unit
+    }
+
     override suspend fun appendDraft(draftsFolder: MailFolder, message: OutgoingMessage): Result<Unit> = gmail { svc ->
         val draft = Draft().setMessage(GmailMessage().setRaw(rawOf(message)))
         svc.users().drafts().create(USER, draft).execute()

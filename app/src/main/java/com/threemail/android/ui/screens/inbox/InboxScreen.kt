@@ -30,6 +30,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,6 +42,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -105,6 +107,10 @@ fun InboxScreen(
             UndoKind.DELETE -> deletedLabel
             UndoKind.MOVE -> movedLabel
             UndoKind.SPAM -> spamLabel
+            // Batch spam reuses the per-message spam label; the Undo affordance
+            // is identical and a count-aware variant would only matter if the
+            // snackbar wanted pluralisation differences.
+            UndoKind.SPAM_BATCH -> spamLabel
         }
         val result = snackbarHostState.showSnackbar(
             message = message,
@@ -122,6 +128,11 @@ fun InboxScreen(
         viewModel.onRecoverableAuthHandled()
         viewModel.retryAfterRecoverableAuth()
     }
+
+    // Confirmation dialog state for the destructive bulk spam action. Lives
+    // at top-level so the dialog overlays both the Scaffold and the modal
+    // navigation drawer.
+    var confirmSpam by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.recoverableAuthIntent) {
         state.recoverableAuthIntent?.let { intent -> recoverableAuthLauncher.launch(intent) }
@@ -188,7 +199,7 @@ fun InboxScreen(
                         onMarkUnread = { viewModel.markSelectedRead(false) },
                         onArchive = { viewModel.archiveSelected() },
                         onDelete = { viewModel.deleteSelected() },
-                        onMarkSpam = { viewModel.markSpamSelected() }
+                        onMarkSpam = { confirmSpam = true }
                     )
                 } else {
                     InboxTopBar(
@@ -252,6 +263,7 @@ fun InboxScreen(
                                             onArchive = { viewModel.archive(message) },
                                             onDelete = { viewModel.delete(message) },
                                             onToggleRead = { viewModel.markAsRead(message, !message.isRead) },
+                                            onMarkSpam = { viewModel.markSpam(message) },
                                             onClick = {
                                                 if (state.selectionMode) {
                                                     viewModel.toggleSelection(message)
@@ -271,6 +283,28 @@ fun InboxScreen(
                 }
             }
         }
+    }
+
+    if (confirmSpam) {
+        AlertDialog(
+            onDismissRequest = { confirmSpam = false },
+            title = { Text(stringResource(R.string.confirm_mark_spam_title)) },
+            // The destructive spam move is hard to recover from because the
+            // server may train on it; surface the count so the user signs
+            // off on the right batch.
+            text = { Text(stringResource(R.string.confirm_mark_spam_body, state.selectedIds.size)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmSpam = false
+                    viewModel.markSpamSelected()
+                }) { Text(stringResource(R.string.mark_as_spam)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmSpam = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
     }
 }
 
@@ -393,6 +427,7 @@ private fun SwipeableMailRow(
     onArchive: () -> Unit,
     onDelete: () -> Unit,
     onToggleRead: () -> Unit,
+    onMarkSpam: () -> Unit,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
@@ -415,6 +450,7 @@ private fun SwipeableMailRow(
             SwipeAction.ARCHIVE -> onArchive()
             SwipeAction.DELETE -> onDelete()
             SwipeAction.TOGGLE_READ -> onToggleRead()
+            SwipeAction.MARK_SPAM -> onMarkSpam()
             SwipeAction.NONE -> Unit
         }
     }
@@ -444,7 +480,7 @@ private fun SwipeableMailRow(
                 SwipeToDismissBoxValue.Settled -> SwipeAction.NONE
             }
             perform(action)
-            if (action != SwipeAction.ARCHIVE && action != SwipeAction.DELETE) {
+            if (action != SwipeAction.ARCHIVE && action != SwipeAction.DELETE && action != SwipeAction.MARK_SPAM) {
                 dismissState.reset()
                 handled = false
             }
@@ -475,12 +511,14 @@ private fun SwipeBackground(action: SwipeAction, alignEnd: Boolean) {
         SwipeAction.ARCHIVE -> MaterialTheme.colorScheme.tertiary
         SwipeAction.DELETE -> MaterialTheme.colorScheme.error
         SwipeAction.TOGGLE_READ -> MaterialTheme.colorScheme.primary
+        SwipeAction.MARK_SPAM -> MaterialTheme.colorScheme.errorContainer
         SwipeAction.NONE -> MaterialTheme.colorScheme.surfaceVariant
     }
     val icon = when (action) {
         SwipeAction.ARCHIVE -> Icons.Default.Archive
         SwipeAction.DELETE -> Icons.Default.Delete
         SwipeAction.TOGGLE_READ -> Icons.Default.MarkEmailRead
+        SwipeAction.MARK_SPAM -> Icons.Outlined.Report
         SwipeAction.NONE -> null
     }
     Row(

@@ -5,6 +5,7 @@ import com.threemail.android.data.local.entity.AccountEntity
 import com.threemail.android.data.security.CredentialStore
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.AccountType
+import com.threemail.android.domain.model.FolderType
 import com.threemail.android.domain.model.Identity
 import com.threemail.android.domain.model.Security
 import kotlinx.coroutines.flow.Flow
@@ -89,6 +90,37 @@ open class AccountRepository @Inject constructor(
     suspend fun setIdentities(id: Long, identities: List<Identity>) =
         accountDao.setIdentitiesJson(id, serializeIdentities(identities))
 
+    /**
+     * Replaces the per-account folder-role override map. Pass an empty map to
+     * clear all overrides and return to the heuristic-only path.
+     */
+    suspend fun setFolderRoles(id: Long, folderRoles: Map<FolderType, String>) =
+        accountDao.setFolderRolesJson(id, serializeFolderRoles(folderRoles))
+
+    /**
+     * Persist a per-peer OpenPGP public key exchange over Autocrypt
+     * (RFC 8180) or WKD (RFC 9582). Storage: a single JSON-encoded map
+     * of `Map<String, String>` (lowercased email -> base64-blocked keydata)
+     * kept on the AccountEntity in a sister column. Same JSON-in-column
+     * pattern as `identitiesJson` and `folderRolesJson` so we avoid
+     * adding a separate Room table for a small monotonic key cache.
+     *
+     * The cache lives per-account on purpose: keys you trust on
+     * `alice@example.com` for `account1` are independent from the same
+     * address seen on `account2` (different identities, different
+     * authenticity). Each [loadAutocryptPeerKeys] call returns a
+     * snapshot; callers that want to write should batch through
+     * [replaceAutocryptPeerKeys] rather than mutate the underlying JSON.
+     */
+    suspend fun loadAutocryptPeerKeys(accountId: Long): Map<String, String> {
+        val raw = accountDao.getAutocryptKeysJson(accountId) ?: "{}"
+        return parsePeerKeysJson(raw)
+    }
+
+    suspend fun replaceAutocryptPeerKeys(accountId: Long, keys: Map<String, String>) {
+        accountDao.setAutocryptKeysJson(accountId, serializePeerKeysJson(keys))
+    }
+
     /** One-shot snapshot of active accounts (used by schedulers, not the UI). */
     suspend fun getAccountsOnce(): List<Account> =
         accountDao.getAllOnce().map { it.toDomain() }
@@ -122,7 +154,9 @@ open class AccountRepository @Inject constructor(
         signature = signature,
         syncIntervalMinutes = syncIntervalMinutes,
         notificationsEnabled = notificationsEnabled,
-        identities = parseIdentities(identitiesJson)
+        identities = parseIdentities(identitiesJson),
+        folderRoles = parseFolderRoles(folderRolesJson),
+        peerKeys = parsePeerKeysJson(autocryptKeysJson)
     )
 
     private fun Account.toEntity(): AccountEntity = AccountEntity(
@@ -148,7 +182,9 @@ open class AccountRepository @Inject constructor(
         signature = signature,
         syncIntervalMinutes = syncIntervalMinutes,
         notificationsEnabled = notificationsEnabled,
-        identitiesJson = serializeIdentities(identities)
+        identitiesJson = serializeIdentities(identities),
+        folderRolesJson = serializeFolderRoles(folderRoles),
+        autocryptKeysJson = serializePeerKeysJson(peerKeys)
     )
 
     private fun serializeIdentities(identities: List<Identity>): String {
@@ -178,5 +214,57 @@ open class AccountRepository @Inject constructor(
         }
     } catch (e: Exception) {
         emptyList()
+    }
+
+    /**
+     * JSON shape: flat object `{ "Inbox": "INBOX", "SENT": "Sent Items", ... }`.
+     * Keys are FolderType enum names (`FolderType.valueOf`); values are the
+     * IMAP `folder.fullName` chosen to occupy that role. Unrecognised keys
+     * are skipped (forward-compat with new FolderType values).
+     */
+    private fun serializeFolderRoles(roles: Map<FolderType, String>): String {
+        val json = JSONObject()
+        roles.forEach { (role, serverId) -> json.put(role.name, serverId) }
+        return json.toString()
+    }
+
+    private fun parseFolderRoles(json: String): Map<FolderType, String> = try {
+        val obj = JSONObject(json)
+        buildMap {
+            obj.keys().forEach { key ->
+                val value = obj.optString(key, "")
+                if (value.isBlank()) return@forEach
+                runCatching { FolderType.valueOf(key) }
+                    .getOrNull()
+                    ?.let { put(it, value) }
+            }
+        }
+    } catch (e: Exception) {
+        emptyMap()
+    }
+
+    /**
+     * JSON shape: `{"user@example.com": "<base64 keydata>"}` - both sides
+     * are stored verbatim so the importer can decode them without a regex
+     * hunt. We deliberately do NOT parse the keys into PGPPublicKey objects
+     * here; that work belongs to the importer, not the entity layer.
+     */
+    private fun serializePeerKeysJson(keys: Map<String, String>): String {
+        val obj = JSONObject()
+        keys.forEach { (email, keydata) -> obj.put(email.lowercase(), keydata) }
+        return obj.toString()
+    }
+
+    private fun parsePeerKeysJson(json: String): Map<String, String> = try {
+        val obj = JSONObject(json)
+        buildMap {
+            obj.keys().forEach { key ->
+                val value = obj.optString(key, "")
+                if (value.isBlank()) return@forEach
+                put(key.lowercase(), value)
+            }
+        }
+    } catch (e: Exception) {
+        emptyMap()
     }
 }

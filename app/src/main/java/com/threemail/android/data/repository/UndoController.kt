@@ -12,7 +12,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /** The kind of action pending undo; drives the snackbar label only. */
-enum class UndoKind { ARCHIVE, DELETE, MOVE, SPAM }
+enum class UndoKind { ARCHIVE, DELETE, MOVE, SPAM, SPAM_BATCH }
 
 /**
  * App-scoped controller for Gmail-style "undo" of a destructive triage action.

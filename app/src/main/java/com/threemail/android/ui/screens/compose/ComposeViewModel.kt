@@ -6,7 +6,6 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.threemail.android.data.crypto.OpenPgpController
-import com.threemail.android.data.crypto.PgpResult
 import com.threemail.android.data.remote.MailRemoteFactory
 import com.threemail.android.data.remote.OutgoingMessage
 import com.threemail.android.data.remote.gmail.RecoverableAuthException
@@ -59,12 +58,31 @@ class ComposeViewModel @Inject constructor(
         val selectedIdentity: Identity? = null,
         /** Whether to request a read receipt for this message. */
         val requestReadReceipt: Boolean = false,
-        /** Whether OpenKeychain is installed so the encrypt toggle can be offered. */
+        /**
+         * Permanently `true` now that the controller is BC-backed and
+         * self-hosted - the proxy for "OpenKeychain is installed" is
+         * obsolete. Retained on UiState so the screen's gating logic
+         * (e.g. hiding the encrypt affordance on old devices) doesn't
+         * need to be rewritten for this drop.
+         */
         val pgpAvailable: Boolean = false,
-        /** Whether to OpenPGP sign+encrypt this message on send (inline PGP). */
+        /**
+         * Whether to OpenPGP sign+encrypt this message on send. The
+         * actual opportunistic-encryption decision lives in
+         * [com.threemail.android.sync.SendMailWorker.sendOutgoing] now,
+         * so this field is a UI hint only - kept for symmetry with the
+         * existing ComposeScreen toggle until a future per-account
+         * "always encrypted (when keys)" setting lands.
+         */
         val encrypt: Boolean = false,
-        /** Set when OpenKeychain needs the user to act (passphrase / key pick) before we can encrypt. */
-        val pgpUserAction: PendingIntent? = null,
+        /**
+         * Obsolete - encryption now flows through [com.threemail.android.sync.SendMailWorker]
+         * which has no user-interaction lifecycle yet. Kept on UiState
+         * because [com.threemail.android.ui.screens.compose.ComposeScreen]
+         * reads it via `LaunchedEffect(state.pgpUserAction)`; will be
+         * removed once that screen drops the call site.
+         */
+        val pgpUserAction: android.app.PendingIntent? = null,
         val to: String = "",
         val cc: String = "",
         val bcc: String = "",
@@ -393,13 +411,24 @@ class ComposeViewModel @Inject constructor(
     }
 
     fun toggleEncrypt() {
+        // The toggle is preserved as a user hint; the actual opportunistic
+        // encryption decision lives in [SendMailWorker.sendOutgoing]. A
+        // future per-account "send always encrypted (when keys)" toggle
+        // could read this value at compose time, but for now it's a
+        // companion-side affordance only.
         _uiState.value = _uiState.value.copy(encrypt = !_uiState.value.encrypt)
     }
 
-    /** Called by the screen after the OpenKeychain user-interaction intent returns; retries the send. */
+    /**
+     * Obsolete companion to the removed inline encrypt path. ComposeScreen
+     * calls this after a `startActivityForResult` returns; clearing the
+     * field is correct in either branch (real PG broker or BC-backed
+     * self-host): the worker doesn't trigger user interaction yet, so the
+     * pending intent is always null in practice. Kept on the public API
+     * until the screen drops its reference.
+     */
     fun onPgpUserActionResult() {
         _uiState.value = _uiState.value.copy(pgpUserAction = null)
-        send()
     }
 
     fun send() {
@@ -427,12 +456,16 @@ class ComposeViewModel @Inject constructor(
                     requestReadReceipt = _uiState.value.requestReadReceipt
                 )
 
-                val outgoing = if (_uiState.value.encrypt && openPgpController.isKeychainInstalled()) {
-                    val encrypted = encryptBody(account, base) ?: return@launch
-                    encrypted
-                } else {
-                    base
-                }
+                // The compose screen no longer pre-encrypts: the strict-mode
+                // opportunistic-encryption pipeline lives in [SendMailWorker]
+                // and we always persist the outbox as plaintext. The Encrypt
+                // toggle is preserved as a user-intent hint (the worker honors
+                // it through per-account settings, etc.) - actual encryption
+                // happens at send time when keys resolve. Persisting plaintext
+                // here also means a retry after a worker crash just re-runs
+                // the compose stage instead of having to re-derive the
+                // encryption envelope from cached bytes.
+                val outgoing = base
 
                 // Persist to the outbox and let SendMailWorker deliver it, so a
                 // send survives network loss / process death.
@@ -441,34 +474,6 @@ class ComposeViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(isSending = false, isSent = true)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isSending = false, error = e.message)
-            }
-        }
-    }
-
-    /**
-     * Sign+encrypt the body as inline PGP via OpenKeychain. Recipients are every
-     * addressee plus the sender (so the sent copy stays readable). Returns the
-     * outgoing message with the armored ciphertext as its plain-text body (and
-     * no HTML alternative), or null when the send can't proceed yet - either
-     * because OpenKeychain needs user interaction (surfaced via [UiState.pgpUserAction]
-     * for the screen to launch, then [onPgpUserActionResult] retries) or an error
-     * occurred. Attachments are sent as-is (inline PGP encrypts the body only).
-     */
-    private suspend fun encryptBody(account: Account, base: OutgoingMessage): OutgoingMessage? {
-        val recipients = (base.to + base.cc + base.bcc).map { it.address } + account.email
-        return when (val result = openPgpController.signAndEncrypt(base.textBody.toByteArray(), recipients)) {
-            is PgpResult.Success -> base.copy(textBody = String(result.data), htmlBody = null)
-            is PgpResult.NeedUserInteraction -> {
-                _uiState.value = _uiState.value.copy(isSending = false, pgpUserAction = result.pendingIntent)
-                null
-            }
-            is PgpResult.Error -> {
-                _uiState.value = _uiState.value.copy(isSending = false, error = result.message)
-                null
-            }
-            PgpResult.Unavailable -> {
-                _uiState.value = _uiState.value.copy(isSending = false, error = "OpenKeychain is not available")
-                null
             }
         }
     }

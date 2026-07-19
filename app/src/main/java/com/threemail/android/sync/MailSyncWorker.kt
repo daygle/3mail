@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.threemail.android.data.crypto.AutocryptLearner
 import com.threemail.android.data.remote.MailRemoteFactory
 import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.repository.MailRepository
@@ -25,7 +26,8 @@ class MailSyncWorker(
     private val mailRepository: MailRepository,
     private val settingsRepository: SettingsRepository,
     private val notificationHelper: NotificationHelper,
-    private val mailRemoteFactory: MailRemoteFactory
+    private val mailRemoteFactory: MailRemoteFactory,
+    private val autocrLearner: AutocryptLearner
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
@@ -79,6 +81,40 @@ class MailSyncWorker(
                         // account opts in; the global switch is applied once below.
                         if (folder.type == FolderType.Inbox && account.notificationsEnabled) {
                             newMessages += toSave.count { !it.isRead }
+                        }
+                        // Autocrypt-key learner (RFC 8180). After the new
+                        // messages are persisted to Room we ask the IMAP
+                        // server for each new UID's full header set and
+                        // parse any `Autocrypt` / `Autocrypt-Gossip`
+                        // header. Resolved keydata is merged into
+                        // Account.peerKeys so the next compose for these
+                        // recipients skips the WKD round-trip. The learner
+                        // is a no-op for Gmail / POP3 / passphrase-only
+                        // MOVED folders; failures here are logged but
+                        // never abort the sync - a missing key just means
+                        // we fall back to WKD on the next compose.
+                        if (folder.type == FolderType.Inbox) {
+                            val newUids = toSave.mapNotNull { it.uid.takeIf { uid -> uid > 0L } }
+                            if (newUids.isNotEmpty()) {
+                                val outcome = autocrLearner
+                                    .learnFrom(account, folder, newUids)
+                                    .getOrElse { e ->
+                                        Log.w(
+                                            TAG,
+                                            "Autocrypt learner pass failed for " +
+                                                "${account.email}/${folder.serverId}: ${e.message}"
+                                        )
+                                        null
+                                    }
+                                if (outcome != null && outcome.newKeysLearned > 0) {
+                                    Log.d(
+                                        TAG,
+                                        "Learned ${outcome.newKeysLearned} new peer key(s) " +
+                                            "from ${outcome.uidsInspected} inspected uid(s) " +
+                                            "(${account.email}/${folder.serverId})"
+                                    )
+                                }
+                            }
                         }
                     }
                     mailRepository.updateFolderCursor(folder.id, fetch.nextCursor)

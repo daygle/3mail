@@ -43,6 +43,7 @@
     <string name="swipe_action_archive">Archive</string>
     <string name="swipe_action_delete">Delete</string>
     <string name="swipe_action_toggle_read">Read/Unread</string>
+    <string name="swipe_action_mark_spam">Mark as spam</string>
     <string name="density_comfortable">Comfortable</string>
     <string name="density_compact">Compact</string>
     <string name="from_label">From</string>
@@ -71,6 +72,8 @@
     <string name="snackbar_spam">Marked as spam</string>
     <string name="move_to_folder">Move to folder</string>
     <string name="mark_as_spam">Mark as spam</string>
+    <string name="confirm_mark_spam_title">Mark as spam?</string>
+    <string name="confirm_mark_spam_body">%1$d messages will be moved to Spam. The server may use them to train its spam filter, so this is hard to undo.</string>
     <string name="more_options">More options</string>
     <string name="encrypt">Encrypt</string>
     <string name="decrypt">Decrypt</string>
@@ -166,6 +169,18 @@
     <string name="account_settings_notifications_title">New Mail Notifications</string>
     <string name="account_settings_notifications_subtitle">Notify me about new mail on this account.</string>
     <string name="account_settings_open">Open Settings</string>
+
+    <!-- Per-account folder-role overrides -->
+    <string name="account_folder_roles_section">Folder Roles</string>
+    <string name="account_folder_roles_description">Pick which server folders hold incoming mail, sent mail, drafts, trash, spam, and archives. Auto-detected uses the folder\'s name.</string>
+    <string name="account_folder_role_auto_detected">Auto-detected</string>
+    <string name="account_folder_role_unset">Unset</string>
+    <string name="account_folder_role_inbox">Inbox</string>
+    <string name="account_folder_role_sent">Sent</string>
+    <string name="account_folder_role_drafts">Drafts</string>
+    <string name="account_folder_role_trash">Trash</string>
+    <string name="account_folder_role_spam">Spam</string>
+    <string name="account_folder_role_archive">Archive</string>
     <string name="account_not_found">Account not found.</string>
     <string name="frequency_minutes">%1$dm</string>
     <string name="frequency_hours">%1$dh</string>
@@ -243,4 +258,11 @@
     <!-- Screen-reader label for the leading icon on each favorite row, whose
          only purpose is the drag-reorder gesture. -->
     <string name="favorites_drag_handle">Drag to reorder</string>
+
+    <!-- Sent-folder badge: shown on rows the SendMailWorker dispatched
+         through the opportunistic-encryption path (MailPgpOutbound.compose
+         with `unresolvable.isEmpty()` = true). The flag is preserved across
+         server syncs via the message_flags side-table so the badge reappears
+         on the same row after every Sent-folder re-fetch. -->
+    <string name="sent_encrypted_content_description">Sent encrypted</string>
 </resources>

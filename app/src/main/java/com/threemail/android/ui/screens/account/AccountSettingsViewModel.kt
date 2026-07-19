@@ -4,9 +4,12 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.threemail.android.data.repository.AccountRepository
+import com.threemail.android.data.repository.MailRepository
 import com.threemail.android.data.settings.SettingsRepository
 import com.threemail.android.domain.model.Account
+import com.threemail.android.domain.model.FolderType
 import com.threemail.android.domain.model.Identity
+import com.threemail.android.domain.model.MailFolder
 import com.threemail.android.push.PushController
 import com.threemail.android.sync.SyncScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -27,6 +30,7 @@ import javax.inject.Inject
 @HiltViewModel
 class AccountSettingsViewModel @Inject constructor(
     private val accountRepository: AccountRepository,
+    private val mailRepository: MailRepository,
     private val settingsRepository: SettingsRepository,
     private val syncScheduler: SyncScheduler,
     private val pushController: PushController,
@@ -38,7 +42,9 @@ class AccountSettingsViewModel @Inject constructor(
         /** Global default cadence, shown as the meaning of the "Default" chip. */
         val defaultIntervalMinutes: Long = 15L,
         val isLoading: Boolean = true,
-        val notFound: Boolean = false
+        val notFound: Boolean = false,
+        /** Cached once at load so the folder-role picker doesn't churn on sync. */
+        val folders: List<MailFolder> = emptyList()
     )
 
     private val accountId: Long = savedStateHandle.get<Long>("accountId") ?: -1L
@@ -50,11 +56,15 @@ class AccountSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             val account = accountRepository.getAccountById(accountId)
             val default = settingsRepository.settings.first().syncIntervalMinutes
+            val folders = if (account != null) {
+                mailRepository.getFoldersOnce(accountId)
+            } else emptyList()
             _uiState.value = UiState(
                 account = account,
                 defaultIntervalMinutes = default,
                 isLoading = false,
-                notFound = account == null
+                notFound = account == null,
+                folders = folders
             )
         }
     }
@@ -108,6 +118,24 @@ class AccountSettingsViewModel @Inject constructor(
         val updated = current.identities.toMutableList().apply { removeAt(index) }
         updateAccount { it.copy(identities = updated) }
         viewModelScope.launch { accountRepository.setIdentities(accountId, updated) }
+    }
+
+    /**
+     * Updates (or clears) the per-account folder-role override for [role].
+     * Passing `serverId = null` removes the override and reverts to the
+     * name-matching heuristic in ImapClient for that role.
+     *
+     * Persists the change via [AccountRepository.setFolderRoles] (which writes
+     * the JSON column); the local folder table stays untouched, so the next
+     * sync will surface the change. We also re-emit the local UiState so the
+     * role row's subtitle updates immediately.
+     */
+    fun setFolderRole(role: FolderType, serverId: String?) {
+        val current = _uiState.value.account ?: return
+        val next = if (serverId.isNullOrBlank()) current.folderRoles - role
+                   else current.folderRoles + (role to serverId)
+        updateAccount { it.copy(folderRoles = next) }
+        viewModelScope.launch { accountRepository.setFolderRoles(accountId, next) }
     }
 
     fun setPushEnabled(enabled: Boolean) {

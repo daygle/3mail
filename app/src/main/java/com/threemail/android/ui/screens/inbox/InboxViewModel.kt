@@ -388,6 +388,10 @@ class InboxViewModel @Inject constructor(
         viewModelScope.launch { mailActions.archiveWithUndo(message) }
     }
 
+    fun markSpam(message: MailMessage) {
+        viewModelScope.launch { mailActions.markSpamWithUndo(message) }
+    }
+
     /**
      * Toggle the favorite flag for a folder. Writes through the repository so
      * the joined `folder + folder_favorites` flow re-emits and the drawer's

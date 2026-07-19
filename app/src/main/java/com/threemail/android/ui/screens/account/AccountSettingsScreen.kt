@@ -23,6 +23,8 @@ import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -31,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -46,6 +49,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.threemail.android.R
 import com.threemail.android.domain.model.AccountType
+import com.threemail.android.domain.model.FolderType
 import com.threemail.android.domain.model.Identity
 import com.threemail.android.ui.components.SettingsContentRow
 import com.threemail.android.ui.components.SettingsGroup
@@ -252,6 +256,35 @@ fun AccountSettingsScreen(
                                 onCheckedChange = viewModel::setPushEnabled
                             )
                         }
+
+                        // Folder-role picker is IMAP-only too. Gmail's labels
+                        // are fixed by the REST API (INBOX / SENT / DRAFT /
+                        // TRASH / SPAM have no per-account aliases), so the
+                        // picker would either be a no-op or actively break
+                        // Gmail sync.
+                        SettingsGroup(title = stringResource(R.string.account_folder_roles_section)) {
+                            SettingsContentRow {
+                                Text(
+                                    text = stringResource(R.string.account_folder_roles_description),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            FOLDER_ROLES.forEach { role ->
+                                val currentServerId = account.folderRoles[role]
+                                val assignedFolder = state.folders.firstOrNull {
+                                    it.serverId == currentServerId
+                                }
+                                FolderRoleRow(
+                                    role = role,
+                                    title = stringResource(role.displayNameRes()),
+                                    currentServerId = currentServerId,
+                                    assignedFolderName = assignedFolder?.name,
+                                    folders = state.folders.map { it.serverId to it.name },
+                                    onPick = { viewModel.setFolderRole(role, it) }
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -332,3 +365,85 @@ private fun formatFrequency(minutes: Long): String =
     } else {
         stringResource(R.string.frequency_hours, (minutes / 60).toInt())
     }
+
+/** Roles exposed in the per-account picker, in display order. */
+private val FOLDER_ROLES = listOf(
+    FolderType.Inbox,
+    FolderType.SENT,
+    FolderType.DRAFTS,
+    FolderType.TRASH,
+    FolderType.SPAM,
+    FolderType.ARCHIVE
+)
+
+private fun FolderType.displayNameRes(): Int = when (this) {
+    FolderType.Inbox -> R.string.account_folder_role_inbox
+    FolderType.SENT -> R.string.account_folder_role_sent
+    FolderType.DRAFTS -> R.string.account_folder_role_drafts
+    FolderType.TRASH -> R.string.account_folder_role_trash
+    FolderType.SPAM -> R.string.account_folder_role_spam
+    FolderType.ARCHIVE -> R.string.account_folder_role_archive
+    else -> R.string.account_folder_role_auto_detected
+}
+
+/**
+ * One row in the Folder Roles section. Title is the role, subtitle tells the
+ * user what's currently assigned (or that the heuristic is in charge). Tapping
+ * the row opens a dropdown that lists every folder on the account plus an
+ * "Unset" option to remove the override and fall back to the heuristic.
+ */
+@Composable
+private fun FolderRoleRow(
+    role: FolderType,
+    title: String,
+    currentServerId: String?,
+    assignedFolderName: String?,
+    folders: List<Pair<String, String>>,
+    onPick: (String?) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val subtitle = if (currentServerId != null && assignedFolderName != null) {
+        assignedFolderName
+    } else {
+        stringResource(R.string.account_folder_role_auto_detected)
+    }
+    SettingsContentRow {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = title, style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            TextButton(onClick = { expanded = true }) {
+                Text(text = if (currentServerId != null) "Change" else "Pick")
+            }
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.account_folder_role_unset)) },
+                    onClick = {
+                        expanded = false
+                        onPick(null)
+                    }
+                )
+                folders.forEach { (serverId, folderName) ->
+                    DropdownMenuItem(
+                        text = { Text(folderName) },
+                        onClick = {
+                            expanded = false
+                            onPick(serverId)
+                        }
+                    )
+                }
+            }
+        }
+    }
+}

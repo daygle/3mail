@@ -18,6 +18,88 @@ import javax.mail.internet.InternetAddress
  */
 object MimeParsing {
 
+    /**
+     * PGP/MIME (RFC 3156) envelope detected at the top level of an inbound
+     * message. Wraps the OpenPGP ciphertext bytes plus the metadata needed
+     * to hand the bytes to [com.threemail.android.data.crypto.OpenPgpController.decryptAndVerify].
+     * The plaintext inside the cipher is the *full inner MIME tree* built
+     * by [com.threemail.android.data.remote.MimeBuilder] on the sender side
+     * (typically a `multipart/alternative` body + `multipart/mixed` for
+     * attachments); the caller is responsible for re-walking the decrypted
+     * output through [extractParts].
+     */
+    data class PgpMimeEnvelope(
+        /** PGP/MIME version - currently always "1" per RFC 3156. */
+        val algorithmVersion: String,
+        /**
+         * OpenPGP ciphertext. May be inline-ASCII-armoured
+         * (Content-Transfer-Encoding: 7bit) or base64-armoured, both of
+         * which are decoded by [detectPgpMessage] before being returned.
+         */
+        val cipherBytes: ByteArray,
+        /** Identifier for logs (typically "multipart/encrypted"). */
+        val source: String
+    )
+
+    /**
+     * Returns a [PgpMimeEnvelope] if [topPart] is a well-formed
+     * `multipart/encrypted` envelope per RFC 3156 - i.e. exactly two
+     * child parts: an `application/pgp-encrypted` control part carrying
+     * `Version: 1` plus an `application/octet-stream` part carrying the
+     * OpenPGP bytes. Returns null for any other structure - JavaMail MIME
+     * messages without PGP/MIME walk past this hook unchanged.
+     *
+     * The decoder is intentionally permissive: it accepts both 7bit
+     * (raw ASCII-armoured bytes) and base64 transport encodings so the
+     * few clients that emit base64 (a few corporate MTAs) still round-trip
+     * cleanly. Decoding failures fall back to the raw bytes rather than
+     * dropping the message.
+     */
+    fun detectPgpMessage(topPart: Part): PgpMimeEnvelope? {
+        return try {
+            if (!topPart.isMimeType("multipart/encrypted")) return null
+            val tlType = topPart.contentType?.lowercase().orEmpty()
+            if ("application/pgp-encrypted" !in tlType) return null
+            val multipart = topPart.content as? Multipart ?: return null
+            if (multipart.count != 2) return null
+
+            var version: String? = null
+            var cipher: ByteArray? = null
+            for (i in 0 until multipart.count) {
+                val part = multipart.getBodyPart(i) ?: continue
+                val ct = part.contentType?.lowercase().orEmpty()
+                when {
+                    "application/pgp-encrypted" in ct -> {
+                        val body = part.content?.toString().orEmpty()
+                        val line = body.lines()
+                            .firstOrNull { it.startsWith("Version:", ignoreCase = true) }
+                        version = line?.removePrefix("Version:")?.trim()
+                            ?.removePrefix("v")?.removePrefix("V")?.trim()
+                    }
+                    "application/octet-stream" in ct -> {
+                        val raw = part.inputStream.use { it.readBytes() }
+                        val cte = part.getHeader("Content-Transfer-Encoding")
+                            ?.firstOrNull()?.lowercase()
+                        cipher = if (cte == "base64") {
+                            runCatching { java.util.Base64.getMimeDecoder().decode(raw) }
+                                .getOrElse { raw }
+                        } else {
+                            raw
+                        }
+                    }
+                }
+            }
+            if (version == null || cipher == null) return null
+            PgpMimeEnvelope(
+                algorithmVersion = version,
+                cipherBytes = cipher,
+                source = "multipart/encrypted"
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     /** Recursively walks [part], appending HTML/plain text and collecting attachment metadata. */
     fun extractParts(
         part: Part,

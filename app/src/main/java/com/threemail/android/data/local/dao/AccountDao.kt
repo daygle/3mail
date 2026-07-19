@@ -45,6 +45,15 @@ interface AccountDao {
     @Query("UPDATE accounts SET identitiesJson = :identitiesJson WHERE id = :id")
     suspend fun setIdentitiesJson(id: Long, identitiesJson: String)
 
+    @Query("UPDATE accounts SET folderRolesJson = :folderRolesJson WHERE id = :id")
+    suspend fun setFolderRolesJson(id: Long, folderRolesJson: String)
+
+    @Query("UPDATE accounts SET autocryptKeysJson = :autocryptKeysJson WHERE id = :id")
+    suspend fun setAutocryptKeysJson(id: Long, autocryptKeysJson: String)
+
+    @Query("SELECT autocryptKeysJson FROM accounts WHERE id = :id")
+    suspend fun getAutocryptKeysJson(id: Long): String?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(account: AccountEntity): Long
 

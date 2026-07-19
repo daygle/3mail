@@ -53,6 +53,16 @@ interface MailRemote {
 
     suspend fun send(message: OutgoingMessage): Result<Unit>
 
+    /**
+     * Send a pre-built RFC 5322 wire-format message (e.g. a
+     * multipart/encrypted envelope from
+     * [com.threemail.android.data.crypto.MailPgpOutbound]). Bypasses
+     * [com.threemail.android.data.remote.MimeBuilder.build] entirely -
+     * the caller already has the full wire form, so we just parse +
+     * send. Used by the opportunistic-encryption send path.
+     */
+    suspend fun sendRaw(messageBytes: ByteArray): Result<Unit>
+
     suspend fun appendDraft(draftsFolder: MailFolder, message: OutgoingMessage): Result<Unit>
 
     /**

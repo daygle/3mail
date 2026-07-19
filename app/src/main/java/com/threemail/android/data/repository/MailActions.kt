@@ -167,8 +167,53 @@ class MailActions @Inject constructor(
         messages.forEach { runCatching { archive(it) } }
     }
 
+    /**
+     * Multi-select spam with a single composite undo entry. Local moves commit
+     * immediately so the rows disappear from the inbox, but the server-side
+     * moves are deferred until the undo window expires - a single tap on the
+     * snackbar's Undo action reverts every local move back to its source
+     * folder and discards the deferred server commits in one go.
+     *
+     * Messages are silently skipped when the source account lacks a Spam
+     * folder, or when the message is already in Spam; those don't get a
+     * local move and so don't participate in the composite undo entry. If
+     * every message gets skipped (e.g. all selections are already in Spam),
+     * no undo entry is enqueued and no snackbar is shown.
+     */
     suspend fun markSpamBatch(messages: Collection<MailMessage>) {
-        messages.forEach { runCatching { markSpam(it) } }
+        if (messages.isEmpty()) return
+        val moves = messages.mapNotNull { message ->
+            val folders = mailRepository.getFoldersOnce(message.accountId)
+            val source = folders.firstOrNull { it.id == message.folderId } ?: return@mapNotNull null
+            val spam = folders.firstOrNull { it.type == FolderType.SPAM } ?: return@mapNotNull null
+            if (source.id == spam.id) return@mapNotNull null
+            mailRepository.moveMessageToFolder(message.id, spam.id)
+            Triple(message, source, spam)
+        }
+        if (moves.isEmpty()) return
+        // Resolve accounts eagerly so the deferred commit closure still has
+        // them even after the originating screen has been torn down.
+        val accounts = moves.associate { (msg, _, _) ->
+            msg.id to accountRepository.getAccountById(msg.accountId)
+        }
+        undoController.enqueue(
+            kind = UndoKind.SPAM_BATCH,
+            commit = {
+                for ((msg, source, target) in moves) {
+                    val account = accounts[msg.id] ?: continue
+                    runCatching {
+                        mailRemoteFactory.create(account).move(source, msg, target).getOrThrow()
+                    }
+                }
+            },
+            revert = {
+                for ((msg, source, _) in moves) {
+                    runCatching {
+                        mailRepository.moveMessageToFolder(msg.id, source.id)
+                    }
+                }
+            }
+        )
     }
 
     suspend fun move(message: MailMessage, target: MailFolder): Result<Unit> {

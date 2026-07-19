@@ -28,7 +28,16 @@ data class MailMessage(
     val uid: Long = 0,
     /** Provider-native handle used for remote operations: IMAP UID (as string) or Gmail message id. */
     val remoteId: String = "",
-    val syncedAt: Long = 0
+    val syncedAt: Long = 0,
+    /**
+     * True when this message was sent (or, after a future receiver-side
+     * enhancement, ingested) as PGP/MIME encrypted content. Sourced from
+     * the `message_flags` side-table - kept off [MessageEntity] so the
+     * `OnConflictStrategy.REPLACE` from server sync doesn't wipe it.
+     * Default false so older call sites that don't yet read the flag
+     * surface look like they always have plaintext mail.
+     */
+    val isEncrypted: Boolean = false
 )
 
 data class EmailAddress(

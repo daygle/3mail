@@ -28,6 +28,14 @@ splashscreen = "1.2.0"
 robolectric = "4.16.1"
 androidxTestCore = "1.7.0"
 ksp = "2.3.10"
+# Bouncy Castle for the in-app OpenKeychain-equivalent OpenPGP path.
+# bcprov-jdk18on holds the JCE provider; bcpg-jdk18on holds the OpenPGP
+# packet code (PgpPublicKey, PgpEncryptedDataGenerator, PgpSignatureGenerator,
+# etc.) used by OpenPgpController. JDK 18+ reflects the project jvmTarget = 17
+# line in app/build.gradle.kts - we use the JDK18-on builds because the JDK17
+# flavour stopped receiving public updates for the 1.78 line.
+bcpg = "1.78"
+bcprov = "1.78"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -109,6 +117,10 @@ androidx-credentials-play-auth = { group = "androidx.credentials", name = "crede
 # Google Identity Services for Credential Manager? the actual GetGoogleIdOption / GoogleIdTokenCredential classes
 # shipped in com.google.android.libraries.identity.googleid, not in androidx.credentials.
 androidx-googleid = { group = "com.google.android.libraries.identity.googleid", name = "googleid", version.ref = "googleid" }
+
+# Bouncy Castle - OpenPGP implementation used by the in-app controller.
+org-bouncycastle-bcpg = { group = "org.bouncycastle", name = "bcpg-jdk18on", version.ref = "bcpg" }
+org-bouncycastle-bcprov = { group = "org.bouncycastle", name = "bcprov-jdk18on", version.ref = "bcprov" }
 
 # Splash screen
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashscreen" }

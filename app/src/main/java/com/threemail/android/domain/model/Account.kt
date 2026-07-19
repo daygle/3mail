@@ -20,7 +20,15 @@ package com.threemail.android.domain.model
 enum class Security { NONE, STARTTLS, SSL_TLS }
 
 /**
- * A send-as identity (alias) for an account. Lets a user send from a different
+ * The folder type a server-side folder maps to on a single account. Used by
+ * the per-account folder-role override UI: each account's
+ * [com.threemail.android.domain.model.Account.folderRoles] map keys a
+ * [FolderType] to the IMAP `folder.fullName` chosen to occupy that role.
+ *
+ * The default heuristic mapping (name-based match in the IMAP LIST response:
+ * "inbox" -> Inbox, "spam"/"junk" -> SPAM, etc.) still drives re-syncs when
+ * the override map is empty.
+ */ Lets a user send from a different
  * address / display name than the account's primary address (e.g. a shared or
  * plus-addressed alias), each with its own optional signature. Persisted as a
  * JSON list on the account row (see
@@ -65,5 +73,22 @@ data class Account(
      * [displayName] is always the implicit primary identity; these are extra
      * addresses the user can pick in the composer's From selector.
      */
-    val identities: List<Identity> = emptyList()
+    val identities: List<Identity> = emptyList(),
+    /**
+     * Per-account folder-role overrides. Keyed by [FolderType] (Inbox, SENT,
+     * DRAFTS, TRASH, SPAM, ARCHIVE, ALL_MAIL) and valued by the IMAP
+     * `folder.fullName` chosen to fill that role. Empty (default) means the
+     * name-matching heuristic in ImapClient is authoritative for that
+     * account. Persisted as a JSON-encoded column on the account row (see
+     * [com.threemail.android.data.local.entity.AccountEntity.folderRolesJson]).
+     */
+    val folderRoles: Map<FolderType, String> = emptyMap(),
+    /**
+     * Per-account OpenPGP peer-key cache populated by Autocrypt headers
+     * (RFC 8180) and WKD lookups (RFC 9582). Keys are lowercased email
+     * addresses; values are base64-blocked keydata exactly as carried
+     * in the original Autocrypt header / WKD response. We never re-format
+     * here so the importer can cache the exact wire form for fidelity.
+     */
+    val peerKeys: Map<String, String> = emptyMap()
 )

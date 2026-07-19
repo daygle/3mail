@@ -63,5 +63,24 @@ data class AccountEntity(
      * `[]` keeps the v15 -> v16 migration a single additive `ALTER TABLE`.
      */
     val identitiesJson: String = "[]",
+    /**
+     * JSON-encoded per-account folder-role override map. Keys are
+     * [com.threemail.android.domain.model.FolderType] enum names (Inbox, SENT, ...);
+     * values are the IMAP `folder.fullName` strings chosen to occupy that role.
+     * Default `"{}"` (`emptyMap()` on the domain model) leaves the
+     * name-matching heuristic in
+     * [com.threemail.android.data.remote.imap.ImapClient.fetchFolders] authoritative.
+     */
+    val folderRolesJson: String = "{}",
+    /**
+     * JSON-encoded per-account OpenPGP peer-key cache populated by Autocrypt
+     * (RFC 8180) and WKD (RFC 9582) lookups. Keys are lowercased email
+     * addresses; values are the raw base64-blocked OpenPGP keydata carried
+     * in the original Autocrypt header (or WKD `application/pgp-keys`
+     * response). Storage is per-account so trust for the same peer on
+     * different accounts stays independent. Default `"{}"` leaves every
+     * recipient-key lookup falling back to WKD / encrypt-to-self.
+     */
+    val autocryptKeysJson: String = "{}",
     val createdAt: Long = System.currentTimeMillis()
 )

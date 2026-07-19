@@ -46,6 +46,8 @@ class ImapRemote(private val client: ImapClient) : MailRemote {
 
     override suspend fun send(message: OutgoingMessage): Result<Unit> = client.sendMessage(message)
 
+    override suspend fun sendRaw(messageBytes: ByteArray): Result<Unit> = client.sendEncryptedMessage(messageBytes)
+
     override suspend fun appendDraft(draftsFolder: MailFolder, message: OutgoingMessage): Result<Unit> =
         client.appendDraft(draftsFolder.serverId, message)
 

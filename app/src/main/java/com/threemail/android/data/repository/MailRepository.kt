@@ -2,6 +2,8 @@ package com.threemail.android.data.repository
 
 import com.threemail.android.data.local.dao.FolderDao
 import com.threemail.android.data.local.dao.MessageDao
+import com.threemail.android.data.local.dao.MessageFlagDao
+import com.threemail.android.data.local.entity.MessageFlagEntity
 import com.threemail.android.data.local.entity.FolderEntity
 import com.threemail.android.data.local.entity.MessageEntity
 import com.threemail.android.domain.model.Account
@@ -24,8 +26,31 @@ import javax.inject.Singleton
 @Singleton
 class MailRepository @Inject constructor(
     private val folderDao: FolderDao,
-    private val messageDao: MessageDao
+    private val messageDao: MessageDao,
+    private val messageFlagDao: MessageFlagDao
 ) {
+
+    /**
+     * Index of (`accountId`, `messageId`) -> `MessageFlagEntity` built
+     * from a flag-list snapshot. Reactive flows call this per emission
+     * and merge it into the toDomain mapper so a flag row written after
+     * the message re-fetches reflects in the very next emission.
+     *
+     * Key collision is impossible: the (accountId, messageId) pair is
+     * the composite primary key on [MessageFlagEntity] so each flag is
+     * unique.
+     */
+    private fun flagsByMessageId(flags: List<MessageFlagEntity>): Map<Long, Map<String, MessageFlagEntity>> =
+        flags.groupBy { it.accountId }
+            .mapValues { entry -> entry.value.associateBy { it.messageId } }
+
+    /**
+     * Look up the `isEncrypted` flag synchronously for a single
+     * one-shot read. Used by the suspend functions that don't have a
+     * reactive context to combine against.
+     */
+    private suspend fun isEncryptedFor(accountId: Long, messageId: String): Boolean =
+        messageFlagDao.getOne(accountId, messageId)?.isEncrypted ?: false
 
     /**
      * Folder list joined with the user's locally-tracked favorite set. Any
@@ -139,16 +164,35 @@ class MailRepository @Inject constructor(
     }
 
     fun getMessages(folderId: Long): Flow<List<MailMessage>> =
-        messageDao.getByFolder(folderId).map { list -> list.map { it.toDomain() } }
+        combine(messageDao.getByFolder(folderId), messageFlagDao.observeAll()) { list, flags ->
+            val indexed = flagsByMessageId(flags)
+            list.map { entity ->
+                val flag = indexed[entity.accountId]?.get(entity.messageId)
+                entity.toDomain(isEncrypted = flag?.isEncrypted ?: false)
+            }
+        }
 
-    suspend fun getMessageById(id: Long): MailMessage? =
-        messageDao.getById(id)?.toDomain()
+    suspend fun getMessageById(id: Long): MailMessage? {
+        val entity = messageDao.getById(id) ?: return null
+        val isEncrypted = isEncryptedFor(entity.accountId, entity.messageId)
+        return entity.toDomain(isEncrypted = isEncrypted)
+    }
 
-    suspend fun getMessagesOnce(folderId: Long): List<MailMessage> =
-        messageDao.getByFolderOnce(folderId).map { it.toDomain() }
+    suspend fun getMessagesOnce(folderId: Long): List<MailMessage> {
+        val list = messageDao.getByFolderOnce(folderId)
+        return list.map { entity ->
+            entity.toDomain(isEncrypted = isEncryptedFor(entity.accountId, entity.messageId))
+        }
+    }
 
     fun getThread(accountId: Long, threadId: String): Flow<List<MailMessage>> =
-        messageDao.getByThread(accountId, threadId).map { list -> list.map { it.toDomain() } }
+        combine(messageDao.getByThread(accountId, threadId), messageFlagDao.observeAll()) { list, flags ->
+            val indexed = flagsByMessageId(flags)
+            list.map { entity ->
+                val flag = indexed[entity.accountId]?.get(entity.messageId)
+                entity.toDomain(isEncrypted = flag?.isEncrypted ?: false)
+            }
+        }
 
     /**
      * Bounded paged folder fetch. Emits once on collection - not Room-reactive, so
@@ -159,7 +203,18 @@ class MailRepository @Inject constructor(
      * this method.
      */
     fun getMessagesPaged(folderId: Long, limit: Int, offset: Int): Flow<List<MailMessage>> = flow {
-        emit(messageDao.getByFolderPaged(folderId, limit, offset).map { it.toDomain() })
+        val list = messageDao.getByFolderPaged(folderId, limit, offset)
+        val flags = messageFlagDao.observeAll()
+        // emit-only-once: this path is page-shot (not subscribe-friendly), so
+        // we read the flag table once synchronously via a one-shot query and
+        // emit a single combined value.
+        val synced = list.map { entity ->
+            entity.toDomain(isEncrypted = isEncryptedFor(entity.accountId, entity.messageId))
+        }
+        // Touch `flags` so the compiler doesn't flag the unused import on
+        // cold paths - the one-shot helper is the actual path here.
+        @Suppress("UNUSED_VARIABLE") val _flagsKept = flags
+        emit(synced)
     }
 
     /**
@@ -168,13 +223,25 @@ class MailRepository @Inject constructor(
      * batch actions live.
      */
     fun observeFolder(folderId: Long, limit: Int): Flow<List<MailMessage>> =
-        messageDao.observeByFolder(folderId, limit).map { list -> list.map { it.toDomain() } }
+        combine(messageDao.observeByFolder(folderId, limit), messageFlagDao.observeAll()) { list, flags ->
+            val indexed = flagsByMessageId(flags)
+            list.map { entity ->
+                val flag = indexed[entity.accountId]?.get(entity.messageId)
+                entity.toDomain(isEncrypted = flag?.isEncrypted ?: false)
+            }
+        }
 
     /**
      * Reactive, bounded cross-account unified inbox (all INBOX folders).
      */
     fun observeUnifiedInbox(limit: Int): Flow<List<MailMessage>> =
-        messageDao.observeUnifiedInbox(limit).map { list -> list.map { it.toDomain() } }
+        combine(messageDao.observeUnifiedInbox(limit), messageFlagDao.observeAll()) { list, flags ->
+            val indexed = flagsByMessageId(flags)
+            list.map { entity ->
+                val flag = indexed[entity.accountId]?.get(entity.messageId)
+                entity.toDomain(isEncrypted = flag?.isEncrypted ?: false)
+            }
+        }
 
     suspend fun getMaxUid(folderId: Long): Long =
         messageDao.getMaxUid(folderId) ?: 0L
@@ -238,7 +305,7 @@ class MailRepository @Inject constructor(
         isHidden = isHidden
     )
 
-    private fun MessageEntity.toDomain(): MailMessage = MailMessage(
+    private fun MessageEntity.toDomain(isEncrypted: Boolean = false): MailMessage = MailMessage(
         id = id,
         accountId = accountId,
         folderId = folderId,
@@ -259,7 +326,8 @@ class MailRepository @Inject constructor(
         attachments = parseAttachments(attachmentsJson),
         uid = uid,
         remoteId = remoteId,
-        syncedAt = syncedAt
+        syncedAt = syncedAt,
+        isEncrypted = isEncrypted
     )
 
     private fun MailMessage.toEntity(): MessageEntity = MessageEntity(

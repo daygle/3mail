@@ -4,6 +4,9 @@ import android.content.Context
 import androidx.work.ListenableWorker
 import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
+import com.threemail.android.data.crypto.AutocryptLearner
+import com.threemail.android.data.crypto.MailPgpOutbound
+import com.threemail.android.data.local.dao.MessageFlagDao
 import com.threemail.android.data.remote.MailRemoteFactory
 import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.repository.CalendarRepository
@@ -90,7 +93,10 @@ class ThreeMailWorkerFactory @Inject constructor(
     private val mailRemoteFactory: Provider<MailRemoteFactory>,
     private val calendarRepository: Provider<CalendarRepository>,
     private val outboxRepository: Provider<OutboxRepository>,
-    private val mailActions: Provider<MailActions>
+    private val mailActions: Provider<MailActions>,
+    private val mailPgpOutbound: Provider<MailPgpOutbound>,
+    private val messageFlagDao: Provider<MessageFlagDao>,
+    private val autocrLearner: Provider<AutocryptLearner>
 ) : WorkerFactory() {
 
     override fun createWorker(
@@ -105,7 +111,8 @@ class ThreeMailWorkerFactory @Inject constructor(
             mailRepository.get(),
             settingsRepository.get(),
             notificationHelper.get(),
-            mailRemoteFactory.get()
+            mailRemoteFactory.get(),
+            autocrLearner.get()
         )
         CalendarSyncWorker::class.java.name -> CalendarSyncWorker(
             appContext,
@@ -118,7 +125,9 @@ class ThreeMailWorkerFactory @Inject constructor(
             workerParameters,
             outboxRepository.get(),
             accountRepository.get(),
-            mailRemoteFactory.get()
+            mailRemoteFactory.get(),
+            mailPgpOutbound.get(),
+            messageFlagDao.get()
         )
         TrashCleanupWorker::class.java.name -> TrashCleanupWorker(
             appContext,

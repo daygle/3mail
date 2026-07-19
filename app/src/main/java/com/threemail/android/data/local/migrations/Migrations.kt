@@ -339,6 +339,71 @@ val MIGRATION_16_17: Migration = object : Migration(16, 17) {
     }
 }
 
+/**
+ * Adds the per-account folder-role override column backing the
+ * `account_settings_folder_roles` UI section. Defaults to `"{}"` so existing
+ * accounts keep the heuristic-only path in
+ * [com.threemail.android.data.remote.imap.ImapClient.fetchFolders]; users
+ * opt in by picking a folder for any role on the settings screen.
+ *
+ * The column is additive with no FK / index / trigger side-effects, so a
+ * partially-applied migration is safe to resume.
+ */
+val MIGRATION_17_18: Migration = object : Migration(17, 18) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "ALTER TABLE accounts ADD COLUMN folderRolesJson TEXT NOT NULL DEFAULT '{}'"
+        )
+    }
+}
+
+/**
+ * Adds the per-account Autocrypt / WKD peer-key cache column backing the
+ * opportunistic-encryption flow. Defaults to `"{}"` so existing accounts
+ * start with an empty cache and fall back to WKD / encrypt-to-self until
+ * a sender's Autocrypt header lands. The column is additive with no FK
+ * / index / trigger so partial application is safe to resume.
+ */
+val MIGRATION_18_19: Migration = object : Migration(18, 19) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "ALTER TABLE accounts ADD COLUMN autocryptKeysJson TEXT NOT NULL DEFAULT '{}'"
+        )
+    }
+}
+
+/**
+ * Adds the `message_flags` side-table backing the
+ * "Sent encrypted" badge. Per-message flags (currently just
+ * `isEncrypted`) live in a side-table rather than as a column on
+ * [com.threemail.android.data.local.entity.MessageEntity] so the
+ * `OnConflictStrategy.REPLACE` from server sync doesn't wipe them.
+ *
+ * The schema is shaped for future extension - new flag columns can be
+ * added without a 21 -> 22 migration when we're ready for them.
+ * Mirrors [com.threemail.android.data.local.entity.FolderFavoriteEntity]'s
+ * "side-table of local-only state keyed by server-stable identifier"
+ * pattern.
+ *
+ * Composite primary key `(accountId, messageId)` matches the unique
+ * identifier on [com.threemail.android.data.local.entity.MessageEntity]
+ * so future JOINs are a natural match. Cascading FK on account mirrors
+ * the rest of the schema: account deletion clears the rows.
+ */
+val MIGRATION_19_20: Migration = object : Migration(19, 20) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `message_flags` (" +
+                "`accountId` INTEGER NOT NULL, " +
+                "`messageId` TEXT NOT NULL, " +
+                "`isEncrypted` INTEGER NOT NULL DEFAULT 0, " +
+                "PRIMARY KEY(`accountId`, `messageId`), " +
+                "FOREIGN KEY(`accountId`) REFERENCES `accounts`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE)"
+        )
+    }
+}
+
 private fun repairMessageIndices(db: SupportSQLiteDatabase) {
     db.execSQL(
         "DROP INDEX IF EXISTS index_messages_accountId_folderId_messageId"
