@@ -125,7 +125,7 @@ class SendMailWorker(
      *     outgoing `Message-ID` so the Sent-folder cache flags the row
      *     encrypted even after REPLACE from the next server sync.
      */
-    private suspend fun sendOutgoing(account: Account, entry: OutboxEntry): Result<Unit> {
+    private suspend fun sendOutgoing(account: Account, entry: OutboxEntry): kotlin.Result<Unit> {
         val plaintextMime = MimeBuilder.build(account.email, account.displayName, entry.message)
         val plaintextBytes = ByteArrayOutputStream().also { plaintextMime.writeTo(it) }.toByteArray()
 
@@ -135,7 +135,7 @@ class SendMailWorker(
             entry.message.bcc.forEach { add(it.address) }
         }
         val outcome = mailPgpOutbound.compose(account.id, plaintextBytes, recipients).getOrElse {
-            return Result.failure(it)
+            return kotlin.Result.failure(it)
         }
         val envelopeBytes = outcome.envelopeBytes
         // Strict-mode is "all-or-nothing". Both `unresolvable` (we
@@ -144,8 +144,9 @@ class SendMailWorker(
         // path: failing the second case would silently shrink the
         // wire body's recipient set, which is the cryptographic
         // correctness issue the strict rule is meant to prevent.
-        val allResolved = outcome.unresolvable.isEmpty() && outcome.unparseable.isEmpty()            val remote = mailRemoteFactory.create(account)
-            return if (envelopeBytes != null && allResolved) {
+        val allResolved = outcome.unresolvable.isEmpty() && outcome.unparseable.isEmpty()
+        val remote = mailRemoteFactory.create(account)
+        return if (envelopeBytes != null && allResolved) {
                 // Strict-mode encrypted path.
                 val outerMime = buildOuterEncryptedMime(plaintextMime, envelopeBytes)
                 val outerBytes = ByteArrayOutputStream().also { outerMime.writeTo(it) }.toByteArray()

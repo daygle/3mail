@@ -9,6 +9,7 @@ import com.threemail.android.data.local.dao.AccountDao
 import com.threemail.android.data.local.dao.CalendarEventDao
 import com.threemail.android.data.local.dao.FolderDao
 import com.threemail.android.data.local.dao.MessageDao
+import com.threemail.android.data.local.dao.MessageFlagDao
 import com.threemail.android.data.local.dao.OutboxDao
 import com.threemail.android.notifications.BadgeNotifier
 import com.threemail.android.notifications.SystemBadgeNotifier
@@ -65,4 +66,7 @@ object AppModule {
 
     @Provides
     fun provideOutboxDao(database: ThreeMailDatabase): OutboxDao = database.outboxDao()
+
+    @Provides
+    fun provideMessageFlagDao(database: ThreeMailDatabase): MessageFlagDao = database.messageFlagDao()
 }

@@ -114,7 +114,8 @@ class InboxViewModelTest {
         )
         val mailRepository = MailRepository(
             folderDao = db.folderDao(),
-            messageDao = db.messageDao()
+            messageDao = db.messageDao(),
+            messageFlagDao = db.messageFlagDao()
         )
         val mailActions = MailActions(
             accountRepository = accountRepository,
@@ -301,6 +302,7 @@ class InboxViewModelTest {
             dest: File
         ): Result<File> = notStubbed()
         override suspend fun send(message: OutgoingMessage): Result<Unit> = notStubbed()
+        override suspend fun sendRaw(messageBytes: ByteArray): Result<Unit> = notStubbed()
         override suspend fun appendDraft(draftsFolder: MailFolder, message: OutgoingMessage): Result<Unit> = notStubbed()
 
         private fun notStubbed(): Nothing =

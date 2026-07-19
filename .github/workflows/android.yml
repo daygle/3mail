@@ -49,6 +49,18 @@ jobs:
         continue-on-error: true
         run: gradle lintDebug --stacktrace
 
+      # Lint's console output only details the first failure; dump the full
+      # text report so every finding is visible in the log without having to
+      # download the uploaded artifact.
+      - name: Print lint report
+        if: always()
+        run: |
+          echo '::group::Full lint text report'
+          cat app/build/intermediates/lint_intermediate_text_report/debug/lintReportDebug/lint-results-debug.txt \
+            || cat app/build/reports/lint-results-debug.txt \
+            || echo "no lint text report found"
+          echo '::endgroup::'
+
       - name: Upload lint report
         if: always()
         uses: actions/upload-artifact@v7
