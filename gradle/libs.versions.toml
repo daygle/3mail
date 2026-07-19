@@ -28,7 +28,7 @@ splashscreen = "1.2.0"
 robolectric = "4.16.1"
 androidxTestCore = "1.7.0"
 ksp = "2.3.10"
-openpgpApi = "12.0"
+openpgpApi = "v11"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -100,9 +100,11 @@ google-api-client-android = { group = "com.google.api-client", name = "google-ap
 google-api-services-gmail = { group = "com.google.apis", name = "google-api-services-gmail", version.ref = "gmailApi" }
 google-api-services-calendar = { group = "com.google.apis", name = "google-api-services-calendar", version.ref = "calendarApi" }
 
-# OpenPGP (OpenKeychain OpenPGP API — the app delegates all crypto to the
-# external OpenKeychain app rather than implementing it in-process).
-openpgp-api = { group = "org.sufficientlysecure", name = "openpgp-api", version.ref = "openpgpApi" }
+# OpenPGP (OpenKeychain OpenPGP API - the app delegates all crypto to the
+# external OpenKeychain app rather than implementing it in-process). Published
+# only on JitPack; settings.gradle.kts must declare jitpack.io in
+# dependencyResolutionManagement.repositories for this to resolve.
+openpgp-api = { group = "com.github.open-keychain", name = "openpgp-api", version.ref = "openpgpApi" }
 
 # Coil
 io-coil-kt-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
