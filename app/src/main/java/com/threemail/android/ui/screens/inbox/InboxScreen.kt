@@ -73,6 +73,7 @@ import com.threemail.android.ui.components.EmptyState
 import com.threemail.android.ui.components.FolderDrawerContent
 import com.threemail.android.ui.components.LoadingIndicator
 import com.threemail.android.ui.components.MailListItem
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
