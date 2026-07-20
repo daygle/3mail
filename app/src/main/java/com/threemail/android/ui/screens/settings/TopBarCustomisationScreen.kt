@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.threemail.android.ui.theme.appTopBarColors
 import com.threemail.android.R
 import com.threemail.android.data.settings.AppSettings
 import com.threemail.android.data.settings.TopBarItemId
@@ -82,11 +83,7 @@ fun TopBarCustomisationScreen(
                         Text(stringResource(R.string.top_bar_settings_reset))
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surface
-                ),
+                colors = appTopBarColors(),
                 scrollBehavior = scrollBehavior
             )
         }

@@ -80,6 +80,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.FileProvider
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.threemail.android.ui.theme.appTopBarColors
 import com.threemail.android.R
 import com.threemail.android.data.crypto.SignatureStatus
 import com.threemail.android.data.settings.AfterDeleteNavigation
@@ -299,10 +300,7 @@ fun MessageDetailScreen(
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface
-                )
+                colors = appTopBarColors()
             )
         },
         bottomBar = {

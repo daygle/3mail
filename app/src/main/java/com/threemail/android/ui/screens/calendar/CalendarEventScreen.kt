@@ -51,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.threemail.android.ui.theme.appTopBarColors
 import com.threemail.android.R
 import java.time.Instant
 import java.time.LocalDate
@@ -162,9 +163,7 @@ fun CalendarEventScreen(
                             )
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    )
+                    colors = appTopBarColors()
                 )
             }
         ) { padding ->
