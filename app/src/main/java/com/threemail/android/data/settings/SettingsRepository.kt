@@ -49,7 +49,15 @@ data class AppSettings(
     val swipeLeftAction: SwipeAction = SwipeAction.DELETE,
     val messageDensity: MessageDensity = MessageDensity.COMFORTABLE,
     /** Body-preview lines shown per row (0 hides the preview). */
-    val previewLines: Int = 2
+    val previewLines: Int = 2,
+    /**
+     * Whether to load remote images (and the pixel trackers behind them) in
+     * every HTML email. Default false: the WebView is set up to block remote
+     * images by default, and the Message Detail screen surfaces a per-message
+     * "Show images" affordance so users can opt in on a single locked-down
+     * message without flipping the global setting permanently.
+     */
+    val loadImages: Boolean = false
 )
 
 @Singleton
@@ -69,6 +77,7 @@ class SettingsRepository @Inject constructor(
         val SWIPE_LEFT = stringPreferencesKey("swipe_left_action")
         val MESSAGE_DENSITY = stringPreferencesKey("message_density")
         val PREVIEW_LINES = intPreferencesKey("preview_lines")
+        val LOAD_IMAGES = booleanPreferencesKey("load_images")
     }
 
     val settings: Flow<AppSettings> = flow {
@@ -89,7 +98,8 @@ class SettingsRepository @Inject constructor(
                     swipeRightAction = prefs[Keys.SWIPE_RIGHT]?.let { runCatching { SwipeAction.valueOf(it) }.getOrNull() } ?: SwipeAction.ARCHIVE,
                     swipeLeftAction = prefs[Keys.SWIPE_LEFT]?.let { runCatching { SwipeAction.valueOf(it) }.getOrNull() } ?: SwipeAction.DELETE,
                     messageDensity = prefs[Keys.MESSAGE_DENSITY]?.let { runCatching { MessageDensity.valueOf(it) }.getOrNull() } ?: MessageDensity.COMFORTABLE,
-                    previewLines = (prefs[Keys.PREVIEW_LINES] ?: 2).coerceIn(0, 3)
+                    previewLines = (prefs[Keys.PREVIEW_LINES] ?: 2).coerceIn(0, 3),
+                    loadImages = prefs[Keys.LOAD_IMAGES] ?: false
                 )
             )
         }
@@ -106,4 +116,5 @@ class SettingsRepository @Inject constructor(
     suspend fun setSwipeLeftAction(action: SwipeAction) = dataStore.edit { it[Keys.SWIPE_LEFT] = action.name }
     suspend fun setMessageDensity(density: MessageDensity) = dataStore.edit { it[Keys.MESSAGE_DENSITY] = density.name }
     suspend fun setPreviewLines(lines: Int) = dataStore.edit { it[Keys.PREVIEW_LINES] = lines.coerceIn(0, 3) }
+    suspend fun setLoadImages(enabled: Boolean) = dataStore.edit { it[Keys.LOAD_IMAGES] = enabled }
 }

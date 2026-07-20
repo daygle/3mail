@@ -47,6 +47,15 @@
     <string name="density_comfortable">Comfortable</string>
     <string name="density_compact">Compact</string>
     <string name="density_extra_compact">Extra Compact</string>
+
+    <!-- Remote-image loading: global default in Settings, per-message banner
+         shown above HTML bodies when the global toggle is off. -->
+    <string name="images_section_title">Privacy</string>
+    <string name="images_setting_label">Always load remote images</string>
+    <string name="images_setting_subtitle">Reveals pixel trackers and your IP to senders. Off by default.</string>
+    <string name="images_blocked_banner_title">Remote images are hidden</string>
+    <string name="images_blocked_banner_subtitle">Blocked to protect your privacy and avoid email tracking.</string>
+    <string name="images_blocked_banner_action">Show images</string>
     <string name="from_label">From</string>
     <string name="request_read_receipt">Request read receipt</string>
     <string name="identities_section">Send-as identities</string>

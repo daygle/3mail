@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Colorize
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -94,6 +95,16 @@ fun SettingsScreen(
                     icon = Icons.Default.Colorize,
                     checked = settings.useDynamicColor,
                     onCheckedChange = viewModel::setDynamicColor
+                )
+            }
+
+            SettingsGroup(title = stringResource(R.string.images_section_title)) {
+                SettingsSwitchRow(
+                    title = stringResource(R.string.images_setting_label),
+                    subtitle = stringResource(R.string.images_setting_subtitle),
+                    icon = Icons.Default.Image,
+                    checked = settings.loadImages,
+                    onCheckedChange = viewModel::setLoadImages
                 )
             }
 

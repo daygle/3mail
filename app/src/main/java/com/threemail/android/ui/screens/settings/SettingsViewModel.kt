@@ -71,4 +71,8 @@ class SettingsViewModel @Inject constructor(
     fun setPreviewLines(lines: Int) {
         viewModelScope.launch { settingsRepository.setPreviewLines(lines) }
     }
+
+    fun setLoadImages(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setLoadImages(enabled) }
+    }
 }

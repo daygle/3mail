@@ -84,6 +84,14 @@ import com.threemail.android.ui.components.LoadingIndicator
 import com.threemail.android.ui.theme.avatarColorFor
 import java.io.File
 
+/**
+ * Synthetic origin used when loading HTML email bodies in the privacy-locked
+ * WebView. Provides a real base URL so remote image fetches carry an origin
+ * once the user has opted in to loading images, instead of coming back as
+ * bare-null-origin requests that some servers reject.
+ */
+private const val IMAGE_BASE_URL = "https://email.invalid/"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MessageDetailScreen(
@@ -96,6 +104,11 @@ fun MessageDetailScreen(
     val state by viewModel.uiState.collectAsState()
     val message = state.message
     val context = LocalContext.current
+    // Privacy posture: remote images only load when either the user's global
+    // preference allows them or the user has tapped "Show images" for this
+    // specific message. Either side is enough to flip the WebView off its
+    // privacy lockdown, but only the global opt-in is persistent.
+    val showImages = state.loadImagesSetting || state.imagesShownForThisMessage
     var menuOpen by remember { mutableStateOf(false) }
     var showMoveDialog by remember { mutableStateOf(false) }
 
@@ -321,9 +334,13 @@ fun MessageDetailScreen(
                                 }
                             }
                         }
+                        !message.bodyHtml.isNullOrBlank() && !showImages -> {
+                            ImagesBlockedBanner(onShowOnce = viewModel::showImagesForThisMessage)
+                        }
                         !message.bodyHtml.isNullOrBlank() -> {
                             HtmlEmailContent(
                                 html = message.bodyHtml!!,
+                                loadImages = showImages,
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
@@ -359,13 +376,23 @@ class SafeWebView(
         runCatching { context.startActivity(intent) }
     }
 ) : WebView(context) {
+    /**
+     * Whether to allow remote images (and the trackers behind them) to load.
+     * The setter pushes the change into WebSettings immediately so a flag
+     * flip in Compose takes effect on the next reload; the parent AndroidView
+     * is keyed to re-call `loadHtml` after each flip.
+     */
+    var loadImages: Boolean = false
+        set(value) {
+            field = value
+            settings.loadsImagesAutomatically = value
+            settings.blockNetworkImage = !value
+        }
+
     init {
         settings.javaScriptEnabled = false
         settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
         settings.domStorageEnabled = false
-        settings.loadsImagesAutomatically = false
-        // Block remote trackers by default; user-controlled load-images toggle could enable this.
-        settings.blockNetworkImage = true
         webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(
                 view: WebView?,
@@ -379,9 +406,21 @@ class SafeWebView(
             }
         }
     }
+    // Defense-in-depth: pin the privacy posture through the setter so the
+    // WebSettings match the named flag at the earliest observable construction
+    // point. The Kotlin property initializer writes the backing field directly
+    // and bypasses this custom setter, so we route the default through
+    // `loadImages = false` here rather than relying on the parent AndroidView
+    // to invoke the setter from its factory/update blocks.
+    loadImages = false
 
     fun loadHtml(html: String) {
-        loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
+        // A stable synthetic origin lets remote <img src> URLs resolve when
+        // the user has toggled images on; with blockNetworkImage=true the
+        // fetch is still blocked, but the request carries a real origin
+        // instead of the bare-null origin that loadDataWithBaseURL(null, ...)
+        // would produce, which some mail servers reject outright.
+        loadDataWithBaseURL(IMAGE_BASE_URL, html, "text/html", "utf-8", null)
     }
 }
 
@@ -393,13 +432,25 @@ class SafeWebView(
 @Composable
 private fun HtmlEmailContent(
     html: String,
+    loadImages: Boolean,
     modifier: Modifier = Modifier
 ) {
     var webView: SafeWebView? by remember { mutableStateOf(null) }
     AndroidView(
         modifier = modifier,
-        factory = { ctx -> SafeWebView(ctx).also { webView = it } },
-        update = { it.loadHtml(html) }
+        factory = { ctx ->
+            SafeWebView(ctx).also {
+                webView = it
+                it.loadImages = loadImages
+                it.loadHtml(html)
+            }
+        },
+        update = {
+            // Push the toggle into WebSettings and force a fresh load so
+            // images that were blocked on first paint now resolve.
+            it.loadImages = loadImages
+            it.loadHtml(html)
+        }
     )
     DisposableEffect(Unit) {
         onDispose {
@@ -445,6 +496,51 @@ private fun EncryptionBanner(signature: SignatureStatus?, decrypting: Boolean) {
             Icon(Icons.Default.Lock, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
             Spacer(Modifier.size(8.dp))
             Text(text, style = MaterialTheme.typography.bodyMedium, color = color)
+        }
+    }
+}
+
+/**
+ * Banner shown above an HTML body when remote images are blocked. The single
+ * "Show images" action is a one-shot: it flips the per-message override on
+ * this view-model instance and never persists, so re-opening the same email
+ * later re-asks. The global toggle lives in Settings.
+ */
+@Composable
+private fun ImagesBlockedBanner(onShowOnce: () -> Unit) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Image,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.size(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.images_blocked_banner_title),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = stringResource(R.string.images_blocked_banner_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            TextButton(onClick = onShowOnce) {
+                Text(stringResource(R.string.images_blocked_banner_action))
+            }
         }
     }
 }

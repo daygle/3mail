@@ -13,6 +13,7 @@ import com.threemail.android.data.remote.MailRemoteFactory
 import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.repository.MailActions
 import com.threemail.android.data.repository.MailRepository
+import com.threemail.android.data.settings.SettingsRepository
 import com.threemail.android.domain.model.Attachment
 import com.threemail.android.domain.model.FolderType
 import com.threemail.android.domain.model.MailFolder
@@ -34,6 +35,7 @@ class MessageDetailViewModel @Inject constructor(
     private val mailActions: MailActions,
     private val mailRemoteFactory: MailRemoteFactory,
     private val openPgpController: OpenPgpController,
+    private val settingsRepository: SettingsRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -57,7 +59,21 @@ class MessageDetailViewModel @Inject constructor(
         val signatureStatus: SignatureStatus? = null,
         /** Set when OpenKeychain needs the user to act (passphrase) before decrypting. */
         val pgpUserAction: PendingIntent? = null,
-        val pgpError: String? = null
+        val pgpError: String? = null,
+        /**
+         * The user's global default for "load remote images in HTML mail". The
+         * Detail screen mirrors it into a banner while false and into a
+         * silent WebView flag while true.
+         */
+        val loadImagesSetting: Boolean = false,
+        /**
+         * One-shot "Show images" override: tapping the banner flips this to
+         * true for the lifetime of this screen instance. Re-opening the same
+         * message resets it. Survives navigation within the same
+         * MessageDetailViewModel — Compose keys the WebView off this flag so
+         * the page reloads with images enabled.
+         */
+        val imagesShownForThisMessage: Boolean = false
     )
 
     private val _uiState = MutableStateFlow(UiState())
@@ -66,6 +82,14 @@ class MessageDetailViewModel @Inject constructor(
     private val messageId: Long = savedStateHandle.get<Long>("messageId") ?: 0L
 
     init {
+        // Mirror the global "load images" preference into UiState so the
+        // banner can flip on the very first frame after navigation without
+        // waiting for the first Settings emit to round-trip the DataStore.
+        viewModelScope.launch {
+            settingsRepository.settings.collect { settings ->
+                _uiState.value = _uiState.value.copy(loadImagesSetting = settings.loadImages)
+            }
+        }
         loadMessage(messageId)
     }
 
@@ -253,5 +277,15 @@ class MessageDetailViewModel @Inject constructor(
 
     fun onFileOpened() {
         _uiState.value = _uiState.value.copy(openFile = null)
+    }
+
+    /**
+     * One-shot "Show images" for the currently displayed message. Resets to
+     * false on the next message because `imagesShownForThisMessage` lives
+     * only on this view-model instance; the per-message contract survives
+     * inbox activity (rotation, brief backgrounding) but not screen leave.
+     */
+    fun showImagesForThisMessage() {
+        _uiState.value = _uiState.value.copy(imagesShownForThisMessage = true)
     }
 }
