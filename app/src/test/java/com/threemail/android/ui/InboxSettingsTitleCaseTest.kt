@@ -84,6 +84,107 @@ class InboxSettingsTitleCaseTest {
         assertTextVisible("Preview Lines")
     }
 
+    // ────────────────────────────────────────────────────────────────
+    //  Drop-down-menu (long-press + three-dot overflow) label audits.
+    //  Every label rendered inside a DropdownMenuItem must be Title Case
+    //  so the action verb reads at the same height as the rest of the app's
+    //  chrome. A future contributor editing strings.xml away from Title
+    //  Case will trip these tests on first compile.
+    //
+    //  Tests assert the rendered text via StaticLabelPreview - the same
+    //  minimal composable used by the swipe-action tests above - so a
+    //  R.string.X -> literal mismatch is caught without spinning up the
+    //  full screen / nav host.
+    // ────────────────────────────────────────────────────────────────
+
+    @Test
+    fun folder_drawer_long_press_remove_favorite_renders_title_case() {
+        composeTestRule.setContent {
+            MaterialTheme { StaticLabelPreview(labelId = R.string.favorites_remove) }
+        }
+        assertTextVisible("Remove from Favorites")
+    }
+
+    @Test
+    fun folder_drawer_long_press_add_favorite_renders_title_case() {
+        composeTestRule.setContent {
+            MaterialTheme { StaticLabelPreview(labelId = R.string.favorites_add) }
+        }
+        assertTextVisible("Add to Favorites")
+    }
+
+    @Test
+    fun inbox_top_bar_mark_all_read_renders_title_case() {
+        composeTestRule.setContent {
+            MaterialTheme { StaticLabelPreview(labelId = R.string.mark_all_read) }
+        }
+        assertTextVisible("Mark All as Read")
+    }
+
+    @Test
+    fun inbox_selection_overflow_mark_unread_renders_title_case() {
+        composeTestRule.setContent {
+            MaterialTheme { StaticLabelPreview(labelId = R.string.mark_unread) }
+        }
+        assertTextVisible("Mark Unread")
+    }
+
+    @Test
+    fun inbox_selection_overflow_select_all_renders_title_case() {
+        composeTestRule.setContent {
+            MaterialTheme { StaticLabelPreview(labelId = R.string.select_all) }
+        }
+        assertTextVisible("Select All")
+    }
+
+    @Test
+    fun message_detail_overflow_move_to_folder_renders_title_case() {
+        composeTestRule.setContent {
+            MaterialTheme { StaticLabelPreview(labelId = R.string.move_to_folder) }
+        }
+        assertTextVisible("Move to Folder")
+    }
+
+    @Test
+    fun message_detail_overflow_mark_as_unread_renders_title_case() {
+        composeTestRule.setContent {
+            MaterialTheme { StaticLabelPreview(labelId = R.string.mark_as_unread) }
+        }
+        assertTextVisible("Mark as Unread")
+    }
+
+    @Test
+    fun message_detail_overflow_mark_as_read_renders_title_case() {
+        composeTestRule.setContent {
+            MaterialTheme { StaticLabelPreview(labelId = R.string.mark_as_read) }
+        }
+        assertTextVisible("Mark as Read")
+    }
+
+    @Test
+    fun message_detail_overflow_mark_as_spam_renders_title_case() {
+        composeTestRule.setContent {
+            MaterialTheme { StaticLabelPreview(labelId = R.string.mark_as_spam) }
+        }
+        assertTextVisible("Mark as Spam")
+    }
+
+    @Test
+    fun compose_overflow_save_draft_renders_title_case() {
+        composeTestRule.setContent {
+            MaterialTheme { StaticLabelPreview(labelId = R.string.save_draft) }
+        }
+        assertTextVisible("Save Draft")
+    }
+
+    @Test
+    fun compose_overflow_insert_image_renders_title_case() {
+        composeTestRule.setContent {
+            MaterialTheme { StaticLabelPreview(labelId = R.string.insert_image) }
+        }
+        assertTextVisible("Insert Image")
+    }
+
     /**
      * Asserts the given text appears at least once in the rendered tree.
      * Uses composeTestRule.onAllNodesWithText which is set-aware of stub /
@@ -156,7 +257,7 @@ class AccountFolderRolesVisibilityTest {
         SwipeAction.ARCHIVE -> "Archive"
         SwipeAction.DELETE -> "Delete"
         SwipeAction.TOGGLE_READ -> "Read/Unread"
-        SwipeAction.MARK_SPAM -> "Mark as spam"
+        SwipeAction.MARK_SPAM -> "Mark as Spam"
     }
 }
 
@@ -190,7 +291,7 @@ private fun SwipeActionLabels() {
                         SwipeAction.ARCHIVE -> "Archive"
                         SwipeAction.DELETE -> "Delete"
                         SwipeAction.TOGGLE_READ -> "Read/Unread"
-                        SwipeAction.MARK_SPAM -> "Mark as spam"
+                        SwipeAction.MARK_SPAM -> "Mark as Spam"
                     }
                 )
             }

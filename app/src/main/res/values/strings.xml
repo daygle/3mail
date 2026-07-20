@@ -20,17 +20,17 @@
     <string name="forward">Forward</string>
     <string name="delete">Delete</string>
     <string name="archive">Archive</string>
-    <string name="mark_as_read">Mark as read</string>
-    <string name="mark_as_unread">Mark as unread</string>
+    <string name="mark_as_read">Mark as Read</string>
+    <string name="mark_as_unread">Mark as Unread</string>
     <string name="sync">Sync</string>
     <string name="syncing">Syncing…</string>
     <string name="no_messages">No messages</string>
     <string name="unified_inbox">Unified inbox</string>
     <string name="all_inboxes">All inboxes</string>
-    <string name="mark_all_read">Mark all as read</string>
-    <string name="mark_read">Mark read</string>
-    <string name="mark_unread">Mark unread</string>
-    <string name="select_all">Select all</string>
+    <string name="mark_all_read">Mark All as Read</string>
+    <string name="mark_read">Mark Read</string>
+    <string name="mark_unread">Mark Unread</string>
+    <string name="select_all">Select All</string>
     <string name="selected_count">%1$d selected</string>
     <string name="clear_selection">Clear selection</string>
     <string name="pull_to_refresh_hint">Pull down to refresh</string>
@@ -80,12 +80,12 @@
     <string name="snackbar_deleted">Moved to Trash</string>
     <string name="snackbar_moved">Message moved</string>
     <string name="snackbar_spam">Marked as spam</string>
-    <string name="move_to_folder">Move to folder</string>
+    <string name="move_to_folder">Move to Folder</string>
     <string name="move_dialog_title">Move %1$d message(s) to…</string>
     <string name="move_no_targets">No folders available</string>
     <string name="move_unified_unavailable">Move is unavailable in the unified inbox. Switch to a single account to move messages between its folders.</string>
     <string name="move_unavailable">Move disabled - no other folders in this account</string>
-    <string name="mark_as_spam">Mark as spam</string>
+    <string name="mark_as_spam">Mark as Spam</string>
     <string name="confirm_mark_spam_title">Mark as spam?</string>
     <string name="confirm_mark_spam_body">%1$d messages will be moved to Spam. The server may use them to train its spam filter, so this is hard to undo.</string>
     <string name="more_options">More options</string>
@@ -152,7 +152,7 @@
     <string name="cc_bcc_show">Cc/Bcc</string>
     <string name="cc_bcc_hide">Hide</string>
     <string name="attach">Attach</string>
-    <string name="save_draft">Save draft</string>
+    <string name="save_draft">Save Draft</string>
 
     <string name="draft_saved">Draft saved</string>
     <string name="remove_attachment">Remove</string>
@@ -246,7 +246,7 @@
     <string name="calendar_filter_all">All accounts</string>
 
     <!-- Composer: inline images & contact autocomplete -->
-    <string name="insert_image">Insert image</string>
+    <string name="insert_image">Insert Image</string>
     <string name="inline">inline</string>
 
     <!-- Drawer footer labels -->
@@ -276,8 +276,8 @@
     <!-- Pre-uppercased so the section header doesn't depend on locale-specific
          case folding (e.g. Turkish i, German ß). -->
     <string name="favorites_header" translatable="false">FAVORITES</string>
-    <string name="favorites_add">Add to favorites</string>
-    <string name="favorites_remove">Remove from favorites</string>
+    <string name="favorites_add">Add to Favorites</string>
+    <string name="favorites_remove">Remove from Favorites</string>
     <!-- Screen-reader label for the leading icon on each favorite row, whose
          only purpose is the drag-reorder gesture. -->
     <string name="favorites_drag_handle">Drag to reorder</string>
