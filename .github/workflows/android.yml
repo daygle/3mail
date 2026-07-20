@@ -123,11 +123,14 @@ jobs:
           profile: pixel_5
           ram-size: 4096
           disk-size: 4096
-          force-avd-creation: true
           # macOS runners are shared and the AVD boot can be much slower than
           # the 600 s default; raise it to 20 minutes so a cold boot (no cached
           # snapshot) doesn't abort the CI run.
           emulator-boot-timeout: 1200
+          disable-animations: true
+          # macOS GitHub runners have no GPU or display, so stripping UI overhead
+          # is essential to get the emulator to boot at all.
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           script: gradle connectedDebugAndroidTest --stacktrace
 
       - name: Upload instrumented test report
