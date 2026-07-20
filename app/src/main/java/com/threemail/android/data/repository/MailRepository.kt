@@ -6,10 +6,8 @@ import com.threemail.android.data.local.dao.MessageFlagDao
 import com.threemail.android.data.local.entity.MessageFlagEntity
 import com.threemail.android.data.local.entity.FolderEntity
 import com.threemail.android.data.local.entity.MessageEntity
-import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.Attachment
 import com.threemail.android.domain.model.EmailAddress
-import com.threemail.android.domain.model.FolderType
 import com.threemail.android.domain.model.MailFolder
 import com.threemail.android.domain.model.MailMessage
 import com.threemail.android.util.FtsUtil

@@ -105,6 +105,16 @@ class InboxViewModelTest {
             // when the bootstrap coroutine subscribes; without this we race Room's
             // IO executor against the unconfined main dispatcher.
             .allowMainThreadQueries()
+            // Run Room's query + transaction executors inline on the caller's
+            // thread so DAO Flows (accountsFlow / foldersFlow) and the
+            // InvalidationTracker emit deterministically instead of hopping to
+            // Room's background executor - which ShadowLooper.idleMainLooper()
+            // cannot drain. Without this the bootstrap that seeds
+            // _selectedAccount / _selectedFolder raced the auto-sync collector,
+            // so `selectFolder(...) fetches that folder` intermittently saw no
+            // fetch at all (expected:<3> but was:<-1>) and turned CI red.
+            .setQueryExecutor { it.run() }
+            .setTransactionExecutor { it.run() }
             .build()
         fakeFactory = CapturingMailRemoteFactory(context)
         imapFactory = ImapClientFactory(GoogleAuthHelper(context))
