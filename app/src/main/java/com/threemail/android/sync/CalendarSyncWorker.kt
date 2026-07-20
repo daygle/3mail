@@ -35,8 +35,27 @@ class CalendarSyncWorker(
             val windowEnd = today.plusDays(DAYS_FORWARD).plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
 
             accounts.forEach { account ->
-                runCatching {
-                    calendarRepository.syncRange(account, CalendarApiClient.PRIMARY_CALENDAR, windowStart, windowEnd)
+                // Drive per-calendar visibility from the user's local
+                // selection in [com.threemail.android.data.local.dao.CalendarListDao].
+                // Newly-signed-in accounts have no row at all yet; treat that
+                // as "primary only" so the first sync still has a window of
+                // events to render. Once the Manage Calendars screen runs a
+                // [com.threemail.android.data.repository.CalendarRepository.syncCalendarList]
+                // round-trip we'll iterate the full selection set from then on.
+                val selectedCalendars = calendarRepository
+                    .observeCalendarListForAccount(account.id)
+                    .first()
+                    .map { it.calendarId }
+                    .toSet()
+                val calendarsToSync = if (selectedCalendars.isEmpty()) {
+                    setOf(CalendarApiClient.PRIMARY_CALENDAR)
+                } else {
+                    selectedCalendars
+                }
+                calendarsToSync.forEach { calendarId ->
+                    runCatching {
+                        calendarRepository.syncRange(account, calendarId, windowStart, windowEnd)
+                    }
                 }
             }
 

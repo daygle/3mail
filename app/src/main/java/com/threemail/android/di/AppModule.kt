@@ -7,6 +7,7 @@ import androidx.datastore.preferences.preferencesDataStoreFile
 import com.threemail.android.data.local.ThreeMailDatabase
 import com.threemail.android.data.local.dao.AccountDao
 import com.threemail.android.data.local.dao.CalendarEventDao
+import com.threemail.android.data.local.dao.CalendarListDao
 import com.threemail.android.data.local.dao.FolderDao
 import com.threemail.android.data.local.dao.MessageDao
 import com.threemail.android.data.local.dao.MessageFlagDao
@@ -63,6 +64,9 @@ object AppModule {
 
     @Provides
     fun provideCalendarEventDao(database: ThreeMailDatabase): CalendarEventDao = database.calendarEventDao()
+
+    @Provides
+    fun provideCalendarListDao(database: ThreeMailDatabase): CalendarListDao = database.calendarListDao()
 
     @Provides
     fun provideOutboxDao(database: ThreeMailDatabase): OutboxDao = database.outboxDao()

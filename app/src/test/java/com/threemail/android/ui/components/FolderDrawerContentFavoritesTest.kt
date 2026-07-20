@@ -101,7 +101,6 @@ class FolderDrawerContentFavoritesTest {
                     onReorderFavorite = { _, _ -> },
                     onManageAccounts = {},
                     onSettings = {},
-                    onCalendar = {},
                     onSync = {}
                 )
             }
@@ -160,7 +159,6 @@ class FolderDrawerContentFavoritesTest {
                     onReorderFavorite = { _, ids -> reorderCalls.add(ids) },
                     onManageAccounts = {},
                     onSettings = {},
-                    onCalendar = {},
                     onSync = {}
                 )
             }

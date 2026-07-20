@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.Card
@@ -58,7 +59,8 @@ fun CalendarScreen(
     viewModel: CalendarViewModel,
     onNavigateBack: () -> Unit,
     onCreateEvent: (accountId: Long) -> Unit,
-    onEditEvent: (accountId: Long, eventId: Long) -> Unit
+    onEditEvent: (accountId: Long, eventId: Long) -> Unit,
+    onNavigateToManageCalendars: () -> Unit = {}
 ) {
     val selectedMonth by viewModel.selectedMonth.collectAsState()
     val selectedDay by viewModel.selectedDay.collectAsState()
@@ -98,6 +100,12 @@ fun CalendarScreen(
                         Icon(
                             imageVector = Icons.Default.ChevronRight,
                             contentDescription = stringResource(R.string.calendar_next_month)
+                        )
+                    }
+                    IconButton(onClick = onNavigateToManageCalendars) {
+                        Icon(
+                            imageVector = Icons.Default.Tune,
+                            contentDescription = stringResource(R.string.manage_calendars_open)
                         )
                     }
                     IconButton(onClick = viewModel::refresh) {

@@ -42,4 +42,12 @@ sealed class Screen(val route: String) {
         fun createRoute(accountId: Long, eventId: Long = -1L): String =
             "calendar_event/$accountId/$eventId"
     }
+
+    /**
+     * Manage-calendars surface. Lists every Google account's subscribed
+     * calendars with a per-row visibility toggle and surfaces two CTAs
+     * (subscribe by URL / create new) so users can expand what the
+     * calendar app shows. Deep-linked from CalendarScreen's top bar.
+     */
+    data object ManageCalendars : Screen("manage_calendars")
 }

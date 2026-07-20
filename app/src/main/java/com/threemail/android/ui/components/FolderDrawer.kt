@@ -228,7 +228,6 @@ fun FolderDrawerContent(
     onManageAccounts: () -> Unit,
     onManageFolders: () -> Unit = {},
     onSettings: () -> Unit,
-    onCalendar: () -> Unit,
     onSync: () -> Unit
 ) {
     // Two columns of the same source data:

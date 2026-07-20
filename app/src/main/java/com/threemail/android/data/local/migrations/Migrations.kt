@@ -431,15 +431,69 @@ private fun repairMessageIndices(db: SupportSQLiteDatabase) {
     // In the unlikely case a future schema re-runs this migration
     // after a corrective prior attempt already created the right
     // index in the wrong shape, drop it too before re-creating so
-    // the column-ordering invariant is enforced exactly once.
-    db.execSQL(
-        "DROP INDEX IF EXISTS index_messages_folderId_accountId_messageId"
-    )
+    // the column-ordering invariant is enforced exactly once.    db.execSQL("DROP INDEX IF EXISTS index_messages_folderId_accountId_messageId")
     db.execSQL(
         "CREATE UNIQUE INDEX IF NOT EXISTS " +
                 "index_messages_folderId_accountId_messageId " +
                 "ON messages(folderId, accountId, messageId)"
     )
+}
+
+/**
+ * Adds the `calendars` table that backs the Manage Calendars surface and
+ * the per-calendar visibility filter used by [com.threemail.android.ui.screens.calendar.CalendarViewModel].
+ *
+ * Columns chosen to mirror Google's `CalendarListEntry` field-for-field
+ * (synced via [com.threemail.android.data.remote.calendar.CalendarApiClient.listCalendars]):
+ *  - accountId      : FK -> accounts.id (CASCADE on delete)
+ *  - calendarId     : the calendar's stable Google-side identifier (often
+ *    an email, like "user@example.com", or a URL for iCal-style subscriptions)
+ *  - summary        : the user-visible title
+ *  - description    : optional human-readable detail
+ *  - timezone       : default for events on this calendar; nullable because
+ *    Google sometimes returns null for read-only shared calendars
+ *  - isPrimary      : marks Google's "primary" calendar entry; only one per
+ *    account isPrimary=1 at any given time
+ *  - accessRole     : enum-as-string so the data layer doesn't need Google's
+ *    Java type on the classpath for unit-test fakes
+ *  - backgroundColor: hex string surfaced by Google (e.g. "#9fc6e7") so the
+ *    UI can draw a colour swatch
+ *  - isSelected     : user-controllable visibility flag. Default 1 keeps
+ *    every freshly-discovered calendar visible until the user explicitly
+ *    hides one - the inverse policy (off-by-default) would surface an empty
+ *    calendar after first sync for users who haven't visited Manage yet.
+ *  - lastSyncedAt   : msec-epoch of the last successful sync fallback; nullable
+ *    because there's no stored value before the user's first
+ *    syncCalendarList call
+ *
+ * The composite primary key matches the entity declaration in
+ * [com.threemail.android.data.local.entity.CalendarEntryEntity]; the explicit
+ * `index_calendars_accountId` covers the FK child column so Room's schema
+ * checksum on cross-table relations is satisfied.
+ */
+val MIGRATION_20_21: Migration = object : Migration(20, 21) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `calendars` (" +
+                "`accountId` INTEGER NOT NULL, " +
+                "`calendarId` TEXT NOT NULL, " +
+                "`summary` TEXT NOT NULL, " +
+                "`description` TEXT, " +
+                "`timezone` TEXT, " +
+                "`isPrimary` INTEGER NOT NULL DEFAULT 0, " +
+                "`accessRole` TEXT NOT NULL DEFAULT 'reader', " +
+                "`backgroundColor` TEXT, " +
+                "`isSelected` INTEGER NOT NULL DEFAULT 1, " +
+                "`lastSyncedAt` INTEGER, " +
+                "PRIMARY KEY(`accountId`, `calendarId`), " +
+                "FOREIGN KEY(`accountId`) REFERENCES `accounts`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE)"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_calendars_accountId` " +
+                "ON `calendars`(`accountId`)"
+        )
+    }
 }
 
 /**

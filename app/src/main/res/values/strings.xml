@@ -250,6 +250,26 @@
     <string name="calendar_event_save_failed">Save failed: %1$s</string>
     <string name="calendar_filter_all">All accounts</string>
 
+    <!-- Top-level navigation between Mail and Calendar surfaces. -->
+    <string name="nav_mail">Mail</string>
+    <string name="nav_calendar">Calendar</string>
+
+    <!-- Manage Calendars (per-account subscription / creation surface). -->
+    <string name="manage_calendars_title">Manage Calendars</string>
+    <string name="manage_calendars_add">Add Calendar</string>
+    <string name="manage_calendars_open">Manage Calendars</string>
+    <string name="manage_calendars_empty_title">No calendars yet</string>
+    <string name="manage_calendars_empty_subtitle">Add a subscribed calendar or create a new one to see events here.</string>
+    <string name="manage_calendars_subscribe_title">Subscribe to calendar</string>
+    <string name="manage_calendars_subscribe_subtitle">Paste any public iCal / ICS URL. Google will fetch events on your behalf and surface them in Calendar.</string>
+    <string name="manage_calendars_subscribe_url_label">iCal URL</string>
+    <string name="manage_calendars_subscribe_action">Subscribe</string>
+    <string name="manage_calendars_create_title">Create new calendar</string>
+    <string name="manage_calendars_create_subtitle">Create a calendar owned by this account. You can share it later from Google Calendar.</string>
+    <string name="manage_calendars_create_tz_label">Time Zone</string>
+    <string name="manage_calendars_create_action">Create</string>
+    <string name="calendar_sync_all">Sync Calendars</string>
+
     <!-- Composer: inline images & contact autocomplete -->
     <string name="insert_image">Insert Image</string>
     <string name="inline">inline</string>

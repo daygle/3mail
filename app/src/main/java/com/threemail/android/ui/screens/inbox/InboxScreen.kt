@@ -95,7 +95,6 @@ fun InboxScreen(
     onNavigateToSearch: () -> Unit,
     onNavigateToAccounts: () -> Unit,
     onNavigateToSettings: () -> Unit,
-    onNavigateToCalendar: () -> Unit,
     onNavigateToMessage: (Long) -> Unit,
     onNavigateToAddAccount: () -> Unit,
     onNavigateToManageFolders: () -> Unit = {}
@@ -228,10 +227,6 @@ fun InboxScreen(
                 onSettings = {
                     scope.launch { drawerState.close() }
                     onNavigateToSettings()
-                },
-                onCalendar = {
-                    scope.launch { drawerState.close() }
-                    onNavigateToCalendar()
                 },
                 onSync = {
                     scope.launch { drawerState.close() }
