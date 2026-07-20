@@ -19,7 +19,7 @@ import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DoneAll
-import androidx.compose.material.icons.filled.DriveFileMove
+import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MarkEmailRead
 import androidx.compose.material.icons.filled.MarkEmailUnread
@@ -565,7 +565,7 @@ private fun SelectionTopBar(
                 enabled = canMove && onMove != null
             ) {
                 Icon(
-                    Icons.Default.DriveFileMove,
+                    Icons.AutoMirrored.Filled.DriveFileMove,
                     contentDescription = if (canMove)
                         stringResource(R.string.move_to_folder)
                     else
