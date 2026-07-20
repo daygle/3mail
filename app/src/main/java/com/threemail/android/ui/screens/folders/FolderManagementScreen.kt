@@ -34,6 +34,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.threemail.android.ui.theme.appTopBarColors
 import com.threemail.android.R
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -55,11 +56,7 @@ fun FolderManagementScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cancel))
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surface
-                ),
+                colors = appTopBarColors(),
                 scrollBehavior = scrollBehavior
             )
         }

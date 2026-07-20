@@ -47,6 +47,21 @@
     <string name="density_comfortable">Comfortable</string>
     <string name="density_compact">Compact</string>
     <string name="density_extra_compact">Extra Compact</string>
+    <!-- Appearance / settings value labels shown on the card rows and in their picker dialogs -->
+    <string name="theme_label">Theme</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="dynamic_color_title">Dynamic Color</string>
+    <string name="dynamic_color_subtitle">Match your wallpaper (Android 12+).</string>
+    <string name="sync_section">Sync</string>
+    <string name="notifications_section">Notifications</string>
+    <string name="new_mail_notifications_title">New Mail Notifications</string>
+    <string name="new_mail_notifications_subtitle">Notify me when new mail arrives.</string>
+    <string name="default_check_frequency_title">Default Check Frequency</string>
+    <string name="default_check_frequency_subtitle">Applies to accounts without their own frequency. Set a per-account override in Accounts.</string>
+    <string name="preview_lines_none">None</string>
+    <string name="preview_lines_count">%1$d</string>
 
     <!-- Remote-image loading: global default in Settings, per-message banner
          shown above HTML bodies when the global toggle is off. -->
@@ -140,6 +155,7 @@
          that changes for the user. -->
     <string name="reading_after_delete_section">After Action</string>
     <string name="reading_after_delete_subtitle">What happens after you delete, archive, move, or mark-as-spam a message you\'re reading.</string>
+    <string name="reading_after_delete_row_title">After delete or archive</string>
     <string name="reading_after_delete_return_to_list">Return to inbox</string>
     <string name="reading_after_delete_next_message">Open next message</string>
     <string name="trash_cleanup_notification_channel_description">Reports persistent failures clearing the trash.</string>

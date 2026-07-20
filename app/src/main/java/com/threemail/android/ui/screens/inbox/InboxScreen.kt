@@ -71,6 +71,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.threemail.android.ui.theme.appTopBarColors
 import com.threemail.android.R
 import com.threemail.android.data.repository.UndoKind
 import com.threemail.android.data.settings.MessageDensity
@@ -563,11 +564,7 @@ private fun InboxTopBar(
                 }
             }
         },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            titleContentColor = MaterialTheme.colorScheme.onSurface,
-            scrolledContainerColor = MaterialTheme.colorScheme.surface
-        ),
+        colors = appTopBarColors(),
         scrollBehavior = scrollBehavior
     )
 }
