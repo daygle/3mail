@@ -21,6 +21,7 @@ import com.threemail.android.domain.model.MailFolder
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 
 /**
  * Locks in the behaviour that a folder marked as a favorite appears in
@@ -32,9 +33,16 @@ import org.junit.runner.RunWith
  *
  * Uses [createAndroidComposeRule] under [AndroidJUnit4] (the same runner
  * [com.threemail.android.ui.InboxSettingsTitleCaseTest] uses) so the
- * test runs through Robolectric without needing an emulator.
+ * test runs through Robolectric without needing an emulator. The
+ * `h1200dp` qualifier widens the screen height past Robolectric's
+ * phone-port default (around h470dp). The default is barely enough
+ * for the composer's full vertical chrome plus 4 favorite-row entries
+ * plus the tree, so the lower tree rows clip out of the viewport and
+ * never enter the semantics tree. Bumping the height lets Compose UI
+ * Test observe every row it cares about.
  */
 @RunWith(AndroidJUnit4::class)
+@Config(qualifiers = "h1200dp")
 class FolderDrawerContentFavoritesTest {
 
     @get:Rule
@@ -175,11 +183,14 @@ class FolderDrawerContentFavoritesTest {
 
         // Tap Move-down on the first favorite (Inbox). The handler looks
         // up the live index, swaps positions 0 and 1, and dispatches
-        // onReorderFavorite with the new serverId order.
+        // onReorderFavorite with the new serverId order (the
+        // FolderDrawer's onReorderFavorite contract is server IDs, not
+        // display names, matching how every screen upstream persists the
+        // new ordering).
         composeTestRule.onAllNodesWithContentDescription("Move down")[0].performClick()
         composeTestRule.waitForIdle()
         assertEquals(1, reorderCalls.size)
-        assertEquals(listOf("Sent", "Inbox", "Archive"), reorderCalls.first())
+        assertEquals(listOf("Sent", "INBOX", "Archive"), reorderCalls.first())
 
         // Exit edit mode: move arrows disappear, the Edit chip returns.
         composeTestRule.onNodeWithText("Done").performClick()

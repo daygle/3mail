@@ -197,7 +197,13 @@ class MailActionsTest {
                 type = FolderType.SENT
             )
         )
-        // Seed one message in the inbox so moveBatch has something to act on.
+        // Seed two messages in the inbox so moveBatch can exercise the
+        // multi-row UPDATE path requested by the suite. The earlier draft
+        // only seeded id=10 and asserted on `getById(11L)?.folderId`,
+        // which silently returned null because Room's UPDATE on a missing
+        // row is a no-op. Seeding both rows makes the contract
+        // straightforward: every selected message becomes a real local
+        // move.
         db.messageDao().insert(
             MessageEntity(
                 id = 10L,
@@ -205,6 +211,18 @@ class MailActionsTest {
                 folderId = inboxId,
                 messageId = "msg-10",
                 subject = "Subject 10",
+                fromJson = "[]", toJson = "[]", ccJson = "[]", bccJson = "[]",
+                date = 1_700_000_000_000L,
+                syncedAt = 1_700_000_000_000L
+            )
+        )
+        db.messageDao().insert(
+            MessageEntity(
+                id = 11L,
+                accountId = accountId,
+                folderId = inboxId,
+                messageId = "msg-11",
+                subject = "Subject 11",
                 fromJson = "[]", toJson = "[]", ccJson = "[]", bccJson = "[]",
                 date = 1_700_000_000_000L,
                 syncedAt = 1_700_000_000_000L
