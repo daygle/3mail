@@ -8,11 +8,9 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.threemail.android.R
 import com.threemail.android.data.settings.SwipeAction
-import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.AccountType
 import com.threemail.android.domain.model.FolderType
 import org.junit.Rule

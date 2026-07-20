@@ -1,7 +1,6 @@
 package com.threemail.android.push
 
 import android.content.ComponentName
-import android.content.Intent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

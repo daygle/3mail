@@ -28,7 +28,6 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import javax.inject.Inject
 import javax.inject.Singleton
-import java.time.Instant
 
 /**
  * Coordinates the locally-cached calendar table with the Google Calendar REST API.
