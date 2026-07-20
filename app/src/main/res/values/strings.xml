@@ -84,7 +84,7 @@
     <string name="move_dialog_title">Move %1$d message(s) to…</string>
     <string name="move_no_targets">No folders available</string>
     <string name="move_unified_unavailable">Move is unavailable in the unified inbox. Switch to a single account to move messages between its folders.</string>
-    <string name="move_unavailable">Move disabled — no other folders in this account</string>
+    <string name="move_unavailable">Move disabled - no other folders in this account</string>
     <string name="mark_as_spam">Mark as spam</string>
     <string name="confirm_mark_spam_title">Mark as spam?</string>
     <string name="confirm_mark_spam_body">%1$d messages will be moved to Spam. The server may use them to train its spam filter, so this is hard to undo.</string>

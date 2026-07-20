@@ -4,7 +4,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Outbound mail-PGP composition — temporarily disabled alongside
+ * Outbound mail-PGP composition - temporarily disabled alongside
  * [OpenPgpController] (see that class for why the BC 1.78 crypto module was
  * reverted to a stub).
  *

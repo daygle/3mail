@@ -8,14 +8,14 @@ package com.threemail.android.data.settings
  * just one tap further away.
  *
  * Required-by-OS actions (navigation IconButton / back arrow / selection
- * close) are intentionally NOT modelled here — they're structurally
+ * close) are intentionally NOT modelled here - they're structurally
  * required and un-hideable, since hiding them would strand the user on
  * their screen with no path back.
  *
  * Membership changes over time as we add features. Adding a new value
  * is safe: existing stored "hidden" sets keep working, and the new value
  * defaults to visible because it's missing. Renaming a value is unsafe:
- * the stored set would treat it as a fresh item and show it again — if
+ * the stored set would treat it as a fresh item and show it again - if
  * a rename is unavoidable, ship a one-shot migration that drops the old
  * key from AppSettings.hiddenTopBarItems on first launch.
  */

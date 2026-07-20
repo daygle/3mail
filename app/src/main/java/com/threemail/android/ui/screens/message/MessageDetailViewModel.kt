@@ -79,7 +79,7 @@ class MessageDetailViewModel @Inject constructor(
          * One-shot "Show images" override: tapping the banner flips this to
          * true for the lifetime of this screen instance. Re-opening the same
          * message resets it. Survives navigation within the same
-         * MessageDetailViewModel — Compose keys the WebView off this flag so
+         * MessageDetailViewModel - Compose keys the WebView off this flag so
          * the page reloads with images enabled.
          */
         val imagesShownForThisMessage: Boolean = false

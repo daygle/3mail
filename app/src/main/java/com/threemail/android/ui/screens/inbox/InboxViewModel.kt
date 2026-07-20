@@ -433,7 +433,7 @@ class InboxViewModel @Inject constructor(
      */
     sealed interface EmptyTrashEvent {
         data class Success(val expungedCount: Int) : EmptyTrashEvent
-        /** Failure carries no user-facing text — the Screen uses the
+        /** Failure carries no user-facing text - the Screen uses the
          * localized `empty_trash_failure` resource for all failures. */
         data object Failure : EmptyTrashEvent
     }
