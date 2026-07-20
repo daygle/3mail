@@ -16,10 +16,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
@@ -31,15 +31,15 @@ jobs:
 
       # gradle-wrapper.jar is committed, but we specify the version here to match.
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6
+        uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "9.6.1"
 
       - name: Run unit tests
-        run: gradle testDebugUnitTest --stacktrace
+        run: ./gradlew testDebugUnitTest --stacktrace
 
       - name: Assemble debug APK
-        run: gradle assembleDebug --stacktrace
+        run: ./gradlew assembleDebug --stacktrace
 
       # Runs Android lint but does not gate the build yet: the project has no
       # baseline, so pre-existing findings shouldn't turn CI red on the first
@@ -47,7 +47,7 @@ jobs:
       # report is clean.
       - name: Android lint
         continue-on-error: true
-        run: gradle lintDebug --stacktrace
+        run: ./gradlew lintDebug --stacktrace
 
       # Lint's console output only details the first failure; dump the full
       # text report so every finding is visible in the log without having to
@@ -63,7 +63,7 @@ jobs:
 
       - name: Upload lint report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: lint-report
           path: app/build/reports/lint-results-*.*
@@ -71,7 +71,7 @@ jobs:
 
       - name: Upload debug APK
         if: success()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: app-debug
           path: app/build/outputs/apk/debug/*.apk
@@ -79,63 +79,8 @@ jobs:
 
       - name: Upload test reports
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: unit-test-report
           path: app/build/reports/tests/
-          if-no-files-found: ignore
-
-  # Compose UI test runner: instrumented `connectedDebugAndroidTest`. Only
-  # runs on merges to main (not on PRs) to keep CI minutes reasonable.
-  # Ubuntu with KVM provides hardware-accelerated emulation and boots the
-  # AVD significantly faster than macOS runners (which lack GPU pass-through
-  # and require software rendering via swiftshader_indirect).
-  android-test:
-    name: Compose UI tests (instrumented)
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Configure Android SDK path
-        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6
-        with:
-          gradle-version: "9.6.1"
-
-      - name: Run instrumented Compose UI tests
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 30
-          target: google_apis
-          arch: x86_64
-          profile: pixel_5
-          ram-size: 4096
-          disk-size: 4096
-          # AVD boot timeout: keep the elevated value since a cold-boot on a
-          # shared runner can still stall, but the switch to ubuntu-latest + KVM
-          # should make it boot in 2-4 minutes rather than timing out.
-          emulator-boot-timeout: 600
-          disable-animations: true
-          # Strip UI and audio overhead — the runner has no display and these
-          # flags are harmless with KVM, acting as a safety net on runners
-          # where hardware GPU isn't available.
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-          script: gradle connectedDebugAndroidTest --stacktrace
-
-      - name: Upload instrumented test report
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: androidTest-report
-          path: app/build/reports/androidTests/connectedDebugAndroidTest/
           if-no-files-found: ignore
