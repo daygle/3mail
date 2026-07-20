@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MarkEmailUnread
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Report
 import androidx.compose.foundation.clickable
@@ -77,8 +78,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.FileProvider
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.threemail.android.R
 import com.threemail.android.data.crypto.SignatureStatus
+import com.threemail.android.data.settings.TopBarItemId
+import com.threemail.android.ui.screens.settings.SettingsViewModel
 import com.threemail.android.domain.model.Attachment
 import com.threemail.android.ui.components.LoadingIndicator
 import com.threemail.android.ui.theme.avatarColorFor
@@ -104,6 +108,14 @@ fun MessageDetailScreen(
     val state by viewModel.uiState.collectAsState()
     val message = state.message
     val context = LocalContext.current
+    // Top-bar customisation: read the hidden set once per recomposition and
+    // pass it into the inline actions block. The Hilt-scoped SettingsViewModel
+    // shares the singleton DataStore with the one in Settings, so adding a
+    // top-bar change in Settings reaches this screen on the next recomposition.
+    val settingsViewModel: SettingsViewModel = hiltViewModel()
+    val appSettings by settingsViewModel.settings.collectAsState()
+    val hidden = appSettings.hiddenTopBarItems
+    val isHidden: (TopBarItemId) -> Boolean = { id -> id in hidden }
     // Privacy posture: remote images only load when either the user's global
     // preference allows them or the user has tapped "Show images" for this
     // specific message. Either side is enough to flip the WebView off its
@@ -182,19 +194,28 @@ fun MessageDetailScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.toggleRead() }) {
-                        Icon(Icons.Default.MarkEmailUnread, contentDescription = stringResource(R.string.mark_as_unread))
+                    if (!isHidden(TopBarItemId.DETAIL_MARK_UNREAD)) {
+                        IconButton(onClick = { viewModel.toggleRead() }) {
+                            Icon(Icons.Default.MarkEmailUnread, contentDescription = stringResource(R.string.mark_as_unread))
+                        }
                     }
-                    IconButton(onClick = { viewModel.archive() }) {
-                        Icon(Icons.Default.Archive, contentDescription = stringResource(R.string.archive))
+                    if (!isHidden(TopBarItemId.DETAIL_ARCHIVE)) {
+                        IconButton(onClick = { viewModel.archive() }) {
+                            Icon(Icons.Default.Archive, contentDescription = stringResource(R.string.archive))
+                        }
                     }
-                    IconButton(onClick = { viewModel.delete() }) {
-                        Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete))
+                    if (!isHidden(TopBarItemId.DETAIL_DELETE)) {
+                        IconButton(onClick = { viewModel.delete() }) {
+                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete))
+                        }
                     }
                     IconButton(onClick = { menuOpen = true }) {
                         Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.more_options))
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        // Always-present overflow items: Move (gated by having
+                        // at least one target folder) and Mark Spam (only on
+                        // accounts that surface a Spam folder).
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.move_to_folder)) },
                             leadingIcon = { Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = null) },
@@ -211,6 +232,46 @@ fun MessageDetailScreen(
                                 onClick = {
                                     menuOpen = false
                                     viewModel.markSpam()
+                                }
+                            )
+                        }
+                        // Items the user has hidden from the bar. Surfaced here
+                        // so the actions remain reachable; the row labels and
+                        // icons match the inline variant for parity.
+                        val anyHidden =
+                            isHidden(TopBarItemId.DETAIL_MARK_UNREAD) ||
+                                isHidden(TopBarItemId.DETAIL_ARCHIVE) ||
+                                isHidden(TopBarItemId.DETAIL_DELETE)
+                        if (anyHidden) {
+                            HorizontalDivider()
+                        }
+                        if (isHidden(TopBarItemId.DETAIL_MARK_UNREAD)) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.mark_as_unread)) },
+                                leadingIcon = { Icon(Icons.Default.MarkEmailUnread, contentDescription = null) },
+                                onClick = {
+                                    menuOpen = false
+                                    viewModel.toggleRead()
+                                }
+                            )
+                        }
+                        if (isHidden(TopBarItemId.DETAIL_ARCHIVE)) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.archive)) },
+                                leadingIcon = { Icon(Icons.Default.Archive, contentDescription = null) },
+                                onClick = {
+                                    menuOpen = false
+                                    viewModel.archive()
+                                }
+                            )
+                        }
+                        if (isHidden(TopBarItemId.DETAIL_DELETE)) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.delete)) },
+                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                                onClick = {
+                                    menuOpen = false
+                                    viewModel.delete()
                                 }
                             )
                         }
@@ -405,14 +466,14 @@ class SafeWebView(
                 return true // never navigate the WebView itself
             }
         }
+        // Defense-in-depth: pin the privacy posture through the setter so the
+        // WebSettings match the named flag at the earliest observable construction
+        // point. The Kotlin property initializer writes the backing field directly
+        // and bypasses this custom setter, so we route the default through
+        // `loadImages = false` here rather than relying on the parent AndroidView
+        // to invoke the setter from its factory/update blocks.
+        loadImages = false
     }
-    // Defense-in-depth: pin the privacy posture through the setter so the
-    // WebSettings match the named flag at the earliest observable construction
-    // point. The Kotlin property initializer writes the backing field directly
-    // and bypasses this custom setter, so we route the default through
-    // `loadImages = false` here rather than relying on the parent AndroidView
-    // to invoke the setter from its factory/update blocks.
-    loadImages = false
 
     fun loadHtml(html: String) {
         // A stable synthetic origin lets remote <img src> URLs resolve when

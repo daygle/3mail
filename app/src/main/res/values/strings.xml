@@ -295,4 +295,19 @@
     <string name="empty_trash_confirm_body">All messages in the Trash folder will be permanently deleted from the server. This cannot be undone.</string>
     <string name="empty_trash_success">Trash emptied (%1$d messages)</string>
     <string name="empty_trash_failure">Failed to empty trash</string>
+
+    <!-- Top-bar customisation: a Settings sub-screen reachable from
+         Settings -> Top Bar. Each toggle hides one IconButton in a
+         specific screen's TopAppBar; the action moves into the bar's
+         "MoreVert" overflow so it stays reachable. -->
+    <string name="top_bar_settings_section">Top Bar</string>
+    <string name="top_bar_settings_title">Customise top bar</string>
+    <string name="top_bar_settings_subtitle">Choose which actions appear in each screen\'s top bar. Hidden actions still appear in the overflow menu, so nothing disappears.</string>
+    <string name="top_bar_settings_inbox_header">Inbox</string>
+    <string name="top_bar_settings_detail_header">Message Detail</string>
+    <string name="top_bar_settings_compose_header">Compose</string>
+    <string name="top_bar_settings_reset">Reset</string>
+    <!-- Subtitle on the Inbox "Empty Trash" row; clarifying that hiding the
+         button only matters while viewing the Trash folder. -->
+    <string name="top_bar_item_trash_subtitle">Only applies while viewing the Trash folder.</string>
 </resources>

@@ -11,7 +11,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Colorize
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Notifications
@@ -38,13 +40,21 @@ import com.threemail.android.data.settings.SwipeAction
 import com.threemail.android.data.settings.ThemeMode
 import com.threemail.android.ui.components.SettingsContentRow
 import com.threemail.android.ui.components.SettingsGroup
+import com.threemail.android.ui.components.SettingsRowScaffold
 import com.threemail.android.ui.components.SettingsSwitchRow
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    /**
+     * Invoked when the user taps the "Top Bar" settings row at the bottom
+     * of this screen. The TopBarCustomisationScreen is a separate destination
+     * because the per-screen visibility list runs long enough that it earned
+     * its own scroll surface.
+     */
+    onNavigateToTopBarSettings: () -> Unit = {}
 ) {
     val settings by viewModel.settings.collectAsState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -220,6 +230,25 @@ fun SettingsScreen(
                     icon = Icons.Default.DeleteSweep,
                     checked = settings.emptyTrashOnQuit,
                     onCheckedChange = viewModel::setEmptyTrashOnQuit
+                )
+            }
+
+            // Tappable deep-link into the Top-Bar Customisation screen. Sits
+            // at the bottom because it borrows the look of a "drill down" row
+            // rather than a settings toggle.
+            SettingsGroup(title = stringResource(R.string.top_bar_settings_section)) {
+                SettingsRowScaffold(
+                    title = stringResource(R.string.top_bar_settings_title),
+                    subtitle = stringResource(R.string.top_bar_settings_subtitle),
+                    icon = Icons.Default.Tune,
+                    onClick = onNavigateToTopBarSettings,
+                    trailing = {
+                        Icon(
+                            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 )
             }
         }

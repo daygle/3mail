@@ -36,14 +36,18 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MarkEmailRead
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
@@ -70,7 +74,10 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.threemail.android.R
+import com.threemail.android.data.settings.TopBarItemId
+import com.threemail.android.ui.screens.settings.SettingsViewModel
 import com.threemail.android.domain.model.Attachment
 import com.threemail.android.domain.model.Contact
 import com.threemail.android.util.RichTextFormatter
@@ -87,6 +94,17 @@ fun ComposeScreen(
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    // Top-bar customisation. Each hidden entry suppresses its IconButton in
+    // the bar and surfaces the same affordance in the MoreVert overflow so
+    // power users that hide a button don't lose access to the underlying
+    // feature. SettingsViewModel is Hilt-scoped here and shares the singleton
+    // DataStore with the Settings screen.
+    val settingsViewModel: SettingsViewModel = hiltViewModel()
+    val appSettings by settingsViewModel.settings.collectAsState()
+    val hidden = appSettings.hiddenTopBarItems
+    val isHidden: (TopBarItemId) -> Boolean = { id -> id in hidden }
+    var overflowOpen by remember { mutableStateOf(false) }
 
     // Auto-close after Send OR after the explicit "Save & close" path. Saving a
     // draft does NOT auto-close so the user can keep editing without re-entering
@@ -172,46 +190,126 @@ fun ComposeScreen(
                     }
                 },
                 actions = {
-                    IconButton(
-                        onClick = {
-                            inlineImagePicker.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    if (!isHidden(TopBarItemId.COMPOSE_INSERT_IMAGE)) {
+                        IconButton(
+                            onClick = {
+                                inlineImagePicker.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                )
+                            },
+                            enabled = !state.isSending && !state.isSavingDraft
+                        ) {
+                            Icon(Icons.Default.Image, contentDescription = stringResource(R.string.insert_image))
+                        }
+                    }
+                    if (!isHidden(TopBarItemId.COMPOSE_ATTACH)) {
+                        IconButton(
+                            onClick = { attachmentPicker.launch("*/*") },
+                            enabled = !state.isSending && !state.isSavingDraft
+                        ) {
+                            Icon(Icons.Default.AttachFile, contentDescription = stringResource(R.string.attach))
+                        }
+                    }
+                    if (!isHidden(TopBarItemId.COMPOSE_SAVE_AND_CLOSE)) {
+                        IconButton(
+                            onClick = { viewModel.saveAndClose() },
+                            enabled = !state.isSavingDraft && !state.isSent
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Save,
+                                contentDescription = stringResource(R.string.save_and_close)
                             )
-                        },
-                        enabled = !state.isSending && !state.isSavingDraft
-                    ) {
-                        Icon(Icons.Default.Image, contentDescription = stringResource(R.string.insert_image))
+                        }
                     }
-                    IconButton(
-                        onClick = { attachmentPicker.launch("*/*") },
-                        enabled = !state.isSending && !state.isSavingDraft
-                    ) {
-                        Icon(Icons.Default.AttachFile, contentDescription = stringResource(R.string.attach))
+                    if (!isHidden(TopBarItemId.COMPOSE_SAVE_DRAFT)) {
+                        IconButton(
+                            onClick = { viewModel.saveDraft() },
+                            enabled = !state.isSavingDraft && !state.isSent
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Save,
+                                contentDescription = stringResource(R.string.save_draft),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
-                    IconButton(
-                        onClick = { viewModel.saveAndClose() },
-                        enabled = !state.isSavingDraft && !state.isSent
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Save,
-                            contentDescription = stringResource(R.string.save_and_close)
-                        )
-                    }
-                    IconButton(
-                        onClick = { viewModel.saveDraft() },
-                        enabled = !state.isSavingDraft && !state.isSent
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Save,
-                            contentDescription = stringResource(R.string.save_draft),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    // Send remains unconditional; it's the primary action of
+                    // this screen and must always be tappable.
                     IconButton(onClick = { viewModel.send() }, enabled = !state.isSending) {
                         if (state.isSending) {
                             CircularProgressIndicator(modifier = Modifier.size(20.dp))
                         } else {
                             Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.send))
+                        }
+                    }
+                    // Overflow only renders when at least one user-customisable
+                    // action has been hidden - otherwise the MoreVert button
+                    // would just be visual weight with nothing inside.
+                    if (isHidden(TopBarItemId.COMPOSE_INSERT_IMAGE) ||
+                        isHidden(TopBarItemId.COMPOSE_ATTACH) ||
+                        isHidden(TopBarItemId.COMPOSE_SAVE_AND_CLOSE) ||
+                        isHidden(TopBarItemId.COMPOSE_SAVE_DRAFT)
+                    ) {
+                        IconButton(onClick = { overflowOpen = true }) {
+                            Icon(
+                                Icons.Default.MoreVert,
+                                contentDescription = stringResource(R.string.more_options)
+                            )
+                        }
+                        androidx.compose.material3.DropdownMenu(
+                            expanded = overflowOpen,
+                            onDismissRequest = { overflowOpen = false }
+                        ) {
+                            if (isHidden(TopBarItemId.COMPOSE_INSERT_IMAGE)) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.insert_image)) },
+                                    leadingIcon = { Icon(Icons.Default.Image, contentDescription = null) },
+                                    onClick = {
+                                        overflowOpen = false
+                                        inlineImagePicker.launch(
+                                            PickVisualMediaRequest(
+                                                ActivityResultContracts.PickVisualMedia.ImageOnly
+                                            )
+                                        )
+                                    }
+                                )
+                            }
+                            if (isHidden(TopBarItemId.COMPOSE_ATTACH)) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.attach)) },
+                                    leadingIcon = { Icon(Icons.Default.AttachFile, contentDescription = null) },
+                                    onClick = {
+                                        overflowOpen = false
+                                        attachmentPicker.launch("*/*")
+                                    }
+                                )
+                            }
+                            if (isHidden(TopBarItemId.COMPOSE_SAVE_AND_CLOSE)) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.save_and_close)) },
+                                    leadingIcon = { Icon(Icons.Default.Save, contentDescription = null) },
+                                    onClick = {
+                                        overflowOpen = false
+                                        viewModel.saveAndClose()
+                                    }
+                                )
+                            }
+                            if (isHidden(TopBarItemId.COMPOSE_SAVE_DRAFT)) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.save_draft)) },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.Save,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    },
+                                    onClick = {
+                                        overflowOpen = false
+                                        viewModel.saveDraft()
+                                    }
+                                )
+                            }
                         }
                     }
                 },

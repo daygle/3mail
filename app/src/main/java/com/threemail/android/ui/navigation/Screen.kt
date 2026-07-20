@@ -28,6 +28,13 @@ sealed class Screen(val route: String) {
 
     data object Settings : Screen("settings")
 
+    /**
+     * Top-bar visibility controls. Reachable from [Settings] via an inline
+     * settings row; users can show or hide individual top-bar actions on
+     * Inbox, Message Detail, and Compose screens.
+     */
+    data object TopBarSettings : Screen("top_bar_settings")
+
     data object Calendar : Screen("calendar")
 
     data object CalendarEvent : Screen("calendar_event/{accountId}/{eventId}") {

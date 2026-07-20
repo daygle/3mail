@@ -18,6 +18,7 @@ import com.threemail.android.ui.screens.inbox.InboxScreen
 import com.threemail.android.ui.screens.message.MessageDetailScreen
 import com.threemail.android.ui.screens.search.SearchScreen
 import com.threemail.android.ui.screens.settings.SettingsScreen
+import com.threemail.android.ui.screens.settings.TopBarCustomisationScreen
 
 @Composable
 fun ThreeMailNavHost(navController: NavHostController) {
@@ -103,6 +104,13 @@ fun ThreeMailNavHost(navController: NavHostController) {
         }
         composable(Screen.Settings.route) {
             SettingsScreen(
+                viewModel = hiltViewModel(),
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToTopBarSettings = { navController.navigate(Screen.TopBarSettings.route) }
+            )
+        }
+        composable(Screen.TopBarSettings.route) {
+            TopBarCustomisationScreen(
                 viewModel = hiltViewModel(),
                 onNavigateBack = { navController.popBackStack() }
             )

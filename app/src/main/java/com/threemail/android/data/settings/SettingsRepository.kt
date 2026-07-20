@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
@@ -57,7 +58,17 @@ data class AppSettings(
      * "Show images" affordance so users can opt in on a single locked-down
      * message without flipping the global setting permanently.
      */
-    val loadImages: Boolean = false
+    val loadImages: Boolean = false,
+    /**
+     * Set of [TopBarItemId] values the user has explicitly hidden from the
+     * top app bar on the supported screens (Inbox, Message Detail, Compose).
+     * Each screen reads only the values that apply to it; others are ignored.
+     * Default empty: every action shows in the bar, which matches the
+     * pre-feature UX so existing users see no behaviour change on first
+     * launch. Set membership is stored as a string set in DataStore under
+     * [Keys.HIDDEN_TOP_BAR_ITEMS] - the enum names are the on-disk key.
+     */
+    val hiddenTopBarItems: Set<TopBarItemId> = emptySet()
 )
 
 @Singleton
@@ -78,6 +89,7 @@ class SettingsRepository @Inject constructor(
         val MESSAGE_DENSITY = stringPreferencesKey("message_density")
         val PREVIEW_LINES = intPreferencesKey("preview_lines")
         val LOAD_IMAGES = booleanPreferencesKey("load_images")
+        val HIDDEN_TOP_BAR_ITEMS = stringSetPreferencesKey("hidden_top_bar_items")
     }
 
     val settings: Flow<AppSettings> = flow {
@@ -99,7 +111,13 @@ class SettingsRepository @Inject constructor(
                     swipeLeftAction = prefs[Keys.SWIPE_LEFT]?.let { runCatching { SwipeAction.valueOf(it) }.getOrNull() } ?: SwipeAction.DELETE,
                     messageDensity = prefs[Keys.MESSAGE_DENSITY]?.let { runCatching { MessageDensity.valueOf(it) }.getOrNull() } ?: MessageDensity.COMFORTABLE,
                     previewLines = (prefs[Keys.PREVIEW_LINES] ?: 2).coerceIn(0, 3),
-                    loadImages = prefs[Keys.LOAD_IMAGES] ?: false
+                    loadImages = prefs[Keys.LOAD_IMAGES] ?: false,
+                    // Stored as enum names so renaming a value drops the
+                    // old key silently; entries that fail to resolve are
+                    // skipped so an unknown name never crashes the read.
+                    hiddenTopBarItems = (prefs[Keys.HIDDEN_TOP_BAR_ITEMS] ?: emptySet())
+                        .mapNotNull { runCatching { TopBarItemId.valueOf(it) }.getOrNull() }
+                        .toSet()
                 )
             )
         }
@@ -117,4 +135,25 @@ class SettingsRepository @Inject constructor(
     suspend fun setMessageDensity(density: MessageDensity) = dataStore.edit { it[Keys.MESSAGE_DENSITY] = density.name }
     suspend fun setPreviewLines(lines: Int) = dataStore.edit { it[Keys.PREVIEW_LINES] = lines.coerceIn(0, 3) }
     suspend fun setLoadImages(enabled: Boolean) = dataStore.edit { it[Keys.LOAD_IMAGES] = enabled }
+
+    /**
+     * Toggle a single top-bar item's hidden state. Pass the new desired
+     * visibility; the previous state doesn't have to be known at the
+     * call site. Adding an item to the set removes it from any bar it
+     * would otherwise appear in on Inbox / Message Detail / Compose.
+     */
+    suspend fun setTopBarItemHidden(id: TopBarItemId, hidden: Boolean) =
+        dataStore.edit { prefs ->
+            val current = prefs[Keys.HIDDEN_TOP_BAR_ITEMS] ?: emptySet()
+            val next = if (hidden) current + id.name else current - id.name
+            if (next.isEmpty()) prefs.remove(Keys.HIDDEN_TOP_BAR_ITEMS)
+            else prefs[Keys.HIDDEN_TOP_BAR_ITEMS] = next
+        }
+
+    /**
+     * Clear every hidden top-bar item at once. Used by the "Reset to
+     * defaults" affordance in [com.threemail.android.ui.screens.settings.TopBarCustomisationScreen].
+     */
+    suspend fun clearHiddenTopBarItems() =
+        dataStore.edit { it.remove(Keys.HIDDEN_TOP_BAR_ITEMS) }
 }

@@ -8,6 +8,7 @@ import com.threemail.android.data.settings.MessageDensity
 import com.threemail.android.data.settings.SettingsRepository
 import com.threemail.android.data.settings.SwipeAction
 import com.threemail.android.data.settings.ThemeMode
+import com.threemail.android.data.settings.TopBarItemId
 import com.threemail.android.sync.SyncScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -74,5 +75,24 @@ class SettingsViewModel @Inject constructor(
 
     fun setLoadImages(enabled: Boolean) {
         viewModelScope.launch { settingsRepository.setLoadImages(enabled) }
+    }
+
+    /**
+     * Show or hide a single top-bar action. The supported screens (Inbox,
+     * Message Detail, Compose) read only the values that apply to them;
+     * others are stored but ignored. Pass the desired visibility rather
+     * than the new state - the ViewModel handles the set semantics.
+     */
+    fun setTopBarItemHidden(id: TopBarItemId, hidden: Boolean) {
+        viewModelScope.launch { settingsRepository.setTopBarItemHidden(id, hidden) }
+    }
+
+    /**
+     * Restore every top-bar action to its default-visible state. Used by
+     * the "Reset to defaults" affordance at the bottom of the
+     * TopBarCustomisation Screen.
+     */
+    fun resetTopBarDefaults() {
+        viewModelScope.launch { settingsRepository.clearHiddenTopBarItems() }
     }
 }

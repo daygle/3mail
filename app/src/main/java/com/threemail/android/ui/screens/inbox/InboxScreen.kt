@@ -70,10 +70,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.threemail.android.R
 import com.threemail.android.data.repository.UndoKind
 import com.threemail.android.data.settings.MessageDensity
 import com.threemail.android.data.settings.SwipeAction
+import com.threemail.android.data.settings.TopBarItemId
+import com.threemail.android.ui.screens.settings.SettingsViewModel
 import com.threemail.android.domain.model.FolderType
 import com.threemail.android.domain.model.MailMessage
 import com.threemail.android.ui.components.EmptyState
@@ -101,6 +104,15 @@ fun InboxScreen(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    // Per-screen top-bar customisation. SettingsViewModel is Hilt-scoped to this
+    // nav entry alongside InboxViewModel and reads from the same singleton
+    // DataStore, so collecting here is cheap. The hidden set is forwarded into
+    // InboxTopBar so the affected actions move from the bar into the overflow
+    // popup and remain reachable.
+    val settingsViewModel: SettingsViewModel = hiltViewModel()
+    val appSettings by settingsViewModel.settings.collectAsState()
+    val hiddenTopBarItems = appSettings.hiddenTopBarItems
 
     // Undo snackbar for deferred archive/delete/move/spam actions.
     val snackbarHostState = remember { SnackbarHostState() }
@@ -270,7 +282,8 @@ fun InboxScreen(
                         onSync = { viewModel.sync() },
                         onMarkAllRead = { viewModel.markAllRead() },
                         showEmptyTrash = isTrashFolder,
-                        onEmptyTrash = { confirmEmptyTrash = true }
+                        onEmptyTrash = { confirmEmptyTrash = true },
+                        hidden = hiddenTopBarItems
                     )
                 }
             },
@@ -455,9 +468,18 @@ private fun InboxTopBar(
     onSync: () -> Unit,
     onMarkAllRead: () -> Unit,
     showEmptyTrash: Boolean = false,
-    onEmptyTrash: () -> Unit = {}
+    onEmptyTrash: () -> Unit = {},
+    /**
+     * Top-bar items the user has hidden via Settings -> Top Bar. Each value
+     * either suppresses the matching IconButton in [actions] (when present)
+     * or promotes the underlying action into the overflow menu so it remains
+     * reachable. Index lookup is keyed to the value so renames/insertions in
+     * [TopBarItemId] don't silently re-show what's been hidden.
+     */
+    hidden: Set<TopBarItemId> = emptySet()
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    val isHidden: (TopBarItemId) -> Boolean = { id -> id in hidden }
     TopAppBar(
         title = { Text(title) },
         navigationIcon = {
@@ -466,13 +488,20 @@ private fun InboxTopBar(
             }
         },
         actions = {
-            IconButton(onClick = onSearch) {
-                Icon(Icons.Default.Search, contentDescription = stringResource(R.string.search))
+            if (!isHidden(TopBarItemId.INBOX_SEARCH)) {
+                IconButton(onClick = onSearch) {
+                    Icon(Icons.Default.Search, contentDescription = stringResource(R.string.search))
+                }
             }
-            IconButton(onClick = onSync) {
-                Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.sync))
+            if (!isHidden(TopBarItemId.INBOX_SYNC)) {
+                IconButton(onClick = onSync) {
+                    Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.sync))
+                }
             }
-            if (showEmptyTrash) {
+            // The Empty-Trash button is only meaningful while viewing Trash; if
+            // the user has hidden it AND we're in the Trash folder, surface it
+            // in the overflow so the destructive affordance stays reachable.
+            if (showEmptyTrash && !isHidden(TopBarItemId.INBOX_EMPTY_TRASH)) {
                 IconButton(onClick = onEmptyTrash) {
                     Icon(
                         Icons.Default.Delete,
@@ -492,7 +521,30 @@ private fun InboxTopBar(
                         onMarkAllRead()
                     }
                 )
-                if (showEmptyTrash) {
+                // Hidden items that the user can still reach from this bar.
+                // Each row is identical to its inline variant except for the
+                // menu wrapper so the affordance reads the same after a hide.
+                if (isHidden(TopBarItemId.INBOX_SEARCH)) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.search)) },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onSearch()
+                        }
+                    )
+                }
+                if (isHidden(TopBarItemId.INBOX_SYNC)) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.sync)) },
+                        leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onSync()
+                        }
+                    )
+                }
+                if (showEmptyTrash && isHidden(TopBarItemId.INBOX_EMPTY_TRASH)) {
                     HorizontalDivider()
                     DropdownMenuItem(
                         text = {
