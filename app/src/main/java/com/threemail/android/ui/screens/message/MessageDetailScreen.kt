@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -72,6 +73,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -506,10 +508,35 @@ class SafeWebView(
     }
 }
 
+// Material 3 chrome heights. Lift to constants rather than inline literals
+// so the cap below stays readable; [TopAppBarDefaults.TopAppBarHeight] is
+// 64.dp and the bottom action row lands in the same ballpark via its
+// own vertical padding + button height.
+private val TopBarHeight = 64.dp
+private val BottomBarHeight = 64.dp
+// Inner Column padding (horizontal = 0 vertical = 16.dp) on the host, so
+// the body's effective vertical budget is screenHeightDp minus top, minus
+// bottom, minus the 16.dp padding on either side.
+private val BodyPaddingHeight = 32.dp
+
 /**
  * Compose-hosted [WebView] that destroys itself when the composable leaves the
  * composition. Without this, navigating away from [MessageDetailScreen] would
  * leak the WebView (and its surface + CookieManager + JS bridge handles).
+ *
+ * The WebView's height is capped to the device's visible body area
+ * (screenHeightDp minus the top app bar, the bottom action row, and the
+ * host Column's vertical padding). Without the cap, [AndroidView] lets
+ * the WebView size itself to its full intrinsic content height, which
+ * for long emails - newsletter blocks, deeply nested quoted replies,
+ * image-heavy marketing mail - runs thousands of dp. Two practical
+ * problems fall out of that: the WebView physically extends past the
+ * screen and pushes the body past the visible viewport, and on devices
+ * where hardware-accelerated Views top out around the 8192px texture
+ * limit, the rendering can leave blank space at the bottom and break
+ * touch dispatch into the bottom action bar. The cap fixes both. The
+ * WebView still owns its own vertical scroll, so body content taller
+ * than the cap stays reachable via in-WebView pan.
  */
 @Composable
 private fun HtmlEmailContent(
@@ -517,9 +544,12 @@ private fun HtmlEmailContent(
     loadImages: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val configuration = LocalConfiguration.current
+    val bodyHeightCap = configuration.screenHeightDp.dp -
+        TopBarHeight - BottomBarHeight - BodyPaddingHeight
     var webView: SafeWebView? by remember { mutableStateOf(null) }
     AndroidView(
-        modifier = modifier,
+        modifier = modifier.heightIn(max = bodyHeightCap),
         factory = { ctx ->
             SafeWebView(ctx).also {
                 webView = it
