@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Drafts
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -1055,5 +1056,9 @@ internal fun iconFor(type: FolderType): ImageVector = when (type) {
     FolderType.ARCHIVE, FolderType.ALL_MAIL -> Icons.Default.Archive
     FolderType.SPAM -> Icons.Outlined.Report
     FolderType.STARRED -> Icons.Default.Star
-    else -> Icons.AutoMirrored.Filled.Label
+    // Custom folders and subfolders (any unrecognized FolderType, including
+    // regular IMAP folders whose type came in as CUSTOM) all share a
+    // single closed-folder glyph rather than the previous Label/Tag, so
+    // the drawer reads as a folder tree instead of a tag list.
+    else -> Icons.Default.Folder
 }
