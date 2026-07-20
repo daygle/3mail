@@ -214,12 +214,12 @@ class MailActionsTest {
 
     private fun mailFolder(
         id: Long,
-        accountIdArg: Long = accountId,
+        accountId: Long = this.accountId,
         name: String,
         type: FolderType
     ) = MailFolder(
         id = id,
-        accountId = accountIdArg,
+        accountId = accountId,
         serverId = "server-$id",
         name = name,
         type = type
