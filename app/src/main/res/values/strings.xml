@@ -129,12 +129,17 @@
     <!-- Trash cleanup failure notification -->
     <string name="trash_cleanup_notification_channel_name">Trash cleanup</string>
 
-    <!-- Reading behaviour: choice surfaced by MessageDetailScreen when the
-         user deletes the message they're reading. Mirrors Outlook / Gmail's
-         "after delete" radio and integrates with the existing per-screen
-         Settings flow. -->
-    <string name="reading_after_delete_section">After delete</string>
-    <string name="reading_after_delete_subtitle">What happens after you delete a message you\'re reading.</string>
+    <!-- Reading behaviour: choice surfaced by MessageDetailScreen whenever
+         the user takes ANY destructive / repositional action on the
+         message they're reading. Mirrors Outlook / Gmail's "after delete"
+         radio but the same trigger fires for archive, move-to-folder, and
+         mark-as-spam (see MessageDetailViewModel.UiState.isDeleted). Keys
+         intentionally retain the historical "after_delete" prefix so the
+         stored preference and SettingsRepository contracts stay stable
+         across the schema-name widening; display text is the only thing
+         that changes for the user. -->
+    <string name="reading_after_delete_section">After Action</string>
+    <string name="reading_after_delete_subtitle">What happens after you delete, archive, move, or mark-as-spam a message you\'re reading.</string>
     <string name="reading_after_delete_return_to_list">Return to inbox</string>
     <string name="reading_after_delete_next_message">Open next message</string>
     <string name="trash_cleanup_notification_channel_description">Reports persistent failures clearing the trash.</string>

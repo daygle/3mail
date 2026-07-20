@@ -43,6 +43,22 @@ class MessageDetailViewModel @Inject constructor(
         val message: MailMessage? = null,
         val isLoading: Boolean = false,
         val isLoadingBody: Boolean = false,
+        /**
+         * Post-destructive-action sentinel: flipped to true by EVERY entry point
+         * that removes / repositions the currently-open message:
+         *   - [delete]           (Trash / permanent)
+         *   - [archive]          (Archive / All Mail)
+         *   - [moveToFolder]     (user-picked target from the move picker)
+         *   - [markSpam]         (Spam / Junk)
+         * The screen's LaunchedEffect watches this flag, not any single kind,
+         * and consults [appSettings.afterDeleteNavigation] for the user's
+         * preference. Renaming this field would break every call site; the
+         * honest path is to keep the historical name and document the
+         * semantic broadening rather than rename. If a future contributor
+         * ever wants to discriminate by kind, add a `lastDestructiveKind`
+         * enum alongside it - do NOT split into per-action flags or the
+         * screen would lose the single-trigger semantics.
+         */
         val isDeleted: Boolean = false,
         /**
          * The next-older message in the same folder as the currently-open
