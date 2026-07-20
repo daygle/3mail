@@ -3,11 +3,14 @@ package com.threemail.android.ui.screens.inbox
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -16,6 +19,7 @@ import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MarkEmailRead
 import androidx.compose.material.icons.filled.MarkEmailUnread
@@ -34,7 +38,9 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -48,6 +54,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberDrawerState
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -73,6 +80,7 @@ import com.threemail.android.ui.components.EmptyState
 import com.threemail.android.ui.components.FolderDrawerContent
 import com.threemail.android.ui.components.LoadingIndicator
 import com.threemail.android.ui.components.MailListItem
+import com.threemail.android.ui.components.iconFor
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
@@ -139,6 +147,13 @@ fun InboxScreen(
     // Confirmation dialog for emptying the Trash folder. Only active when the
     // selected folder is the Trash folder (checked before setting to true).
     var confirmEmptyTrash by remember { mutableStateOf(false) }
+
+    // Folder-picker bottom sheet for bulk Move, sourced from
+    // [InboxViewModel.getMoveTargetFolders]. The state is read here so the
+    // sheet is rendered fresh each time it opens - the chosen folder set
+    // doesn't change between open/close cycles but reading it lazily keeps
+    // the picker consistent with whatever folder the user has selected.
+    var showMovePicker by remember { mutableStateOf(false) }
 
     // Snackbar messages for empty-trash result feedback. Read at composition
     // time so they are available inside the LaunchedEffect collector below.
@@ -218,15 +233,29 @@ fun InboxScreen(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 if (state.selectionMode) {
+                    // Move is unavailable in the unified inbox (cross-account
+                    // IMAP MOVE is not supported) and when the current account
+                    // has only one visible folder (the source itself). The
+                    // button stays in the layout so its position doesn't pop
+                    // in/out, but the tap is gated by [canMove].
+                    val visibleFolderCount = state.folders.count { !it.isHidden }
+                    val canMove = !state.unifiedInbox && visibleFolderCount >= 2
                     SelectionTopBar(
                         count = state.selectedIds.size,
+                        canMove = canMove,
                         onClear = { viewModel.clearSelection() },
                         onSelectAll = { viewModel.selectAll() },
                         onMarkRead = { viewModel.markSelectedRead(true) },
                         onMarkUnread = { viewModel.markSelectedRead(false) },
                         onArchive = { viewModel.archiveSelected() },
                         onDelete = { viewModel.deleteSelected() },
-                        onMarkSpam = { confirmSpam = true }
+                        onMarkSpam = { confirmSpam = true },
+                        onMove = if (canMove) ({ showMovePicker = true }) else null,
+                        moveDisabledReason = when {
+                            state.unifiedInbox -> stringResource(R.string.move_unified_unavailable)
+                            visibleFolderCount < 2 -> stringResource(R.string.move_unavailable)
+                            else -> null
+                        }
                     )
                 } else {
                     val isTrashFolder = state.selectedFolder?.type == FolderType.TRASH
@@ -355,6 +384,65 @@ fun InboxScreen(
             }
         )
     }
+
+    // Folder picker for bulk Move. `ModalBottomSheet` is the right surface
+    // for a selectable list that can run to dozens of accounts/folders on
+    // deep IMAP hierarchies - an AlertDialog would clip, a full-screen picker
+    // is overkill. The folder list is read eagerly from the ViewModel so a
+    // mid-sheet folder refresh doesn't cause the picker contents to shift
+    // underneath the user's finger.
+    //
+    // The sheet's state is [SkipPartiallyExpanded] because the picker is the
+    // only content worth showing once the row is opened - there's no peek
+    // height that adds information. Hit-the-edge dismiss returns to the
+    // selection bar without firing `onMove`.
+    if (showMovePicker) {
+        val targetFolders = viewModel.getMoveTargetFolders()
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { showMovePicker = false },
+            sheetState = sheetState
+        ) {
+            Text(
+                text = stringResource(R.string.move_dialog_title, state.selectedIds.size),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
+            )
+            if (targetFolders.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.move_no_targets),
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        // Cap the sheet's scrollable region so a deep IMAP
+                        // tree doesn't push the system back-gesture region
+                        // off-screen; the picker is intentionally compact.
+                        .heightIn(max = 480.dp)
+                ) {
+                    items(targetFolders, key = { it.id }) { folder ->
+                        ListItem(
+                            headlineContent = { Text(folder.name) },
+                            // Reuse the drawer's per-type folder icon so the
+                            // picker stays visually consistent with the rest
+                            // of the app - Sent / Trash / Spam rows don't all
+                            // collapse onto the generic folder glyph.
+                            leadingContent = {
+                                Icon(iconFor(folder.type), contentDescription = null)
+                            },
+                            modifier = Modifier.clickable {
+                                showMovePicker = false
+                                viewModel.moveSelected(folder)
+                            }
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.padding(8.dp))
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -441,13 +529,16 @@ private fun InboxTopBar(
 @Composable
 private fun SelectionTopBar(
     count: Int,
+    canMove: Boolean = false,
+    moveDisabledReason: String? = null,
     onClear: () -> Unit,
     onSelectAll: () -> Unit,
     onMarkRead: () -> Unit,
     onMarkUnread: () -> Unit,
     onArchive: () -> Unit,
     onDelete: () -> Unit,
-    onMarkSpam: () -> Unit
+    onMarkSpam: () -> Unit,
+    onMove: (() -> Unit)? = null
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     TopAppBar(
@@ -463,6 +554,23 @@ private fun SelectionTopBar(
             }
             IconButton(onClick = onArchive) {
                 Icon(Icons.Default.Archive, contentDescription = stringResource(R.string.archive))
+            }
+            // Move button is always visible so the action's position in the
+            // bar is stable across views, but its tap is gated by [canMove].
+            // The disabled state carries a screen-reader label explaining why
+            // the action isn't available, so a TalkBack user still gets
+            // useful feedback rather than a silently dead control.
+            IconButton(
+                onClick = { onMove?.invoke() },
+                enabled = canMove && onMove != null
+            ) {
+                Icon(
+                    Icons.Default.DriveFileMove,
+                    contentDescription = if (canMove)
+                        stringResource(R.string.move_to_folder)
+                    else
+                        moveDisabledReason ?: stringResource(R.string.move_to_folder)
+                )
             }
             IconButton(onClick = onMarkSpam) {
                 Icon(Icons.Outlined.Report, contentDescription = stringResource(R.string.mark_as_spam))

@@ -228,11 +228,16 @@ fun FolderDrawerContent(
     onCalendar: () -> Unit,
     onSync: () -> Unit
 ) {
-    // Split folders into favorites + main list. Hidden folders are omitted from
-    // both (they're managed from the folder-management screen).
+    // Two columns of the same source data:
+    //  - `favoriteFolders`: the user's pinned shortcuts, in the order
+    //    they've dragged them to. Drawn at the top of the drawer.
+    //  - `treeFolders`: every visible folder laid out as an IMAP-hierarchy
+    //    tree. **Includes** favorites, so starring a folder pins it at the
+    //    top *and* keeps it in the canonical list (the user can still find
+    //    it nested under its parent). Hidden folders are omitted from both.
     val visibleFolders = remember(folders) { folders.filterNot { it.isHidden } }
     val favoriteFolders = remember(visibleFolders) { visibleFolders.filter { it.isFavorite } }
-    val normalFolders = remember(visibleFolders) { visibleFolders.filterNot { it.isFavorite } }
+    val treeFolders = remember(visibleFolders) { visibleFolders }
     val favoriteFoldersState = rememberUpdatedState(favoriteFolders)
 
     // Whether the header is expanded to show the configured-account list
@@ -245,19 +250,27 @@ fun FolderDrawerContent(
 
     // Initialise: all parent nodes start expanded so the full hierarchy
     // is visible on first open.
-    LaunchedEffect(normalFolders) {
-        if (expanded.isEmpty() && normalFolders.isNotEmpty()) {
-            val sep = detectSeparator(normalFolders)
+    LaunchedEffect(treeFolders) {
+        if (expanded.isEmpty() && treeFolders.isNotEmpty()) {
+            val sep = detectSeparator(treeFolders)
             expandedServerIds.value = buildSet {
-                for (folder in normalFolders) {
+                for (folder in treeFolders) {
                     parentServerId(folder.serverId, sep)?.let { add(it) }
                 }
             }
         }
     }
 
-    val treeNodes = remember(normalFolders, expanded) {
-        buildFolderTree(normalFolders, expanded)
+    val treeNodes = remember(treeFolders, expanded) {
+        buildFolderTree(treeFolders, expanded)
+    }
+
+    // Lookup set keyed by folder id. The tree section needs to know which
+    // of its rows are duplicated in the favorites shortcut above so it can
+    // suppress the primary "pill" highlight on the duplicated row (the
+    // favorites chip already carries the one true highlight).
+    val favoriteFolderIds = remember(favoriteFolders) {
+        favoriteFolders.mapTo(HashSet()) { it.id }
     }
 
     val onToggleFolderExpand: (String) -> Unit = { serverId ->
@@ -562,6 +575,18 @@ fun FolderDrawerContent(
 
                 // ── Tree folder section ──
                 items(treeNodes, key = { "tree-${it.folder.id}" }) { node ->
+                    // Favorited folders render twice (pinned shortcut above
+                    // AND this tree row). When the user has one open, both
+                    // rows would otherwise paint the primary "pill"
+                    // highlight at the same time - a TalkBack user hears
+                    // "selected" twice and a sighted user reads two
+                    // selected items. The favorites chip already conveys
+                    // "this is the active folder", so suppress the tree
+                    // row's pill when the folder is in the favorites set;
+                    // the pinned shortcut above carries the one true
+                    // highlight instead.
+                    val isFavorited = node.folder.id in favoriteFolderIds
+                    val showPillHighlight = node.folder.id == selectedFolder?.id && !isFavorited
                     // Per-row state for the overflow menu surfaced by long-
                     // press. Each item gets its own SnapshotState, so opening
                     // a menu on one row never opens one on its neighbours.
@@ -569,7 +594,7 @@ fun FolderDrawerContent(
                     Box {
                         FolderTreeRow(
                             node = node,
-                            isSelected = node.folder.id == selectedFolder?.id,
+                            isSelected = showPillHighlight,
                             onFolderClick = onFolderClick,
                             onLongClick = { showMenu = true },
                             onToggleExpand = { onToggleFolderExpand(node.folder.serverId) }
@@ -774,6 +799,24 @@ private fun FolderTreeRow(
             modifier = Modifier.weight(1f)
         )
 
+        // ── "Also in Favorites" cue. Favorited folders render in two places
+        //   (the pinned shortcut section above AND this tree row); a small
+        //   star chip on the tree row makes that relationship legible so
+        //   a user who missed the section header doesn't read the duplicate
+        //   as a bug. The icon uses primary tint so it shares semantics
+        //   with the section's `FAVORITES` header colour. ──
+        if (node.folder.isFavorite) {
+            Icon(
+                imageVector = Icons.Default.Star,
+                contentDescription = stringResource(R.string.favorites),
+                tint = if (isSelected) Color.White.copy(alpha = 0.85f)
+                else MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .padding(start = 6.dp, end = 2.dp)
+                    .size(14.dp)
+            )
+        }
+
         // ── Unread count badge only. The per-row favourite star toggle
         //   has been removed from the visible chrome; long-press the row
         //   to add or remove the favourite via the overflow menu. ──
@@ -893,7 +936,12 @@ private fun FooterItem(
     )
 }
 
-private fun iconFor(type: FolderType): ImageVector = when (type) {
+// Module-internal so the inbox folder picker can reuse the same glyph
+// mapping the drawer uses for its tree rows; keeping the mapping in one
+// place avoids the picker showing a generic folder icon for Sent / Trash /
+// Spam rows that the rest of the app already renders with a type-specific
+// glyph.
+internal fun iconFor(type: FolderType): ImageVector = when (type) {
     FolderType.Inbox -> Icons.Default.Inbox
     FolderType.SENT -> Icons.AutoMirrored.Filled.Send
     FolderType.DRAFTS -> Icons.Default.Drafts

@@ -372,6 +372,40 @@ class InboxViewModel @Inject constructor(
         viewModelScope.launch { mailActions.markSpamBatch(batch) }
     }
 
+    /**
+     * Multi-select move into a user-picked [target] folder. Routing goes
+     * through [MailActions.moveBatch], which performs an immediate local
+     * move + deferred server move with a single composite undo entry -
+     * so one Undo tap restores every selected message to its source folder.
+     *
+     * Selection is cleared before the work is launched (mirrors
+     * archiveSelected / deleteSelected) so the rows visually leave the
+     * feed even if the suspend op hasn't started yet.
+     */
+    fun moveSelected(target: MailFolder) {
+        val batch = selectedMessages()
+        _selectedIds.value = emptySet()
+        viewModelScope.launch { mailActions.moveBatch(batch, target) }
+    }
+
+    /**
+     * Folders that are valid move targets in the current view. The currently
+     * visible folder is excluded (moving-into-yourself is a no-op the user
+     * shouldn't be offered). Hidden folders are also excluded so the picker
+     * matches the drawer's visible set.
+     *
+     * Returns an empty list in unified-inbox mode - cross-account IMAP
+     * MOVE isn't supported, so the caller should disable Move and avoid
+     * opening the picker at all in that mode.
+     */
+    fun getMoveTargetFolders(): List<MailFolder> {
+        if (_unifiedMode.value) return emptyList()
+        val currentId = _selectedFolder.value?.id
+        return foldersFlow.value
+            .filterNot { it.isHidden }
+            .filter { it.id != currentId }
+    }
+
     /** Mark every message in the current feed as read (server + local). */
     fun markAllRead() {
         val batch = messagesFlow.value.filterNot { it.isRead }

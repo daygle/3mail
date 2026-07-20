@@ -216,6 +216,13 @@ class InboxViewModelTest {
         )
     }
 
+    // Note: Move-batch coverage lives in `MailActionsTest`. Driving moveBatch
+    // through InboxViewModel would force this test to wait on the reactive
+    // `messagesFlow` to emit, which the comments at the top of this file
+    // already flagged as fragile under Robolectric. MailActions.moveBatch
+    // is the meaningful surface; the VM's `moveSelected` is a 3-line
+    // pass-through that clears `selectedIds` and forwards to it.
+
     private fun seedFixtures() {
         runBlocking {
             db.accountDao().insert(

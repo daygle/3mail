@@ -55,10 +55,18 @@ fun MailListItem(
     val rowPaddingV = if (compact) 8.dp else 12.dp
     val avatarSize = if (compact) 36.dp else 44.dp
 
+    // Unread/selected tints intentionally avoid `primaryContainer` because it
+    // is taken from the user's Material You accent palette. A red wallpaper
+    // would otherwise turn every unread row red (the accent can be highly
+    // saturated, so even 0.1f alpha reads as the accent colour). The neutral
+    // `surfaceVariant` comes from the accent-free tonal palette and stays
+    // neutral regardless of the wallpaper. Selected rows deliberately keep
+    // `primaryContainer` here because the user just chose them and the highlight
+    // should follow the theme.
     val background = when {
         selected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
         message.isRead -> MaterialTheme.colorScheme.surface
-        else -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.1f)
+        else -> MaterialTheme.colorScheme.surfaceVariant
     }
 
     Row(
@@ -135,10 +143,17 @@ fun MailListItem(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                 }
+                // Date color avoids `primary` for the unread state; under
+                // dynamic Material You color, `primary` tracks the user's
+                // accent palette and would render red on a red-tinted
+                // wallpaper, just like the row background used to.
+                // `onSurface` (read contrast text on the row surface) gives
+                // the unread date a slight emphasis over the read date's
+                // `onSurfaceVariant`, without inheriting the accent colour.
                 Text(
                     text = formatDate(message.date),
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (message.isRead) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
+                    color = if (message.isRead) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
                 )
             }
             Text(

@@ -111,6 +111,60 @@ class MailActions @Inject constructor(
     }
 
     /**
+     * Multi-select move into a single target folder. Mirrors [markSpamBatch]:
+     * local Room edits commit immediately so the rows disappear from the
+     * current feed, while the IMAP/Gmail UID MOVE is deferred until the undo
+     * window expires - one Undo tap reverts every local move back to its
+     * source folder and discards the deferred server commits in one go.
+     *
+     * Silently skipped per message (no UI feedback) when:
+     *  - the message's account doesn't match `target.accountId` (multi-account
+     *    selection in unified mode; same-server IMAP MOVE can't span
+     *    accounts). The InboxViewModel disables Move in unified mode so
+     *    this is normally a no-op, but the guard is here for safety.
+     *  - the source folder can't be resolved from the local cache.
+     *  - the message is already in the target folder.
+     *
+     * If every selected message is skipped, no undo entry is enqueued and
+     * no snackbar is shown.
+     */
+    suspend fun moveBatch(messages: Collection<MailMessage>, target: MailFolder) {
+        if (messages.isEmpty()) return
+        val moves = messages.mapNotNull { message ->
+            if (message.accountId != target.accountId) return@mapNotNull null
+            val folders = mailRepository.getFoldersOnce(message.accountId)
+            val source = folders.firstOrNull { it.id == message.folderId } ?: return@mapNotNull null
+            if (source.id == target.id) return@mapNotNull null
+            mailRepository.moveMessageToFolder(message.id, target.id)
+            Triple(message, source, target)
+        }
+        if (moves.isEmpty()) return
+        // Resolve accounts eagerly so the deferred commit closure still has
+        // them even after the originating screen has been torn down.
+        val accounts = moves.associate { (msg, _, _) ->
+            msg.id to accountRepository.getAccountById(msg.accountId)
+        }
+        undoController.enqueue(
+            kind = UndoKind.MOVE,
+            commit = {
+                for ((msg, source, tgt) in moves) {
+                    val account = accounts[msg.id] ?: continue
+                    runCatching {
+                        mailRemoteFactory.create(account).move(source, msg, tgt).getOrThrow()
+                    }
+                }
+            },
+            revert = {
+                for ((msg, source, _) in moves) {
+                    runCatching {
+                        mailRepository.moveMessageToFolder(msg.id, source.id)
+                    }
+                }
+            }
+        )
+    }
+
+    /**
      * Move a single message to its account's Spam/Junk folder immediately
      * (server-first, no UndoController wiring). Mirrors [archive] / [delete] -
      * used by [markSpamBatch] so a multi-select mark-as-spam completes
