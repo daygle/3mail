@@ -86,15 +86,13 @@ jobs:
           if-no-files-found: ignore
 
   # Compose UI test runner: instrumented `connectedDebugAndroidTest`. Only
-  # runs on merges to main (not on PRs) to keep macos emulator minutes
-  # reasonable - reactivecircus/android-emulator-runner@v2 needs macos for
-  # x86_64 host-accelerated boot and the AVD startup is slow enough that
-  # running on every PR would dominate our CI budget.
-  # (The action's latest published major is v2.x; prefix with @v2 so it
-  # tracks the most recent patch release without pinning a frozen SHA.)
+  # runs on merges to main (not on PRs) to keep CI minutes reasonable.
+  # Ubuntu with KVM provides hardware-accelerated emulation and boots the
+  # AVD significantly faster than macOS runners (which lack GPU pass-through
+  # and require software rendering via swiftshader_indirect).
   android-test:
     name: Compose UI tests (instrumented)
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Checkout
@@ -123,13 +121,14 @@ jobs:
           profile: pixel_5
           ram-size: 4096
           disk-size: 4096
-          # macOS runners are shared and the AVD boot can be much slower than
-          # the 600 s default; raise it to 20 minutes so a cold boot (no cached
-          # snapshot) doesn't abort the CI run.
-          emulator-boot-timeout: 1200
+          # AVD boot timeout: keep the elevated value since a cold-boot on a
+          # shared runner can still stall, but the switch to ubuntu-latest + KVM
+          # should make it boot in 2-4 minutes rather than timing out.
+          emulator-boot-timeout: 600
           disable-animations: true
-          # macOS GitHub runners have no GPU or display, so stripping UI overhead
-          # is essential to get the emulator to boot at all.
+          # Strip UI and audio overhead — the runner has no display and these
+          # flags are harmless with KVM, acting as a safety net on runners
+          # where hardware GPU isn't available.
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           script: gradle connectedDebugAndroidTest --stacktrace
 
