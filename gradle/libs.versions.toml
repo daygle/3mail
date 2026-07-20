@@ -1,6 +1,6 @@
 [versions]
 agp = "9.3.0"
-kotlin = "2.3.10"
+kotlin = "2.4.10"
 coreKtx = "1.19.0"
 junit = "4.13.2"
 junitVersion = "1.3.0"
@@ -8,7 +8,6 @@ espressoCore = "3.7.0"
 lifecycleRuntimeKtx = "2.11.0"
 activityCompose = "1.13.0"
 composeBom = "2026.06.01"
-apacheCommonsNet = "3.13.0"
 javaMail = "1.6.8"
 room = "2.8.4"
 hilt = "2.60.1"
@@ -21,7 +20,7 @@ gmsAuth = "21.6.0"
 googleApiClient = "2.9.0"
 gmailApi = "v1-rev20260525-2.0.0"
 calendarApi = "v3-rev20260708-2.0.0"
-coil = "2.7.0"
+coil = "3.5.0"
 credentials = "1.6.0"
 googleid = "1.2.0"
 splashscreen = "1.2.0"
@@ -34,8 +33,8 @@ ksp = "2.3.10"
 # etc.) used by OpenPgpController. JDK 18+ reflects the project jvmTarget = 17
 # line in app/build.gradle.kts - we use the JDK18-on builds because the JDK17
 # flavour stopped receiving public updates for the 1.78 line.
-bcpg = "1.78"
-bcprov = "1.78"
+bcpg = "1.85"
+bcprov = "1.85"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -56,9 +55,7 @@ androidx-material3 = { group = "androidx.compose.material3", name = "material3" 
 androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 
 # IMAP / Mail
-apache-commons-net = { group = "commons-net", name = "commons-net", version.ref = "apacheCommonsNet" }
 java-mail = { group = "com.sun.mail", name = "android-mail", version.ref = "javaMail" }
-java-mail-activation = { group = "com.sun.activation", name = "javax.activation", version = "1.2.0" }
 
 # Room
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
@@ -108,7 +105,8 @@ google-api-services-gmail = { group = "com.google.apis", name = "google-api-serv
 google-api-services-calendar = { group = "com.google.apis", name = "google-api-services-calendar", version.ref = "calendarApi" }
 
 # Coil
-io-coil-kt-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
+coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
+coil-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil" }
 
 # Credential storage uses Android Keystore directly (see CredentialStore.kt).
 # androidx.credentials lives here for the Google Credential Manager sign-in flow.

@@ -115,8 +115,7 @@ class GmailRemote(
                 if (seen) removeLabelIds = listOf("UNREAD") else addLabelIds = listOf("UNREAD")
             }
             svc.users().messages().modify(USER, message.remoteId, req).execute()
-            Unit
-        }
+        }.map { }
 
     override suspend fun setFlagged(folder: MailFolder, message: MailMessage, flagged: Boolean): Result<Unit> =
         gmail { svc ->
@@ -124,8 +123,7 @@ class GmailRemote(
                 if (flagged) addLabelIds = listOf("STARRED") else removeLabelIds = listOf("STARRED")
             }
             svc.users().messages().modify(USER, message.remoteId, req).execute()
-            Unit
-        }
+        }.map { }
 
     override suspend fun delete(folder: MailFolder, message: MailMessage, trash: MailFolder?): Result<Unit> =
         gmail { svc ->
@@ -135,8 +133,7 @@ class GmailRemote(
             } else {
                 svc.users().messages().trash(USER, message.remoteId).execute()
             }
-            Unit
-        }
+        }.map { }
 
     override suspend fun move(from: MailFolder, message: MailMessage, to: MailFolder): Result<Unit> =
         gmail { svc ->
@@ -145,8 +142,7 @@ class GmailRemote(
                 removeLabelIds = listOf(from.serverId)
             }
             svc.users().messages().modify(USER, message.remoteId, req).execute()
-            Unit
-        }
+        }.map { }
 
     override suspend fun downloadAttachment(
         folder: MailFolder,
@@ -164,8 +160,7 @@ class GmailRemote(
 
     override suspend fun send(message: OutgoingMessage): Result<Unit> = gmail { svc ->
         svc.users().messages().send(USER, GmailMessage().setRaw(rawOf(message))).execute()
-        Unit
-    }
+    }.map { }
 
     override suspend fun sendRaw(messageBytes: ByteArray): Result<Unit> = gmail { svc ->
         val raw = android.util.Base64.encodeToString(
@@ -173,14 +168,12 @@ class GmailRemote(
             android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING
         )
         svc.users().messages().send(USER, GmailMessage().setRaw(raw)).execute()
-        Unit
-    }
+    }.map { }
 
     override suspend fun appendDraft(draftsFolder: MailFolder, message: OutgoingMessage): Result<Unit> = gmail { svc ->
         val draft = Draft().setMessage(GmailMessage().setRaw(rawOf(message)))
         svc.users().drafts().create(USER, draft).execute()
-        Unit
-    }
+    }.map { }
 
     // region helpers
 

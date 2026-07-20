@@ -94,9 +94,11 @@ class InboxViewModelTest {
     private val seededInboxId = 2L
     private val seededSentId = 3L
 
+    private val testDispatcher = UnconfinedTestDispatcher()
+
     @Before
     fun setUp() {
-        Dispatchers.setMain(UnconfinedTestDispatcher())
+        Dispatchers.setMain(testDispatcher)
         context = ApplicationProvider.getApplicationContext()
         db = Room.inMemoryDatabaseBuilder(context, ThreeMailDatabase::class.java)
             // Auto-sync assertions need the folder-list Flow to emit synchronously
@@ -146,11 +148,11 @@ class InboxViewModelTest {
     }
 
     @Test
-    fun `selectFolder of a different folder fetches that folder`() {
+    fun `selectFolder of a different folder fetches that folder`() = runBlocking {
         // Pin the active account so the bootstrap race (foldersFlow re-emit
         // after selectAccount) doesn't leave _selectedFolder on null when
         // the assertion runs.
-        val account = runBlocking { accountRepository.getAccountById(seededAccountId) }
+        val account = accountRepository.getAccountById(seededAccountId)
             ?: error("seeded account missing")
         viewModel.selectAccount(account)
         ShadowLooper.idleMainLooper()
@@ -176,8 +178,8 @@ class InboxViewModelTest {
     }
 
     @Test
-    fun `selectFolder of the same folder twice does not re-fetch`() {
-        val account = runBlocking { accountRepository.getAccountById(seededAccountId) }
+    fun `selectFolder of the same folder twice does not re-fetch`() = runBlocking {
+        val account = accountRepository.getAccountById(seededAccountId)
             ?: error("seeded account missing")
         viewModel.selectAccount(account)
         ShadowLooper.idleMainLooper()
