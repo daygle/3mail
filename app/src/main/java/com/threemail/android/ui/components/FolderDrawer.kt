@@ -31,6 +31,8 @@ import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Inbox
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -46,6 +48,7 @@ import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -239,10 +242,27 @@ fun FolderDrawerContent(
     val favoriteFolders = remember(visibleFolders) { visibleFolders.filter { it.isFavorite } }
     val treeFolders = remember(visibleFolders) { visibleFolders }
     val favoriteFoldersState = rememberUpdatedState(favoriteFolders)
+    // Capture `account` through rememberUpdatedState so any closure that
+    // fires while the user is mid-account-switch (after a new account
+    // composes but before the LaunchedEffect below resets the edit-mode
+    // flag) uses the *current* account.id rather than the one bound
+    // at the closure's original composition.
+    val accountState = rememberUpdatedState(account)
 
     // Whether the header is expanded to show the configured-account list
     // (tapping the header / its chevron toggles this) instead of folders.
     var showAccounts by remember { mutableStateOf(false) }
+
+    // Local-only UI affordance: while true, every favorite row swaps
+    // its drag handle for explicit ↑ / ↓ IconButtons so reorder is
+    // reachable without the long-press drag gesture. The chip in the
+    // FAVORITES header reads "Edit" when false and "Done" when true.
+    // Reset on account change so a half-finished reorder doesn't carry
+    // over to the next account the user opens.
+    var isEditingFavorites by remember { mutableStateOf(false) }
+    LaunchedEffect(account?.id) {
+        isEditingFavorites = false
+    }
 
     // --- Tree expand/collapse state ---
     val expandedServerIds = remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -400,13 +420,32 @@ fun FolderDrawerContent(
                 // ── Favorites section ──
                 if (account != null && favoriteFolders.isNotEmpty()) {
                     item(key = "favorites-header") {
-                        Text(
-                            text = stringResource(R.string.favorites_header),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = 32.dp, top = 4.dp, bottom = 4.dp)
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 32.dp, top = 4.dp, bottom = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = stringResource(R.string.favorites_header),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f)
+                            )
+                            // "Edit" / "Done" chip. Edit enters reorder
+                            // mode (each row surfaces ↑ / ↓ buttons);
+                            // Done exits and restores the drag handle.
+                            // UI-only state - never persisted.
+                            TextButton(onClick = { isEditingFavorites = !isEditingFavorites }) {
+                                Text(
+                                    text = stringResource(
+                                        if (isEditingFavorites) R.string.favorites_done_action
+                                        else R.string.favorites_edit_action
+                                    )
+                                )
+                            }
+                        }
                     }
 
                     itemsIndexed(
@@ -479,65 +518,78 @@ fun FolderDrawerContent(
                                     ),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.DragHandle,
-                                    contentDescription = stringResource(R.string.favorites_drag_handle),
-                                    tint = contentTint.copy(alpha = 0.5f),
-                                    modifier = Modifier
-                                        // Tap is absorbed here so it doesn't
-                                        // fall through to the Row's selection
-                                        // (a tap on the icon would otherwise
-                                        // navigate into the folder). The
-                                        // ripple marks the icon as
-                                        // drag-only.
-                                        .clickable {}
-                                        .pointerInput(favoriteFolders.size) {
-                                            detectDragGesturesAfterLongPress(
-                                                onDragStart = {
-                                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                    dragInfo.value = DragInfo(
-                                                        fromIndex = index,
-                                                        fromServerId = folder.serverId,
-                                                        accumulatorY = 0f
-                                                    )
-                                                },
-                                                onDrag = { _, dragAmount ->
-                                                    val cur = dragInfo.value
-                                                        ?: return@detectDragGesturesAfterLongPress
-                                                    dragInfo.value = cur.copy(
-                                                        accumulatorY = cur.accumulatorY + dragAmount.y
-                                                    )
-                                                },
-                                                onDragEnd = {
-                                                    val final = dragInfo.value ?: return@detectDragGesturesAfterLongPress
-                                                    val live = favoriteFoldersState.value
-                                                    if (live.isEmpty()) {
+                                // Edit mode swaps the drag handle for an
+                                // inert spacer of equal width so the folder
+                                // name stays aligned across modes; explicit
+                                // ↑ / ↓ buttons render at the row's end.
+                                if (isEditingFavorites) {
+                                    Spacer(modifier = Modifier.size(CHEVRON_SIZE))
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.DragHandle,
+                                        contentDescription = stringResource(R.string.favorites_drag_handle),
+                                        tint = contentTint.copy(alpha = 0.5f),
+                                        // Pin the drag handle to CHEVRON_SIZE so
+                                        // folder names stay byte-identical across
+                                        // modes; the inert Spacer in edit mode is
+                                        // the same constant.
+                                        modifier = Modifier
+                                            .size(CHEVRON_SIZE)
+                                            // Tap is absorbed here so it doesn't
+                                            // fall through to the Row's selection
+                                            // (a tap on the icon would otherwise
+                                            // navigate into the folder). The
+                                            // ripple marks the icon as
+                                            // drag-only.
+                                            .clickable {}
+                                            .pointerInput(favoriteFolders.size) {
+                                                detectDragGesturesAfterLongPress(
+                                                    onDragStart = {
+                                                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                        dragInfo.value = DragInfo(
+                                                            fromIndex = index,
+                                                            fromServerId = folder.serverId,
+                                                            accumulatorY = 0f
+                                                        )
+                                                    },
+                                                    onDrag = { _, dragAmount ->
+                                                        val cur = dragInfo.value
+                                                            ?: return@detectDragGesturesAfterLongPress
+                                                        dragInfo.value = cur.copy(
+                                                            accumulatorY = cur.accumulatorY + dragAmount.y
+                                                        )
+                                                    },
+                                                    onDragEnd = {
+                                                        val final = dragInfo.value ?: return@detectDragGesturesAfterLongPress
+                                                        val live = favoriteFoldersState.value
+                                                        if (live.isEmpty()) {
+                                                            dragInfo.value = null
+                                                            return@detectDragGesturesAfterLongPress
+                                                        }
+                                                        val steps = if (rowHeightPx > 0f) {
+                                                            (final.accumulatorY / rowHeightPx).toInt()
+                                                        } else 0
+                                                        val targetIndex = (final.fromIndex + steps)
+                                                            .coerceIn(0, live.lastIndex)
+                                                        if (targetIndex != final.fromIndex) {
+                                                            val newOrder = live.toMutableList()
+                                                            val moved = newOrder.removeAt(final.fromIndex)
+                                                            newOrder.add(
+                                                                targetIndex.coerceAtMost(newOrder.size),
+                                                                moved
+                                                            )
+                                                            onReorderFavorite(
+                                                                account.id,
+                                                                newOrder.map { it.serverId }
+                                                            )
+                                                        }
                                                         dragInfo.value = null
-                                                        return@detectDragGesturesAfterLongPress
-                                                    }
-                                                    val steps = if (rowHeightPx > 0f) {
-                                                        (final.accumulatorY / rowHeightPx).toInt()
-                                                    } else 0
-                                                    val targetIndex = (final.fromIndex + steps)
-                                                        .coerceIn(0, live.lastIndex)
-                                                    if (targetIndex != final.fromIndex) {
-                                                        val newOrder = live.toMutableList()
-                                                        val moved = newOrder.removeAt(final.fromIndex)
-                                                        newOrder.add(
-                                                            targetIndex.coerceAtMost(newOrder.size),
-                                                            moved
-                                                        )
-                                                        onReorderFavorite(
-                                                            account.id,
-                                                            newOrder.map { it.serverId }
-                                                        )
-                                                    }
-                                                    dragInfo.value = null
-                                                },
-                                                onDragCancel = { dragInfo.value = null }
-                                            )
-                                        }
-                                )
+                                                    },
+                                                    onDragCancel = { dragInfo.value = null }
+                                                )
+                                            }
+                                    )
+                                }
                                 Spacer(Modifier.width(12.dp))
                                 Text(
                                     text = folder.name,
@@ -547,6 +599,60 @@ fun FolderDrawerContent(
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.weight(1f)
                                 )
+                                if (isEditingFavorites) {
+                                    // Look up the row's live index every
+                                    // recomposition so successive taps still
+                                    // move against the post-reorder order,
+                                    // not the original `index` captured by
+                                    // itemsIndexed.
+                                    val live = favoriteFoldersState.value
+                                    val liveIndex = live.indexOfFirst { it.serverId == folder.serverId }
+                                    val canMoveUp = liveIndex > 0
+                                    val canMoveDown = liveIndex < live.lastIndex
+                                    IconButton(
+                                        onClick = {
+                                            val current = favoriteFoldersState.value
+                                            val currentIndex = current.indexOfFirst { it.serverId == folder.serverId }
+                                            if (currentIndex > 0) {
+                                                val newOrder = current.toMutableList()
+                                                val moved = newOrder.removeAt(currentIndex)
+                                                newOrder.add(currentIndex - 1, moved)
+                                                onReorderFavorite(
+                                                    accountState.value?.id ?: return@IconButton,
+                                                    newOrder.map { it.serverId }
+                                                )
+                                            }
+                                        },
+                                        enabled = canMoveUp
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.KeyboardArrowUp,
+                                            contentDescription = stringResource(R.string.favorites_move_up)
+                                        )
+                                    }
+                                    Spacer(Modifier.width(4.dp))
+                                    IconButton(
+                                        onClick = {
+                                            val current = favoriteFoldersState.value
+                                            val currentIndex = current.indexOfFirst { it.serverId == folder.serverId }
+                                            if (currentIndex < current.lastIndex) {
+                                                val newOrder = current.toMutableList()
+                                                val moved = newOrder.removeAt(currentIndex)
+                                                newOrder.add(currentIndex + 1, moved)
+                                                onReorderFavorite(
+                                                    accountState.value?.id ?: return@IconButton,
+                                                    newOrder.map { it.serverId }
+                                                )
+                                            }
+                                        },
+                                        enabled = canMoveDown
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.KeyboardArrowDown,
+                                            contentDescription = stringResource(R.string.favorites_move_down)
+                                        )
+                                    }
+                                }
                             }
                             DropdownMenu(
                                 expanded = showMenu,

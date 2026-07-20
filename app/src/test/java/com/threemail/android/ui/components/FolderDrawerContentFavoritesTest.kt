@@ -4,8 +4,16 @@ import androidx.activity.ComponentActivity
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onLast
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.Assert.assertEquals
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.AccountType
 import com.threemail.android.domain.model.FolderType
@@ -103,5 +111,80 @@ class FolderDrawerContentFavoritesTest {
         composeTestRule.onAllNodesWithText("Sent").assertCountEquals(1)
         composeTestRule.onAllNodesWithText("Drafts").assertCountEquals(1)
         composeTestRule.onAllNodesWithText("Trash").assertCountEquals(1)
+    }
+
+    /**
+     * The move up / move down affordances should ONLY be reachable
+     * while the user is in edit mode. Initially the section shows an
+     * "Edit" chip with no move buttons; tapping it swaps to three
+     * IconButtons per row and the "Done" chip; tapping Done reverts.
+     */
+    @Test
+    fun editing_favorites_exposes_move_up_and_move_down_buttons() {
+        val account = Account(
+            id = 1L,
+            email = "user@example.com",
+            displayName = "User",
+            accountType = AccountType.IMAP
+        )
+        val folders = listOf(
+            MailFolder(1L, 1L, "INBOX", "Inbox", FolderType.Inbox, isFavorite = true),
+            MailFolder(2L, 1L, "Sent", "Sent", FolderType.SENT, isFavorite = true),
+            MailFolder(3L, 1L, "Archive", "Archive", FolderType.ARCHIVE, isFavorite = true)
+        )
+        val reorderCalls = mutableListOf<List<String>>()
+
+        composeTestRule.setContent {
+            MaterialTheme {
+                FolderDrawerContent(
+                    account = account,
+                    accounts = listOf(account),
+                    folders = folders,
+                    selectedFolder = null,
+                    onFolderClick = {},
+                    onSelectAccount = {},
+                    onToggleFavorite = {},
+                    onReorderFavorite = { _, ids -> reorderCalls.add(ids) },
+                    onManageAccounts = {},
+                    onSettings = {},
+                    onCalendar = {},
+                    onSync = {}
+                )
+            }
+        }
+
+        // Initially: Edit chip visible, no move arrows rendered.
+        composeTestRule.onNodeWithText("Edit").assertIsDisplayed()
+        composeTestRule.onAllNodesWithContentDescription("Move up").assertCountEquals(0)
+        composeTestRule.onAllNodesWithContentDescription("Move down").assertCountEquals(0)
+        assertEquals(0, reorderCalls.size)
+
+        // Enter edit mode: one Move up and one Move down button per row
+        // (3 favorites -> 6 buttons total), and the chip flips to "Done".
+        composeTestRule.onNodeWithText("Edit").performClick()
+        composeTestRule.onNodeWithText("Done").assertIsDisplayed()
+        composeTestRule.onAllNodesWithContentDescription("Move up").assertCountEquals(3)
+        composeTestRule.onAllNodesWithContentDescription("Move down").assertCountEquals(3)
+
+        // Disabled-at-ends: the first row's Move-up (already at index 0)
+        // and the last row's Move-down (already at lastIndex) must be
+        // disabled. This is the invariant that breaks if canMoveUp /
+        // canMoveDown arithmetic regresses.
+        composeTestRule.onAllNodesWithContentDescription("Move up").onFirst().assertIsNotEnabled()
+        composeTestRule.onAllNodesWithContentDescription("Move down").onLast().assertIsNotEnabled()
+
+        // Tap Move-down on the first favorite (Inbox). The handler looks
+        // up the live index, swaps positions 0 and 1, and dispatches
+        // onReorderFavorite with the new serverId order.
+        composeTestRule.onAllNodesWithContentDescription("Move down")[0].performClick()
+        composeTestRule.waitForIdle()
+        assertEquals(1, reorderCalls.size)
+        assertEquals(listOf("Sent", "Inbox", "Archive"), reorderCalls.first())
+
+        // Exit edit mode: move arrows disappear, the Edit chip returns.
+        composeTestRule.onNodeWithText("Done").performClick()
+        composeTestRule.onNodeWithText("Edit").assertIsDisplayed()
+        composeTestRule.onAllNodesWithContentDescription("Move up").assertCountEquals(0)
+        composeTestRule.onAllNodesWithContentDescription("Move down").assertCountEquals(0)
     }
 }

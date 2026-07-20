@@ -272,6 +272,15 @@
     <!-- Screen-reader label for the leading icon on each favorite row, whose
          only purpose is the drag-reorder gesture. -->
     <string name="favorites_drag_handle">Drag to reorder</string>
+    <!-- Toggle button on the FAVORITES section header. Edit enters reorder
+         mode (each row surfaces ↑ / ↓ buttons in place of the drag handle);
+         Done exits and restores the drag handle. -->
+    <string name="favorites_edit_action">Edit</string>
+    <string name="favorites_done_action">Done</string>
+    <!-- Screen-reader labels on the per-row move buttons that appear while
+         the user is in edit mode. -->
+    <string name="favorites_move_up">Move up</string>
+    <string name="favorites_move_down">Move down</string>
 
     <!-- Sent-folder badge: shown on rows the SendMailWorker dispatched
          through the opportunistic-encryption path (MailPgpOutbound.compose
