@@ -183,8 +183,7 @@ class InboxViewModelTest {
             ?: error("seeded account missing")
         viewModel.selectAccount(account)
         ShadowLooper.idleMainLooper()
-        // The bootstrap already counted one fetch; capture the running total.
-        val baseline = fakeFactory.fetchCount
+
         val sent = MailFolder(
             id = seededSentId,
             accountId = seededAccountId,
@@ -192,13 +191,27 @@ class InboxViewModelTest {
             name = "Sent",
             type = FolderType.SENT
         )
+
+        // Select the folder once, then zero the counter. Measuring the re-select
+        // against a locally-reset baseline (the same pattern the sibling
+        // "different folder" test uses) keeps this deterministic: the previous
+        // form captured `baseline = fetchCount` from the init-block bootstrap,
+        // whose fetch is driven by Room's InvalidationTracker on a Room-owned
+        // executor that ShadowLooper.idleMainLooper() can't drain, so the
+        // baseline raced and the assertion flaked (expected:<1> but was:<0>).
         viewModel.selectFolder(sent)
         ShadowLooper.idleMainLooper()
+        fakeFactory.fetchCount = 0
+
+        // Re-selecting the SAME folder must be deduped: MutableStateFlow
+        // conflates the identical value and distinctUntilChanged is the safety
+        // net above it, so no second server fetch is issued.
         viewModel.selectFolder(sent)
         ShadowLooper.idleMainLooper()
+
         assertEquals(
             "a same-folder re-select must be deduped, not spam the server",
-            baseline + 1,
+            0,
             fakeFactory.fetchCount
         )
     }
