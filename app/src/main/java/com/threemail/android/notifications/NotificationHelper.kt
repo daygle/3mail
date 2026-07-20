@@ -3,7 +3,6 @@ package com.threemail.android.notifications
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
-import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.threemail.android.R
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -39,39 +38,37 @@ class NotificationHelper @Inject constructor(
     }
 
     fun createNotificationChannels() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-            val mailName = context.getString(R.string.new_mail_notification_channel_name)
-            val mailDescription = context.getString(R.string.new_mail_notification_channel_description)
-            val mailChannel = NotificationChannel(CHANNEL_ID, mailName, NotificationManager.IMPORTANCE_DEFAULT).apply {
-                this.description = mailDescription
-            }
-            notificationManager.createNotificationChannel(mailChannel)
-
-            val trashName = context.getString(R.string.trash_cleanup_notification_channel_name)
-            val trashDescription = context.getString(R.string.trash_cleanup_notification_channel_description)
-            val trashChannel = NotificationChannel(TRASH_CHANNEL_ID, trashName, NotificationManager.IMPORTANCE_LOW).apply {
-                this.description = trashDescription
-            }
-            notificationManager.createNotificationChannel(trashChannel)
-
-            val badgeName = context.getString(R.string.unread_badge_channel_name)
-            val badgeDescription = context.getString(R.string.unread_badge_channel_description)
-            val badgeChannel = NotificationChannel(BADGE_CHANNEL_ID, badgeName, NotificationManager.IMPORTANCE_LOW).apply {
-                this.description = badgeDescription
-                setShowBadge(true)
-            }
-            notificationManager.createNotificationChannel(badgeChannel)
-
-            val pushName = context.getString(R.string.push_channel_name)
-            val pushDescription = context.getString(R.string.push_channel_description)
-            val pushChannel = NotificationChannel(PUSH_CHANNEL_ID, pushName, NotificationManager.IMPORTANCE_LOW).apply {
-                this.description = pushDescription
-                setShowBadge(false)
-            }
-            notificationManager.createNotificationChannel(pushChannel)
+        val mailName = context.getString(R.string.new_mail_notification_channel_name)
+        val mailDescription = context.getString(R.string.new_mail_notification_channel_description)
+        val mailChannel = NotificationChannel(CHANNEL_ID, mailName, NotificationManager.IMPORTANCE_DEFAULT).apply {
+            this.description = mailDescription
         }
+        notificationManager.createNotificationChannel(mailChannel)
+
+        val trashName = context.getString(R.string.trash_cleanup_notification_channel_name)
+        val trashDescription = context.getString(R.string.trash_cleanup_notification_channel_description)
+        val trashChannel = NotificationChannel(TRASH_CHANNEL_ID, trashName, NotificationManager.IMPORTANCE_LOW).apply {
+            this.description = trashDescription
+        }
+        notificationManager.createNotificationChannel(trashChannel)
+
+        val badgeName = context.getString(R.string.unread_badge_channel_name)
+        val badgeDescription = context.getString(R.string.unread_badge_channel_description)
+        val badgeChannel = NotificationChannel(BADGE_CHANNEL_ID, badgeName, NotificationManager.IMPORTANCE_LOW).apply {
+            this.description = badgeDescription
+            setShowBadge(true)
+        }
+        notificationManager.createNotificationChannel(badgeChannel)
+
+        val pushName = context.getString(R.string.push_channel_name)
+        val pushDescription = context.getString(R.string.push_channel_description)
+        val pushChannel = NotificationChannel(PUSH_CHANNEL_ID, pushName, NotificationManager.IMPORTANCE_LOW).apply {
+            this.description = pushDescription
+            setShowBadge(false)
+        }
+        notificationManager.createNotificationChannel(pushChannel)
     }
 
     fun showNewMailNotification(count: Int) {
