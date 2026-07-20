@@ -235,12 +235,15 @@ class MailRepository @Inject constructor(
     }
 
     /**
-     * Reactive, bounded feed of a single folder. Unlike [getMessagesPaged],
-     * Room re-emits on every mutation so the inbox reflects sync, swipe, and
-     * batch actions live.
+     * Reactive feed of a single folder. Room re-emits on every mutation so
+     * the inbox reflects sync, swipe, and batch actions live. Intentionally
+     * uncapped: the underlying DAO [MessageDao.observeByFolder] issues no
+     * SQL LIMIT, so every message currently stored for the folder is in
+     * the feed. Emit size grows with the folder's stored rows; the rendering
+     * consumer handles large lists downstream.
      */
-    fun observeFolder(folderId: Long, limit: Int): Flow<List<MailMessage>> =
-        combine(messageDao.observeByFolder(folderId, limit), messageFlagDao.observeAll()) { list, flags ->
+    fun observeFolder(folderId: Long): Flow<List<MailMessage>> =
+        combine(messageDao.observeByFolder(folderId), messageFlagDao.observeAll()) { list, flags ->
             val indexed = flagsByMessageId(flags)
             list.map { entity ->
                 val flag = indexed[entity.accountId]?.get(entity.messageId)
@@ -249,10 +252,11 @@ class MailRepository @Inject constructor(
         }
 
     /**
-     * Reactive, bounded cross-account unified inbox (all INBOX folders).
+     * Reactive cross-account unified inbox (all INBOX folders). Uncapped, same
+     * rationale as [observeFolder].
      */
-    fun observeUnifiedInbox(limit: Int): Flow<List<MailMessage>> =
-        combine(messageDao.observeUnifiedInbox(limit), messageFlagDao.observeAll()) { list, flags ->
+    fun observeUnifiedInbox(): Flow<List<MailMessage>> =
+        combine(messageDao.observeUnifiedInbox(), messageFlagDao.observeAll()) { list, flags ->
             val indexed = flagsByMessageId(flags)
             list.map { entity ->
                 val flag = indexed[entity.accountId]?.get(entity.messageId)

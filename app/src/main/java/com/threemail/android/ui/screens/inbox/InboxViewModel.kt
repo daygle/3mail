@@ -95,13 +95,17 @@ class InboxViewModel @Inject constructor(
 
     // Reactive message feed: switches between the cross-account unified inbox
     // and a single folder. Room-backed, so sync results and read/star/delete
-    // mutations reflect live without a manual re-query.
+    // mutations reflect live without a manual re-query. Intentionally uncapped
+    // at the repository layer - the rendering consumer handles large lists
+    // downstream. The previous 50-row SQL LIMIT was silently hiding every
+    // email older than the latest 50 (the "today's email only" bug reported
+    // by users with busy inboxes or favorited non-inbox folders).
     private val messagesFlow = combine(_unifiedMode, _selectedFolder) { unified, folder ->
         unified to folder
     }.flatMapLatest { (unified, folder) ->
         when {
-            unified -> mailRepository.observeUnifiedInbox(DEFAULT_PAGE_SIZE)
-            folder != null -> mailRepository.observeFolder(folder.id, DEFAULT_PAGE_SIZE)
+            unified -> mailRepository.observeUnifiedInbox()
+            folder != null -> mailRepository.observeFolder(folder.id)
             else -> flowOf(emptyList())
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -494,13 +498,5 @@ class InboxViewModel @Inject constructor(
         viewModelScope.launch {
             mailRepository.reorderFavorites(accountId, serverIds)
         }
-    }
-
-    companion object {
-        /**
-         * Page size for the folder / unified feed. Bounds the reactive query so
-         * the inbox doesn't stream every message in a giant folder into Compose.
-         */
-        private const val DEFAULT_PAGE_SIZE = 50
     }
 }

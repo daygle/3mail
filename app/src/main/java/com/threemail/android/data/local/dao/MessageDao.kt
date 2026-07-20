@@ -19,27 +19,50 @@ interface MessageDao {
     suspend fun getByFolderPaged(folderId: Long, limit: Int, offset: Int): List<MessageEntity>
 
     /**
-     * Reactive, bounded feed of a single folder, newest first. Room re-emits
+     * Reactive, unbounded feed of a single folder, newest first. Room re-emits
      * on any insert / delete / flag flip touching the folder, so the inbox
      * reflects sync results, swipe actions, and multi-select batch triage
-     * without the viewmodel having to re-query. LIMIT keeps a giant folder
-     * from streaming every row into Compose.
+     * without the viewmodel having to re-query. The feed is intentionally NOT
+     * capped at a SQL LIMIT - a previous `LIMIT 50` call site cap silently
+     * hid every message older than the latest 50, which on a busy inbox meant
+     * "today's e-mail only" from the user's perspective. Feed size is bounded
+     * by what's in the database; the rendering consumer handles large lists
+     * downstream (Compose's LazyColumn is the canonical example in this app,
+     * but the DAO only states the contract). If a pathological folder ever
+     * needs paging, an `ORDER BY date DESC LIMIT/OFFSET` companion query can
+     * be added without changing this contract.
      */
-    @Query("SELECT * FROM messages WHERE folderId = :folderId ORDER BY date DESC LIMIT :limit")
-    fun observeByFolder(folderId: Long, limit: Int): Flow<List<MessageEntity>>
+    /**
+     * Reactive, unbounded feed of a single folder, newest first. Room re-emits
+     * on any insert / delete / flag flip touching the folder, so the inbox
+     * reflects sync results, swipe actions, and multi-select batch triage
+     * without the viewmodel having to re-query. The feed is intentionally NOT
+     * capped at a SQL LIMIT - a previous `LIMIT 50` call site cap silently
+     * hid every message older than the latest 50, which on a busy inbox meant
+     * "today's e-mail only" from the user's perspective (the exact complaint
+     * this change was made for). Feed size grows with the synced window;
+     * no SQL-level cap is applied. The rendering consumer handles large lists
+     * downstream.
+     * If a pathological folder ever needs paging, an `ORDER BY date DESC
+     * LIMIT/OFFSET` companion query can be added without changing this
+     * contract.
+     */
+    @Query("SELECT * FROM messages WHERE folderId = :folderId ORDER BY date DESC")
+    fun observeByFolder(folderId: Long): Flow<List<MessageEntity>>
 
     /**
-     * Reactive, bounded cross-account unified inbox: every message in a folder
-     * of type INBOX, newest first, aggregated across all accounts via a JOIN
-     * on `folders`. Same reactivity guarantees as [observeByFolder].
+     * Reactive, unbounded cross-account unified inbox: every message in a
+     * folder of type INBOX, newest first, aggregated across all accounts via
+     * a JOIN on `folders`. Same reactivity guarantees as [observeByFolder];
+     * also intentionally uncapped for the same reason.
      */
     @Query(
         "SELECT m.* FROM messages m " +
             "JOIN folders f ON m.folderId = f.id " +
             "WHERE f.type = 'Inbox' " +
-            "ORDER BY m.date DESC LIMIT :limit"
+            "ORDER BY m.date DESC"
     )
-    fun observeUnifiedInbox(limit: Int): Flow<List<MessageEntity>>
+    fun observeUnifiedInbox(): Flow<List<MessageEntity>>
 
     @Query("SELECT * FROM messages WHERE folderId = :folderId ORDER BY date DESC")
     suspend fun getByFolderOnce(folderId: Long): List<MessageEntity>
