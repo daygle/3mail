@@ -94,7 +94,6 @@ class ComposeViewModel @Inject constructor(
         val isSavingDraft: Boolean = false,
         val isSent: Boolean = false,
         val isDraftSaved: Boolean = false,
-        val shouldClose: Boolean = false,
         val error: String? = null,
         val recoverableAuthIntent: Intent? = null,
         val contactSuggestions: List<Contact> = emptyList(),
@@ -479,14 +478,10 @@ class ComposeViewModel @Inject constructor(
     }
 
     fun saveDraft() {
-        saveDraftInternal(closeAfter = false)
+        saveDraftInternal()
     }
 
-    fun saveAndClose() {
-        saveDraftInternal(closeAfter = true)
-    }
-
-    private fun saveDraftInternal(closeAfter: Boolean) {
+    private fun saveDraftInternal() {
         val account = _uiState.value.selectedAccount ?: run {
             _uiState.value = _uiState.value.copy(error = noAccountMessage())
             return
@@ -519,8 +514,7 @@ class ComposeViewModel @Inject constructor(
                 ).onSuccess {
                     _uiState.value = _uiState.value.copy(
                         isSavingDraft = false,
-                        isDraftSaved = true,
-                        shouldClose = closeAfter
+                        isDraftSaved = true
                     )
                 }.onFailure {
                     _uiState.value = _uiState.value.copy(isSavingDraft = false, error = it.message)
@@ -540,7 +534,4 @@ class ComposeViewModel @Inject constructor(
         send()
     }
 
-    fun consumeCloseSignal() {
-        _uiState.value = _uiState.value.copy(shouldClose = false)
-    }
 }

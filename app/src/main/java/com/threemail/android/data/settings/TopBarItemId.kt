@@ -33,9 +33,6 @@ enum class TopBarItemId {
     // Compose top bar (TopAppBar in ComposeScreen.kt)
     COMPOSE_INSERT_IMAGE,
     COMPOSE_ATTACH,
-    /** "Save & close" returns the user to the previous screen;
-     *  COMPOSE_SAVE_DRAFT only persists. */
-    COMPOSE_SAVE_AND_CLOSE,
     COMPOSE_SAVE_DRAFT,
     // Note: COMPOSE_SEND is intentionally NOT a member - sending is the
     // primary action of the compose flow and must remain in the bar.

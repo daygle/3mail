@@ -106,18 +106,11 @@ fun ComposeScreen(
     val isHidden: (TopBarItemId) -> Boolean = { id -> id in hidden }
     var overflowOpen by remember { mutableStateOf(false) }
 
-    // Auto-close after Send OR after the explicit "Save & close" path. Saving a
-    // draft does NOT auto-close so the user can keep editing without re-entering
-    // recipients. Both keys are observed in a single effect so we cannot
-    // double-navigate within one frame.
-    LaunchedEffect(state.isSent, state.shouldClose) {
-        when {
-            state.isSent -> onNavigateBack()
-            state.shouldClose -> {
-                viewModel.consumeCloseSignal()
-                onNavigateBack()
-            }
-        }
+    // Send is the only side-effect that auto-navigates away; the user can
+    // also stay on the compose screen after Save draft, or hit the back
+    // arrow and let ComposeViewModel persist the draft on its own.
+    LaunchedEffect(state.isSent) {
+        if (state.isSent) onNavigateBack()
     }
 
     val recoverableAuthLauncher = rememberLauncherForActivityResult(
@@ -210,17 +203,6 @@ fun ComposeScreen(
                             Icon(Icons.Default.AttachFile, contentDescription = stringResource(R.string.attach))
                         }
                     }
-                    if (!isHidden(TopBarItemId.COMPOSE_SAVE_AND_CLOSE)) {
-                        IconButton(
-                            onClick = { viewModel.saveAndClose() },
-                            enabled = !state.isSavingDraft && !state.isSent
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Save,
-                                contentDescription = stringResource(R.string.save_and_close)
-                            )
-                        }
-                    }
                     if (!isHidden(TopBarItemId.COMPOSE_SAVE_DRAFT)) {
                         IconButton(
                             onClick = { viewModel.saveDraft() },
@@ -247,7 +229,6 @@ fun ComposeScreen(
                     // would just be visual weight with nothing inside.
                     if (isHidden(TopBarItemId.COMPOSE_INSERT_IMAGE) ||
                         isHidden(TopBarItemId.COMPOSE_ATTACH) ||
-                        isHidden(TopBarItemId.COMPOSE_SAVE_AND_CLOSE) ||
                         isHidden(TopBarItemId.COMPOSE_SAVE_DRAFT)
                     ) {
                         IconButton(onClick = { overflowOpen = true }) {
@@ -281,16 +262,6 @@ fun ComposeScreen(
                                     onClick = {
                                         overflowOpen = false
                                         attachmentPicker.launch("*/*")
-                                    }
-                                )
-                            }
-                            if (isHidden(TopBarItemId.COMPOSE_SAVE_AND_CLOSE)) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.save_and_close)) },
-                                    leadingIcon = { Icon(Icons.Default.Save, contentDescription = null) },
-                                    onClick = {
-                                        overflowOpen = false
-                                        viewModel.saveAndClose()
                                     }
                                 )
                             }

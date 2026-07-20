@@ -144,7 +144,7 @@
     <string name="cc_bcc_hide">Hide</string>
     <string name="attach">Attach</string>
     <string name="save_draft">Save draft</string>
-    <string name="save_and_close">Save &amp; close</string>
+
     <string name="draft_saved">Draft saved</string>
     <string name="remove_attachment">Remove</string>
 

@@ -180,15 +180,6 @@ fun TopBarCustomisationScreen(
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
                 )
                 TopBarToggleRow(
-                    item = TopBarItemId.COMPOSE_SAVE_AND_CLOSE,
-                    label = stringResource(R.string.save_and_close),
-                    settings = settings,
-                    onToggle = viewModel::setTopBarItemHidden
-                )
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
-                )
-                TopBarToggleRow(
                     item = TopBarItemId.COMPOSE_SAVE_DRAFT,
                     label = stringResource(R.string.save_draft),
                     settings = settings,
