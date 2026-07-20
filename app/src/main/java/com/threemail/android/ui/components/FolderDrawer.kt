@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.outlined.Report
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -748,8 +749,12 @@ fun FolderDrawerContent(
                     )
                 } else if (account != null) {
                     FooterItem(
-                        icon = Icons.Default.Refresh,
-                        label = stringResource(R.string.footer_refresh),
+                        // Two interlocking arrows pair the label with a
+                        // bidirectional visual - the Material `Sync` glyph is
+                        // the same pattern Outlook and Thunderbird use for the
+                        // same action.
+                        icon = Icons.Default.Sync,
+                        label = stringResource(R.string.footer_send_receive),
                         onClick = onSync
                     )
                     FooterItem(
