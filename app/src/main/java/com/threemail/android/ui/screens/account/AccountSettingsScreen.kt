@@ -3,8 +3,6 @@ package com.threemail.android.ui.screens.account
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,24 +14,23 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AlternateEmail
 import androidx.compose.material.icons.filled.Badge
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Draw
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -51,14 +48,18 @@ import com.threemail.android.R
 import com.threemail.android.domain.model.AccountType
 import com.threemail.android.domain.model.FolderType
 import com.threemail.android.domain.model.Identity
+import com.threemail.android.ui.components.CardDivider
+import com.threemail.android.ui.components.SettingsChoice
+import com.threemail.android.ui.components.SettingsChoiceDialog
 import com.threemail.android.ui.components.SettingsContentRow
 import com.threemail.android.ui.components.SettingsGroup
+import com.threemail.android.ui.components.SettingsRow
 import com.threemail.android.ui.components.SettingsSwitchRow
 
 /** Frequency options offered per account; `0` means "follow the global default". */
 private val FREQUENCY_OPTIONS = listOf(0L, 15L, 30L, 60L, 180L)
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AccountSettingsScreen(
     viewModel: AccountSettingsViewModel,
@@ -67,6 +68,9 @@ fun AccountSettingsScreen(
     val state by viewModel.uiState.collectAsState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val account = state.account
+
+    var showFrequencyDialog by remember { mutableStateOf(false) }
+    var editingRole by remember { mutableStateOf<FolderType?>(null) }
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -122,10 +126,13 @@ fun AccountSettingsScreen(
                         .fillMaxSize()
                         .padding(padding)
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(24.dp)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    SettingsGroup(title = stringResource(R.string.account_settings_general)) {
+                    SettingsGroup(
+                        title = stringResource(R.string.account_settings_general),
+                        icon = Icons.Default.Badge
+                    ) {
                         SettingsContentRow {
                             OutlinedTextField(
                                 value = account.displayName,
@@ -140,7 +147,10 @@ fun AccountSettingsScreen(
                         }
                     }
 
-                    SettingsGroup(title = stringResource(R.string.account_settings_signature_section)) {
+                    SettingsGroup(
+                        title = stringResource(R.string.account_settings_signature_section),
+                        icon = Icons.Default.Draw
+                    ) {
                         SettingsContentRow {
                             OutlinedTextField(
                                 value = account.signature,
@@ -156,7 +166,10 @@ fun AccountSettingsScreen(
                         }
                     }
 
-                    SettingsGroup(title = stringResource(R.string.identities_section)) {
+                    SettingsGroup(
+                        title = stringResource(R.string.identities_section),
+                        icon = Icons.Default.AlternateEmail
+                    ) {
                         SettingsContentRow {
                             Text(
                                 text = stringResource(R.string.identities_description),
@@ -165,6 +178,7 @@ fun AccountSettingsScreen(
                             )
                         }
                         account.identities.forEachIndexed { index, identity ->
+                            CardDivider()
                             SettingsContentRow {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Column(modifier = Modifier.weight(1f)) {
@@ -190,55 +204,41 @@ fun AccountSettingsScreen(
                                 }
                             }
                         }
+                        CardDivider()
                         SettingsContentRow {
                             AddIdentityForm(onAdd = viewModel::addIdentity)
                         }
                     }
 
-                    SettingsGroup(title = stringResource(R.string.account_settings_sync_section)) {
+                    SettingsGroup(
+                        title = stringResource(R.string.account_settings_sync_section),
+                        icon = Icons.Default.Sync
+                    ) {
                         SettingsSwitchRow(
                             title = stringResource(R.string.account_settings_sync_enabled_title),
                             subtitle = stringResource(R.string.account_settings_sync_enabled_subtitle),
-                            icon = Icons.Default.Sync,
                             checked = account.syncEnabled,
                             onCheckedChange = viewModel::setSyncEnabled
                         )
-                        SettingsContentRow {
-                            Text(
-                                text = stringResource(R.string.account_settings_frequency_title),
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = if (account.syncEnabled) MaterialTheme.colorScheme.onSurface
-                                else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                FREQUENCY_OPTIONS.forEach { minutes ->
-                                    FilterChip(
-                                        selected = account.syncIntervalMinutes == minutes,
-                                        enabled = account.syncEnabled,
-                                        onClick = { viewModel.setSyncIntervalMinutes(minutes) },
-                                        label = {
-                                            Text(
-                                                if (minutes == 0L) {
-                                                    stringResource(
-                                                        R.string.account_settings_frequency_default,
-                                                        formatFrequency(state.defaultIntervalMinutes)
-                                                    )
-                                                } else {
-                                                    formatFrequency(minutes)
-                                                }
-                                            )
-                                        }
-                                    )
-                                }
-                            }
-                        }
+                        CardDivider()
+                        SettingsRow(
+                            title = stringResource(R.string.account_settings_frequency_title),
+                            value = accountFrequencyLabel(
+                                account.syncIntervalMinutes,
+                                state.defaultIntervalMinutes
+                            ),
+                            enabled = account.syncEnabled,
+                            onClick = { showFrequencyDialog = true }
+                        )
                     }
 
-                    SettingsGroup(title = stringResource(R.string.account_settings_notifications_section)) {
+                    SettingsGroup(
+                        title = stringResource(R.string.account_settings_notifications_section),
+                        icon = Icons.Default.Notifications
+                    ) {
                         SettingsSwitchRow(
                             title = stringResource(R.string.account_settings_notifications_title),
                             subtitle = stringResource(R.string.account_settings_notifications_subtitle),
-                            icon = Icons.Default.Notifications,
                             checked = account.notificationsEnabled,
                             onCheckedChange = viewModel::setNotificationsEnabled
                         )
@@ -247,11 +247,13 @@ fun AccountSettingsScreen(
                     // IDLE push is IMAP-only; Gmail rides Google's own push
                     // pipeline, so the toggle is meaningless there.
                     if (account.accountType == AccountType.IMAP) {
-                        SettingsGroup(title = stringResource(R.string.account_push_label)) {
+                        SettingsGroup(
+                            title = stringResource(R.string.account_push_label),
+                            icon = Icons.Default.Bolt
+                        ) {
                             SettingsSwitchRow(
                                 title = stringResource(R.string.account_push_label),
                                 subtitle = stringResource(R.string.account_push_subtitle),
-                                icon = Icons.Default.Badge,
                                 checked = account.pushEnabled,
                                 onCheckedChange = viewModel::setPushEnabled
                             )
@@ -262,7 +264,10 @@ fun AccountSettingsScreen(
                         // TRASH / SPAM have no per-account aliases), so the
                         // picker would either be a no-op or actively break
                         // Gmail sync.
-                        SettingsGroup(title = stringResource(R.string.account_folder_roles_section)) {
+                        SettingsGroup(
+                            title = stringResource(R.string.account_folder_roles_section),
+                            icon = Icons.Default.Folder
+                        ) {
                             SettingsContentRow {
                                 Text(
                                     text = stringResource(R.string.account_folder_roles_description),
@@ -275,13 +280,12 @@ fun AccountSettingsScreen(
                                 val assignedFolder = state.folders.firstOrNull {
                                     it.serverId == currentServerId
                                 }
-                                FolderRoleRow(
-                                    role = role,
+                                CardDivider()
+                                SettingsRow(
                                     title = stringResource(role.displayNameRes()),
-                                    currentServerId = currentServerId,
-                                    assignedFolderName = assignedFolder?.name,
-                                    folders = state.folders.map { it.serverId to it.name },
-                                    onPick = { viewModel.setFolderRole(role, it) }
+                                    value = assignedFolder?.name
+                                        ?: stringResource(R.string.account_folder_role_auto_detected),
+                                    onClick = { editingRole = role }
                                 )
                             }
                         }
@@ -289,6 +293,34 @@ fun AccountSettingsScreen(
                 }
             }
         }
+    }
+
+    if (showFrequencyDialog && account != null) {
+        SettingsChoiceDialog(
+            title = stringResource(R.string.account_settings_frequency_title),
+            options = FREQUENCY_OPTIONS.map {
+                SettingsChoice(it, accountFrequencyLabel(it, state.defaultIntervalMinutes))
+            },
+            selected = account.syncIntervalMinutes,
+            dismissLabel = stringResource(R.string.cancel),
+            onSelect = viewModel::setSyncIntervalMinutes,
+            onDismiss = { showFrequencyDialog = false }
+        )
+    }
+
+    editingRole?.let { role ->
+        val options = buildList {
+            add(SettingsChoice<String?>(null, stringResource(R.string.account_folder_role_unset)))
+            state.folders.forEach { add(SettingsChoice<String?>(it.serverId, it.name)) }
+        }
+        SettingsChoiceDialog(
+            title = stringResource(role.displayNameRes()),
+            options = options,
+            selected = account?.folderRoles?.get(role),
+            dismissLabel = stringResource(R.string.cancel),
+            onSelect = { viewModel.setFolderRole(role, it) },
+            onDismiss = { editingRole = null }
+        )
     }
 }
 
@@ -304,7 +336,6 @@ private fun AddIdentityForm(onAdd: (Identity) -> Unit) {
     var showError by remember { mutableStateOf(false) }
 
     Column {
-        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
         OutlinedTextField(
             value = displayName,
             onValueChange = { displayName = it },
@@ -366,6 +397,18 @@ private fun formatFrequency(minutes: Long): String =
         stringResource(R.string.frequency_hours, (minutes / 60).toInt())
     }
 
+/**
+ * Row/dialog label for a per-account check frequency. `0` follows the global
+ * default, shown as "Default (15m)"; other values render compactly.
+ */
+@Composable
+private fun accountFrequencyLabel(minutes: Long, defaultMinutes: Long): String =
+    if (minutes == 0L) {
+        stringResource(R.string.account_settings_frequency_default, formatFrequency(defaultMinutes))
+    } else {
+        formatFrequency(minutes)
+    }
+
 /** Roles exposed in the per-account picker, in display order. */
 private val FOLDER_ROLES = listOf(
     FolderType.Inbox,
@@ -384,66 +427,4 @@ private fun FolderType.displayNameRes(): Int = when (this) {
     FolderType.SPAM -> R.string.account_folder_role_spam
     FolderType.ARCHIVE -> R.string.account_folder_role_archive
     else -> R.string.account_folder_role_auto_detected
-}
-
-/**
- * One row in the Folder Roles section. Title is the role, subtitle tells the
- * user what's currently assigned (or that the heuristic is in charge). Tapping
- * the row opens a dropdown that lists every folder on the account plus an
- * "Unset" option to remove the override and fall back to the heuristic.
- */
-@Composable
-private fun FolderRoleRow(
-    role: FolderType,
-    title: String,
-    currentServerId: String?,
-    assignedFolderName: String?,
-    folders: List<Pair<String, String>>,
-    onPick: (String?) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val subtitle = if (currentServerId != null && assignedFolderName != null) {
-        assignedFolderName
-    } else {
-        stringResource(R.string.account_folder_role_auto_detected)
-    }
-    SettingsContentRow {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = title, style = MaterialTheme.typography.bodyLarge)
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            TextButton(onClick = { expanded = true }) {
-                Text(text = if (currentServerId != null) "Change" else "Pick")
-            }
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false }
-            ) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.account_folder_role_unset)) },
-                    onClick = {
-                        expanded = false
-                        onPick(null)
-                    }
-                )
-                folders.forEach { (serverId, folderName) ->
-                    DropdownMenuItem(
-                        text = { Text(folderName) },
-                        onClick = {
-                            expanded = false
-                            onPick(serverId)
-                        }
-                    )
-                }
-            }
-        }
-    }
 }

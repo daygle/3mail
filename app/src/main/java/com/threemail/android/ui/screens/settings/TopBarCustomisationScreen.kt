@@ -9,9 +9,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Inbox
+import androidx.compose.material.icons.filled.Mail
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -30,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import com.threemail.android.R
 import com.threemail.android.data.settings.AppSettings
 import com.threemail.android.data.settings.TopBarItemId
+import com.threemail.android.ui.components.CardDivider
 import com.threemail.android.ui.components.SettingsGroup
 import com.threemail.android.ui.components.SettingsSwitchRow
 
@@ -93,8 +96,8 @@ fun TopBarCustomisationScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
                 text = stringResource(R.string.top_bar_settings_subtitle),
@@ -105,25 +108,21 @@ fun TopBarCustomisationScreen(
                     .padding(horizontal = 4.dp)
             )
 
-            SettingsGroup(title = stringResource(R.string.top_bar_settings_inbox_header)) {
+            SettingsGroup(title = stringResource(R.string.top_bar_settings_inbox_header), icon = Icons.Default.Inbox) {
                 TopBarToggleRow(
                     item = TopBarItemId.INBOX_SEARCH,
                     label = stringResource(R.string.search),
                     settings = settings,
                     onToggle = viewModel::setTopBarItemHidden
                 )
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
-                )
+                CardDivider()
                 TopBarToggleRow(
                     item = TopBarItemId.INBOX_SYNC,
                     label = stringResource(R.string.sync),
                     settings = settings,
                     onToggle = viewModel::setTopBarItemHidden
                 )
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
-                )
+                CardDivider()
                 TopBarToggleRow(
                     item = TopBarItemId.INBOX_EMPTY_TRASH,
                     label = stringResource(R.string.empty_trash_action),
@@ -133,25 +132,21 @@ fun TopBarCustomisationScreen(
                 )
             }
 
-            SettingsGroup(title = stringResource(R.string.top_bar_settings_detail_header)) {
+            SettingsGroup(title = stringResource(R.string.top_bar_settings_detail_header), icon = Icons.Default.Mail) {
                 TopBarToggleRow(
                     item = TopBarItemId.DETAIL_MARK_UNREAD,
                     label = stringResource(R.string.mark_as_unread),
                     settings = settings,
                     onToggle = viewModel::setTopBarItemHidden
                 )
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
-                )
+                CardDivider()
                 TopBarToggleRow(
                     item = TopBarItemId.DETAIL_ARCHIVE,
                     label = stringResource(R.string.archive),
                     settings = settings,
                     onToggle = viewModel::setTopBarItemHidden
                 )
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
-                )
+                CardDivider()
                 TopBarToggleRow(
                     item = TopBarItemId.DETAIL_DELETE,
                     label = stringResource(R.string.delete),
@@ -160,25 +155,21 @@ fun TopBarCustomisationScreen(
                 )
             }
 
-            SettingsGroup(title = stringResource(R.string.top_bar_settings_compose_header)) {
+            SettingsGroup(title = stringResource(R.string.top_bar_settings_compose_header), icon = Icons.Default.Edit) {
                 TopBarToggleRow(
                     item = TopBarItemId.COMPOSE_INSERT_IMAGE,
                     label = stringResource(R.string.insert_image),
                     settings = settings,
                     onToggle = viewModel::setTopBarItemHidden
                 )
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
-                )
+                CardDivider()
                 TopBarToggleRow(
                     item = TopBarItemId.COMPOSE_ATTACH,
                     label = stringResource(R.string.attach),
                     settings = settings,
                     onToggle = viewModel::setTopBarItemHidden
                 )
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
-                )
+                CardDivider()
                 TopBarToggleRow(
                     item = TopBarItemId.COMPOSE_SAVE_DRAFT,
                     label = stringResource(R.string.save_draft),
