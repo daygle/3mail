@@ -46,6 +46,7 @@
     <string name="swipe_action_mark_spam">Mark as spam</string>
     <string name="density_comfortable">Comfortable</string>
     <string name="density_compact">Compact</string>
+    <string name="density_extra_compact">Extra Compact</string>
     <string name="from_label">From</string>
     <string name="request_read_receipt">Request read receipt</string>
     <string name="identities_section">Send-as identities</string>

@@ -152,8 +152,11 @@ fun SettingsScreen(
                                 label = {
                                     Text(
                                         stringResource(
-                                            if (density == MessageDensity.COMFORTABLE) R.string.density_comfortable
-                                            else R.string.density_compact
+                                            when (density) {
+                                                MessageDensity.COMFORTABLE -> R.string.density_comfortable
+                                                MessageDensity.COMPACT -> R.string.density_compact
+                                                MessageDensity.EXTRA_COMPACT -> R.string.density_extra_compact
+                                            }
                                         )
                                     )
                                 }

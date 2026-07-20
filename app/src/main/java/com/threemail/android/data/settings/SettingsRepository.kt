@@ -17,8 +17,23 @@ enum class ThemeMode { SYSTEM, LIGHT, DARK }
 /** Action performed when a message row is swiped. */
 enum class SwipeAction { NONE, ARCHIVE, DELETE, TOGGLE_READ, MARK_SPAM }
 
-/** Vertical density of the message list. */
-enum class MessageDensity { COMFORTABLE, COMPACT }
+/**
+ * Vertical density of the message list. Three tiers so users with
+ * shallow inboxes can pick a row size that fits their device:
+ *
+ *  - [COMFORTABLE]  legacy default. 12 dp vertical padding, 44 dp
+ *     avatar. Designed for finger-tap accessibility over information
+ *     density.
+ *  - [COMPACT]      one notch tighter - 8 dp padding, 36 dp avatar.
+ *     Picked-up historically because it shaves a row or two on
+ *     mid-sized phones.
+ *  - [EXTRA_COMPACT] the densest tier - 4 dp padding, 28 dp avatar.
+ *     Shown as a third chip in Settings for users whose inboxes run
+ *     deep or whose phones run small. Density and preview-line count
+ *     stay orthogonal here: a user who wants "rows but no body
+ *     preview" can still set `previewLines = 0` independently.
+ */
+enum class MessageDensity { COMFORTABLE, COMPACT, EXTRA_COMPACT }
 
 data class AppSettings(
     val syncIntervalMinutes: Long = 15,

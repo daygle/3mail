@@ -51,9 +51,22 @@ fun MailListItem(
     val senderLabel = sender?.name?.takeIf { it.isNotBlank() } ?: sender?.address ?: "(unknown)"
     val avatarColor = avatarColorFor(sender?.address ?: senderLabel)
 
-    val compact = density == MessageDensity.COMPACT
-    val rowPaddingV = if (compact) 8.dp else 12.dp
-    val avatarSize = if (compact) 36.dp else 44.dp
+    val extraCompact = density == MessageDensity.EXTRA_COMPACT
+    val compact = density == MessageDensity.COMPACT || extraCompact
+    val rowPaddingV = when {
+        extraCompact -> 4.dp
+        compact -> 8.dp
+        else -> 12.dp
+    }
+    // The 32 dp minimum keeps the sender-initial letterform readable when
+    // Accessibility text-scaling is on (the system setting users can't toggle
+    // from inside the app); smaller circles push titleMedium ascenders into
+    // the rounded outline.
+    val avatarSize = when {
+        extraCompact -> 32.dp
+        compact -> 36.dp
+        else -> 44.dp
+    }
 
     // Unread/selected tints intentionally avoid `primaryContainer` because it
     // is taken from the user's Material You accent palette. A red wallpaper
