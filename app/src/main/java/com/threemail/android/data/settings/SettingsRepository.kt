@@ -19,6 +19,16 @@ enum class ThemeMode { SYSTEM, LIGHT, DARK }
 enum class SwipeAction { NONE, ARCHIVE, DELETE, TOGGLE_READ, MARK_SPAM }
 
 /**
+ * Where to navigate from the message-detail screen after the user deletes
+ * the currently-open message. Modelled after the Outlook / Gmail choice
+ * between "leave the screen" and "advance to the next message in the same
+ * folder". Defaults to [RETURN_TO_LIST] for users who want a quiet exit
+ * path; the more aggressive [NEXT_MESSAGE] mirrors the "swipe delete"
+ * rhythm on desktop mail clients.
+ */
+enum class AfterDeleteNavigation { RETURN_TO_LIST, NEXT_MESSAGE }
+
+/**
  * Vertical density of the message list. Three tiers so users with
  * shallow inboxes can pick a row size that fits their device:
  *
@@ -68,7 +78,13 @@ data class AppSettings(
      * launch. Set membership is stored as a string set in DataStore under
      * [Keys.HIDDEN_TOP_BAR_ITEMS] - the enum names are the on-disk key.
      */
-    val hiddenTopBarItems: Set<TopBarItemId> = emptySet()
+    val hiddenTopBarItems: Set<TopBarItemId> = emptySet(),
+    /**
+     * Behaviour after the user deletes the message currently open in
+     * message-detail. Defaults to [AfterDeleteNavigation.RETURN_TO_LIST] so
+     * existing users see the same pop-back behaviour on first launch.
+     */
+    val afterDeleteNavigation: AfterDeleteNavigation = AfterDeleteNavigation.RETURN_TO_LIST
 )
 
 @Singleton
@@ -90,6 +106,7 @@ class SettingsRepository @Inject constructor(
         val PREVIEW_LINES = intPreferencesKey("preview_lines")
         val LOAD_IMAGES = booleanPreferencesKey("load_images")
         val HIDDEN_TOP_BAR_ITEMS = stringSetPreferencesKey("hidden_top_bar_items")
+        val AFTER_DELETE_NAVIGATION = stringPreferencesKey("after_delete_navigation")
     }
 
     val settings: Flow<AppSettings> = flow {
@@ -117,7 +134,13 @@ class SettingsRepository @Inject constructor(
                     // skipped so an unknown name never crashes the read.
                     hiddenTopBarItems = (prefs[Keys.HIDDEN_TOP_BAR_ITEMS] ?: emptySet())
                         .mapNotNull { runCatching { TopBarItemId.valueOf(it) }.getOrNull() }
-                        .toSet()
+                        .toSet(),
+                    // Stored as enum.name so renaming a value drops the old
+                    // key silently; entries that fail to resolve fall back
+                    // to the safe default (RETURN_TO_LIST).
+                    afterDeleteNavigation = prefs[Keys.AFTER_DELETE_NAVIGATION]
+                        ?.let { runCatching { AfterDeleteNavigation.valueOf(it) }.getOrNull() }
+                        ?: AfterDeleteNavigation.RETURN_TO_LIST
                 )
             )
         }
@@ -135,6 +158,8 @@ class SettingsRepository @Inject constructor(
     suspend fun setMessageDensity(density: MessageDensity) = dataStore.edit { it[Keys.MESSAGE_DENSITY] = density.name }
     suspend fun setPreviewLines(lines: Int) = dataStore.edit { it[Keys.PREVIEW_LINES] = lines.coerceIn(0, 3) }
     suspend fun setLoadImages(enabled: Boolean) = dataStore.edit { it[Keys.LOAD_IMAGES] = enabled }
+    suspend fun setAfterDeleteNavigation(value: AfterDeleteNavigation) =
+        dataStore.edit { it[Keys.AFTER_DELETE_NAVIGATION] = value.name }
 
     /**
      * Toggle a single top-bar item's hidden state. Pass the new desired

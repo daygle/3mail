@@ -35,6 +35,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.threemail.android.R
+import com.threemail.android.data.settings.AfterDeleteNavigation
 import com.threemail.android.data.settings.MessageDensity
 import com.threemail.android.data.settings.SwipeAction
 import com.threemail.android.data.settings.ThemeMode
@@ -207,6 +208,29 @@ fun SettingsScreen(
                     checked = settings.notificationsEnabled,
                     onCheckedChange = viewModel::setNotificationsEnabled
                 )
+            }
+
+            SettingsGroup(title = stringResource(R.string.reading_after_delete_section)) {
+                SettingsContentRow {
+                    Text(
+                        text = stringResource(R.string.reading_after_delete_subtitle),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AfterDeleteNavigation.entries.forEach { value ->
+                            val labelRes = when (value) {
+                                AfterDeleteNavigation.RETURN_TO_LIST -> R.string.reading_after_delete_return_to_list
+                                AfterDeleteNavigation.NEXT_MESSAGE -> R.string.reading_after_delete_next_message
+                            }
+                            FilterChip(
+                                selected = settings.afterDeleteNavigation == value,
+                                onClick = { viewModel.setAfterDeleteNavigation(value) },
+                                label = { Text(stringResource(labelRes)) }
+                            )
+                        }
+                    }
+                }
             }
 
             SettingsGroup(title = stringResource(R.string.trash_settings_section)) {

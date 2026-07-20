@@ -81,6 +81,7 @@ import androidx.core.content.FileProvider
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.threemail.android.R
 import com.threemail.android.data.crypto.SignatureStatus
+import com.threemail.android.data.settings.AfterDeleteNavigation
 import com.threemail.android.data.settings.TopBarItemId
 import com.threemail.android.ui.screens.settings.SettingsViewModel
 import com.threemail.android.domain.model.Attachment
@@ -101,6 +102,15 @@ private const val IMAGE_BASE_URL = "https://email.invalid/"
 fun MessageDetailScreen(
     viewModel: MessageDetailViewModel,
     onNavigateBack: () -> Unit,
+    /**
+     * Invoked after a successful delete when the user's "After delete"
+     * setting is [AfterDeleteNavigation.NEXT_MESSAGE] AND the VM resolved a
+     * next-older message in the same folder. The host implementation pops
+     * the current detail entry off the back stack before navigating so back
+     * from the next screen returns to whatever was before the original
+     * (typically inbox or search) rather than the just-deleted message.
+     */
+    onNavigateToNext: (Long) -> Unit = {},
     onReply: (Long) -> Unit,
     onReplyAll: (Long) -> Unit,
     onForward: (Long) -> Unit
@@ -124,8 +134,19 @@ fun MessageDetailScreen(
     var menuOpen by remember { mutableStateOf(false) }
     var showMoveDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(state.isDeleted) {
-        if (state.isDeleted) onNavigateBack()
+    // Post-delete navigation honours the user's "After delete" preference:
+    //   - RETURN_TO_LIST (default): pop back to whatever opened detail.
+    //   - NEXT_MESSAGE: advance to the pre-resolved next-older message in
+    //     the same folder; falls back to RETURN_TO_LIST when there isn't one
+    //     (e.g. last message in a folder, or the resolver query failed).
+    // Re-runs on any of [state.isDeleted | appSettings.afterDeleteNavigation
+    // | state.nextMessageId] changing so flipping the setting while sitting
+    // on a deleted-then-pending state fires the right path.
+    LaunchedEffect(state.isDeleted, appSettings.afterDeleteNavigation, state.nextMessageId) {
+        if (!state.isDeleted) return@LaunchedEffect
+        val goToNext = appSettings.afterDeleteNavigation == AfterDeleteNavigation.NEXT_MESSAGE &&
+            state.nextMessageId != null
+        if (goToNext) state.nextMessageId?.let(onNavigateToNext) else onNavigateBack()
     }
 
     // OpenKeychain passphrase prompt for decryption.

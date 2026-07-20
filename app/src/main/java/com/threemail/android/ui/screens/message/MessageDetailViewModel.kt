@@ -44,6 +44,15 @@ class MessageDetailViewModel @Inject constructor(
         val isLoading: Boolean = false,
         val isLoadingBody: Boolean = false,
         val isDeleted: Boolean = false,
+        /**
+         * The next-older message in the same folder as the currently-open
+         * one, resolved once at load time so the screen can advance to it
+         * after a delete without re-querying the DB. Null when the user is
+         * on the oldest message in the folder, when the folder is empty,
+         * or when the resolver query failed - in all those cases the
+         * screen falls back to popping back to the list.
+         */
+        val nextMessageId: Long? = null,
         val downloadingAttachment: String? = null,
         val openFile: File? = null,
         val error: String? = null,
@@ -108,9 +117,27 @@ class MessageDetailViewModel @Inject constructor(
                     } else {
                         maybeDecrypt(it)
                     }
+                    // Resolve the post-delete "go to next" target now so the
+                    // screen's LaunchedEffect fires instantly on a delete
+                    // tap without a fresh DB roundtrip. Best-effort: a
+                    // thrown exception leaves `nextMessageId` null, which
+                    // the screen treats as "fall back to list".
+                    resolveNextMessageId(it.folderId, messageId)
                 }
             } catch (e: Exception) {
                 _uiState.value = UiState(error = e.message, isLoading = false)
+            }
+        }
+    }
+
+    private fun resolveNextMessageId(folderId: Long, currentMessageId: Long) {
+        viewModelScope.launch {
+            try {
+                val next = mailRepository.findNextMessageIdInFolder(folderId, currentMessageId)
+                _uiState.value = _uiState.value.copy(nextMessageId = next)
+            } catch (_: Exception) {
+                // Swallowed: screen treats a null nextMessageId as
+                // "return to list" regardless of the user's preference.
             }
         }
     }

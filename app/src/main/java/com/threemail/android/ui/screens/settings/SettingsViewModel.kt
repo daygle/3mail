@@ -77,6 +77,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.setLoadImages(enabled) }
     }
 
+    fun setAfterDeleteNavigation(value: com.threemail.android.data.settings.AfterDeleteNavigation) {
+        viewModelScope.launch { settingsRepository.setAfterDeleteNavigation(value) }
+    }
+
     /**
      * Show or hide a single top-bar action. The supported screens (Inbox,
      * Message Detail, Compose) read only the values that apply to them;

@@ -185,6 +185,23 @@ class MailRepository @Inject constructor(
         }
     }
 
+    /**
+     * Resolve the message displayed immediately after the currently-open
+     * one in the inbox list, so the message-detail VM can advance to it
+     * after the user deletes the current message. Matches the inbox's
+     * newest-first ordering (date DESC) and returns null when the
+     * current one is the oldest in the folder, when it's missing from
+     * the folder's snapshot, or when the folder is empty.
+     *
+     * O(n) over the folder; cheap for the typical synced-window size.
+     */
+    suspend fun findNextMessageIdInFolder(folderId: Long, currentMessageId: Long): Long? {
+        val messages = getMessagesOnce(folderId).sortedByDescending { it.date }
+        val index = messages.indexOfFirst { it.id == currentMessageId }
+        return if (index == -1 || index + 1 >= messages.size) null
+        else messages[index + 1].id
+    }
+
     fun getThread(accountId: Long, threadId: String): Flow<List<MailMessage>> =
         combine(messageDao.getByThread(accountId, threadId), messageFlagDao.observeAll()) { list, flags ->
             val indexed = flagsByMessageId(flags)

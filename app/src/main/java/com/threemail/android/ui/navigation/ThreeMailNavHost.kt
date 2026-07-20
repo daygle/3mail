@@ -57,6 +57,18 @@ fun ThreeMailNavHost(navController: NavHostController) {
             MessageDetailScreen(
                 viewModel = hiltViewModel(),
                 onNavigateBack = { navController.popBackStack() },
+                onNavigateToNext = { nextId ->
+                    // Pop the current detail off the back stack, then push
+                    // the next. The combination avoids the route-template
+                    // ambiguity of popUpTo("message/{messageId}") against
+                    // inflated back-stack entries, and exactly matches the
+                    // intent: back from the next message lands the user on
+                    // whatever was before the detail (typically inbox), not
+                    // on the just-deleted message which the room cache
+                    // would happily re-show as "not yet deleted".
+                    navController.popBackStack()
+                    navController.navigate(Screen.MessageDetail.createRoute(nextId))
+                },
                 onReply = { messageId -> navController.navigate(Screen.Compose.createRoute("reply", messageId)) },
                 onReplyAll = { messageId -> navController.navigate(Screen.Compose.createRoute("replyAll", messageId)) },
                 onForward = { messageId -> navController.navigate(Screen.Compose.createRoute("forward", messageId)) }
