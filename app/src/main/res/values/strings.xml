@@ -286,10 +286,9 @@
          Done exits and restores the drag handle. -->
     <string name="favorites_edit_action">Edit</string>
     <string name="favorites_done_action">Done</string>
-    <!-- Screen-reader labels on the per-row move buttons that appear while
-         the user is in edit mode. -->
-    <string name="favorites_move_up">Move up</string>
-    <string name="favorites_move_down">Move down</string>
+    <!-- Long-press drag-to-reorder is the single move affordance in
+         edit mode; no separate up/down buttons. The drag handle carries the
+         screen-reader label below. -->
 
     <!-- Sent-folder badge: shown on rows the SendMailWorker dispatched
          through the opportunistic-encryption path (MailPgpOutbound.compose

@@ -9,9 +9,6 @@ import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.onFirst
-import androidx.compose.ui.test.onLast
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import com.threemail.android.domain.model.Account
@@ -122,13 +119,21 @@ class FolderDrawerContentFavoritesTest {
     }
 
     /**
-     * The move up / move down affordances should ONLY be reachable
-     * while the user is in edit mode. Initially the section shows an
-     * "Edit" chip with no move buttons; tapping it swaps to three
-     * IconButtons per row and the "Done" chip; tapping Done reverts.
+     * The drag handle (the only reorder affordance) should ONLY be reachable
+     * while the user is in edit mode. Initially the section shows an "Edit"
+     * chip and NO drag handles - the user reads [icon name] with no move
+     * affordance at all. Tapping Edit reveals one drag handle per favorite
+     * at the row's right edge; tapping Done hides them again.
+     *
+     * This also locks in the decision to drop the previous explicit Move
+     * up / Move down IconButtons - if a future contributor re-adds them,
+     * the move-button counts jump from 0 to N and this test fails. The
+     * earlier complaint that "the move is duplicated" is the reason the
+     * design is single-affordance; collapsing to drag keeps a familiar
+     * Android-style reorder gesture.
      */
     @Test
-    fun editing_favorites_exposes_move_up_and_move_down_buttons() {
+    fun editing_favorites_exposes_drag_handle_right_and_hides_it_otherwise() {
         val account = Account(
             id = 1L,
             email = "user@example.com",
@@ -161,41 +166,28 @@ class FolderDrawerContentFavoritesTest {
             }
         }
 
-        // Initially: Edit chip visible, no move arrows rendered.
+        // Initially: Edit chip visible, no drag handles (move affordance
+        // hidden in non-edit mode), and no Move up / Move down buttons
+        // ever (single source of truth).
         composeTestRule.onNodeWithText("Edit").assertIsDisplayed()
+        composeTestRule.onAllNodesWithContentDescription("Drag to reorder").assertCountEquals(0)
         composeTestRule.onAllNodesWithContentDescription("Move up").assertCountEquals(0)
         composeTestRule.onAllNodesWithContentDescription("Move down").assertCountEquals(0)
         assertEquals(0, reorderCalls.size)
 
-        // Enter edit mode: one Move up and one Move down button per row
-        // (3 favorites -> 6 buttons total), and the chip flips to "Done".
+        // Enter edit mode: one drag handle per favorite (3 -> 3 handles).
         composeTestRule.onNodeWithText("Edit").performClick()
         composeTestRule.onNodeWithText("Done").assertIsDisplayed()
-        composeTestRule.onAllNodesWithContentDescription("Move up").assertCountEquals(3)
-        composeTestRule.onAllNodesWithContentDescription("Move down").assertCountEquals(3)
-
-        // Disabled-at-ends: the first row's Move-up (already at index 0)
-        // and the last row's Move-down (already at lastIndex) must be
-        // disabled. This is the invariant that breaks if canMoveUp /
-        // canMoveDown arithmetic regresses.
-        composeTestRule.onAllNodesWithContentDescription("Move up").onFirst().assertIsNotEnabled()
-        composeTestRule.onAllNodesWithContentDescription("Move down").onLast().assertIsNotEnabled()
-
-        // Tap Move-down on the first favorite (Inbox). The handler looks
-        // up the live index, swaps positions 0 and 1, and dispatches
-        // onReorderFavorite with the new serverId order (the
-        // FolderDrawer's onReorderFavorite contract is server IDs, not
-        // display names, matching how every screen upstream persists the
-        // new ordering).
-        composeTestRule.onAllNodesWithContentDescription("Move down")[0].performClick()
-        composeTestRule.waitForIdle()
-        assertEquals(1, reorderCalls.size)
-        assertEquals(listOf("Sent", "INBOX", "Archive"), reorderCalls.first())
-
-        // Exit edit mode: move arrows disappear, the Edit chip returns.
-        composeTestRule.onNodeWithText("Done").performClick()
-        composeTestRule.onNodeWithText("Edit").assertIsDisplayed()
+        composeTestRule.onAllNodesWithContentDescription("Drag to reorder").assertCountEquals(3)
+        // Even in edit mode, no explicit up / down buttons - drag is the
+        // single reorder affordance.
         composeTestRule.onAllNodesWithContentDescription("Move up").assertCountEquals(0)
         composeTestRule.onAllNodesWithContentDescription("Move down").assertCountEquals(0)
+
+        // Exit edit mode: drag handles vanish, Edit chip returns.
+        composeTestRule.onNodeWithText("Done").performClick()
+        composeTestRule.onNodeWithText("Edit").assertIsDisplayed()
+        composeTestRule.onAllNodesWithContentDescription("Drag to reorder").assertCountEquals(0)
+        assertEquals(0, reorderCalls.size)
     }
 }

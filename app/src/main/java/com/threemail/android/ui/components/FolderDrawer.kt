@@ -32,8 +32,6 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Inbox
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -244,23 +242,16 @@ fun FolderDrawerContent(
     val favoriteFolders = remember(visibleFolders) { visibleFolders.filter { it.isFavorite } }
     val treeFolders = remember(visibleFolders) { visibleFolders }
     val favoriteFoldersState = rememberUpdatedState(favoriteFolders)
-    // Capture `account` through rememberUpdatedState so any closure that
-    // fires while the user is mid-account-switch (after a new account
-    // composes but before the LaunchedEffect below resets the edit-mode
-    // flag) uses the *current* account.id rather than the one bound
-    // at the closure's original composition.
-    val accountState = rememberUpdatedState(account)
 
     // Whether the header is expanded to show the configured-account list
     // (tapping the header / its chevron toggles this) instead of folders.
     var showAccounts by remember { mutableStateOf(false) }
 
-    // Local-only UI affordance: while true, every favorite row swaps
-    // its drag handle for explicit ↑ / ↓ IconButtons so reorder is
-    // reachable without the long-press drag gesture. The chip in the
-    // FAVORITES header reads "Edit" when false and "Done" when true.
-    // Reset on account change so a half-finished reorder doesn't carry
-    // over to the next account the user opens.
+    // Local-only UI affordance: while true, every favorite row reveals
+    // its drag handle on the right edge so reorder is reachable without
+    // leaving edit mode. The chip in the FAVORITES header reads "Edit"
+    // when false and "Done" when true. Reset on account change so a
+    // half-finished reorder doesn't carry over to the next account.
     var isEditingFavorites by remember { mutableStateOf(false) }
     LaunchedEffect(account?.id) {
         isEditingFavorites = false
@@ -435,10 +426,11 @@ fun FolderDrawerContent(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.weight(1f)
                             )
-                            // "Edit" / "Done" chip. Edit enters reorder
-                            // mode (each row surfaces ↑ / ↓ buttons);
-                            // Done exits and restores the drag handle.
-                            // UI-only state - never persisted.
+                            // "Edit" / "Done" chip. Edit reveals the
+                            // drag handle on the right of each favorite
+                            // row so the user can drag-reorder; Done
+                            // hides it again. UI-only state - never
+                            // persisted.
                             TextButton(onClick = { isEditingFavorites = !isEditingFavorites }) {
                                 Text(
                                     text = stringResource(
@@ -510,7 +502,10 @@ fun FolderDrawerContent(
                                     }
                                     // Tap selects; long-press opens the
                                     // remove-favourite menu. Drag-reorder
-                                    // lives on the DragHandle icon below.
+                                    // lives on the DragHandle icon at the row's
+                                    // end - only present in edit mode, so a
+                                    // non-editing row reads as [icon name]
+                                    // with no move affordance at all.
                                     .combinedClickable(
                                         onClick = { onFolderClick(folder) },
                                         onLongClick = {
@@ -520,21 +515,44 @@ fun FolderDrawerContent(
                                     ),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Edit mode swaps the drag handle for an
-                                // inert spacer of equal width so the folder
-                                // name stays aligned across modes; explicit
-                                // ↑ / ↓ buttons render at the row's end.
+                                // Left chrome: folder-type icon mirroring
+                                // the tree-row glyph (Inbox, Sent, Trash,
+                                // generic Folder for custom mailboxes, etc.)
+                                // so the favorites section reads as a folder
+                                // list rather than a tag list, and matches
+                                // the visual vocabulary the tree below uses.
+                                Icon(
+                                    imageVector = iconFor(folder.type),
+                                    contentDescription = null,
+                                    tint = contentTint,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    text = folder.name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = contentTint,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                // Right chrome: drag handle appears only in
+                                // edit mode. The non-edit Spacer keeps the
+                                // folder name anchored against the same
+                                // right margin across modes so toggling Edit
+                                // doesn't appear to push the name around.
+                                // Long-press drag-to-reorder is the *only*
+                                // move affordance - earlier designs exposed
+                                // explicit Move up/down IconButtons AND this
+                                // drag handle, and the redundancy was
+                                // perceived as "the move is duplicated";
+                                // collapsing to drag keeps a single, familiar
+                                // Android-style reorder interaction.
                                 if (isEditingFavorites) {
-                                    Spacer(modifier = Modifier.size(CHEVRON_SIZE))
-                                } else {
                                     Icon(
                                         imageVector = Icons.Default.DragHandle,
                                         contentDescription = stringResource(R.string.favorites_drag_handle),
                                         tint = contentTint.copy(alpha = 0.5f),
-                                        // Pin the drag handle to CHEVRON_SIZE so
-                                        // folder names stay byte-identical across
-                                        // modes; the inert Spacer in edit mode is
-                                        // the same constant.
                                         modifier = Modifier
                                             .size(CHEVRON_SIZE)
                                             // Tap is absorbed here so it doesn't
@@ -591,69 +609,8 @@ fun FolderDrawerContent(
                                                 )
                                             }
                                     )
-                                }
-                                Spacer(Modifier.width(12.dp))
-                                Text(
-                                    text = folder.name,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = contentTint,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                if (isEditingFavorites) {
-                                    // Look up the row's live index every
-                                    // recomposition so successive taps still
-                                    // move against the post-reorder order,
-                                    // not the original `index` captured by
-                                    // itemsIndexed.
-                                    val live = favoriteFoldersState.value
-                                    val liveIndex = live.indexOfFirst { it.serverId == folder.serverId }
-                                    val canMoveUp = liveIndex > 0
-                                    val canMoveDown = liveIndex < live.lastIndex
-                                    IconButton(
-                                        onClick = {
-                                            val current = favoriteFoldersState.value
-                                            val currentIndex = current.indexOfFirst { it.serverId == folder.serverId }
-                                            if (currentIndex > 0) {
-                                                val newOrder = current.toMutableList()
-                                                val moved = newOrder.removeAt(currentIndex)
-                                                newOrder.add(currentIndex - 1, moved)
-                                                onReorderFavorite(
-                                                    accountState.value?.id ?: return@IconButton,
-                                                    newOrder.map { it.serverId }
-                                                )
-                                            }
-                                        },
-                                        enabled = canMoveUp
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.KeyboardArrowUp,
-                                            contentDescription = stringResource(R.string.favorites_move_up)
-                                        )
-                                    }
-                                    Spacer(Modifier.width(4.dp))
-                                    IconButton(
-                                        onClick = {
-                                            val current = favoriteFoldersState.value
-                                            val currentIndex = current.indexOfFirst { it.serverId == folder.serverId }
-                                            if (currentIndex < current.lastIndex) {
-                                                val newOrder = current.toMutableList()
-                                                val moved = newOrder.removeAt(currentIndex)
-                                                newOrder.add(currentIndex + 1, moved)
-                                                onReorderFavorite(
-                                                    accountState.value?.id ?: return@IconButton,
-                                                    newOrder.map { it.serverId }
-                                                )
-                                            }
-                                        },
-                                        enabled = canMoveDown
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.KeyboardArrowDown,
-                                            contentDescription = stringResource(R.string.favorites_move_down)
-                                        )
-                                    }
+                                } else {
+                                    Spacer(modifier = Modifier.size(CHEVRON_SIZE))
                                 }
                             }
                             DropdownMenu(
