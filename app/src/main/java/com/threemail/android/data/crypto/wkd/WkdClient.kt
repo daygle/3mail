@@ -46,9 +46,16 @@ class WkdClient @Inject constructor() {
     }
 
     /**
-     * Entry point. Email is lowercased before hashing (per RFC 9582),
-     * the domain part is the host the URL points at, and both routes
-     * are tried until one returns 2xx with parseable content.
+     * Entry point. Per the WKD spec both lookup methods hash the
+     * *lowercased local-part* with SHA-1 and encode the digest as
+     * zbase32; the `l=` query parameter carries the original local-part
+     * for servers that index case-sensitively.
+     *
+     * 1. **Advanced** method (tried first, as the spec requires):
+     *    `https://openpgpkey.<domain>/.well-known/openpgpkey/<domain>/hu/<hash>?l=<local>`
+     * 2. **Direct** method (fallback when advanced fails for any reason -
+     *    most domains don't run an `openpgpkey.` sub-domain):
+     *    `https://<domain>/.well-known/openpgpkey/hu/<hash>?l=<local>`
      */
     fun fetch(email: String): WkdResult {
         val at = email.lastIndexOf('@')
@@ -56,24 +63,20 @@ class WkdClient @Inject constructor() {
             return WkdResult.Failure("Invalid email")
         }
         val local = email.substring(0, at)
-        val domain = email.substring(at + 1)
-        val zbaseEmail = ZBase32.encode(
-            MessageDigest.getInstance("SHA-1").digest(local.toByteArray(Charsets.UTF_8))
+        val domain = email.substring(at + 1).lowercase()
+        val hash = ZBase32.encode(
+            MessageDigest.getInstance("SHA-1")
+                .digest(local.lowercase().toByteArray(Charsets.UTF_8))
         )
+        val localParam = java.net.URLEncoder.encode(local, "UTF-8")
 
-        val advancedUrl = "https://$domain/.well-known/openpgpkey/$zbaseEmail?l=$local"
+        val advancedUrl =
+            "https://openpgpkey.$domain/.well-known/openpgpkey/$domain/hu/$hash?l=$localParam"
         val advanced = fetchOnce(advancedUrl, contentType = "application/pgp-keys")
         if (advanced is WkdResult.Success) return advanced
 
-        val directSha = ZBase32.encode(
-            MessageDigest.getInstance("SHA-256").run {
-                update(local.toByteArray(Charsets.UTF_8))
-                digest()
-            }
-        )
-        val directUrl = "https://$domain/.well-known/openpgpkey/hu/$directSha?l=$local"
-        val direct = fetchOnce(directUrl, contentType = "application/pgp-keys")
-        return direct
+        val directUrl = "https://$domain/.well-known/openpgpkey/hu/$hash?l=$localParam"
+        return fetchOnce(directUrl, contentType = "application/pgp-keys")
     }
 
     /**

@@ -243,7 +243,11 @@ class MessageDetailViewModelTest {
             accountRepository = accountRepository,
             mailActions = mailActions,
             mailRemoteFactory = remoteFactory,
-            openPgpController = OpenPgpController(),
+            openPgpController = OpenPgpController(
+                context = context,
+                accountRepository = accountRepository,
+                credentialStore = NoopCredentialStore(context)
+            ),
             settingsRepository = settingsRepository,
             savedStateHandle = SavedStateHandle(mapOf("messageId" to messageId))
         )
