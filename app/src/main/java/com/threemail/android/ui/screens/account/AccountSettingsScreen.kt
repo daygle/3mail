@@ -5,13 +5,17 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -20,6 +24,8 @@ import androidx.compose.material.icons.filled.AlternateEmail
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Draw
 import androidx.compose.material.icons.filled.Folder
@@ -30,6 +36,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -38,6 +45,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -60,6 +68,7 @@ import com.threemail.android.R
 import com.threemail.android.domain.model.AccountType
 import com.threemail.android.domain.model.FolderType
 import com.threemail.android.domain.model.Identity
+import com.threemail.android.domain.model.Security
 import com.threemail.android.ui.components.CardDivider
 import com.threemail.android.ui.components.SettingsChoice
 import com.threemail.android.ui.components.SettingsChoiceDialog
@@ -252,6 +261,12 @@ fun AccountSettingsScreen(
                         )
                     }
 
+                    // Editable incoming/outgoing server settings. Gmail is OAuth
+                    // with fixed hosts, so it has nothing to configure here.
+                    if (account.accountType != AccountType.GMAIL) {
+                        ConnectionSettingsSections(account = account, viewModel = viewModel)
+                    }
+
                     // Calendar sync is Google-only: the Calendar tab is backed by
                     // the Google Calendar API and reads accounts where this flag is
                     // set, so the toggle is meaningless for IMAP/POP3 accounts.
@@ -405,6 +420,152 @@ fun AccountSettingsScreen(
             onDismiss = { editingRole = null }
         )
     }
+}
+
+/**
+ * Editable incoming ("Fetching Mail") and outgoing ("Sending Mail") server
+ * settings for IMAP/POP3 accounts. Fields are edited as a local draft and only
+ * persisted via [AccountSettingsViewModel.testAndSaveConnection], which probes
+ * the server first so a bad host/port can't silently break sync. Connection
+ * security is a single setting shared by both directions (matching the account
+ * model), shown under Fetching Mail.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ConnectionSettingsSections(
+    account: Account,
+    viewModel: AccountSettingsViewModel
+) {
+    val connectionState by viewModel.connectionState.collectAsState()
+
+    // Local draft, re-seeded from the account only when the account identity
+    // changes (never on this screen), so unrelated write-through updates to
+    // other settings don't reset a half-typed host.
+    var incomingServer by remember(account.id) { mutableStateOf(account.incomingServer.orEmpty()) }
+    var incomingPort by remember(account.id) { mutableStateOf(account.incomingPort.toString()) }
+    var outgoingServer by remember(account.id) { mutableStateOf(account.outgoingServer.orEmpty()) }
+    var outgoingPort by remember(account.id) { mutableStateOf(account.outgoingPort.toString()) }
+    var security by remember(account.id) { mutableStateOf(account.security) }
+
+    // Any edit invalidates a prior Saved/Failed banner.
+    val onEdited: () -> Unit = { viewModel.clearConnectionState() }
+
+    val incomingServerLabel = if (account.accountType == AccountType.POP3) {
+        R.string.pop3_server
+    } else {
+        R.string.imap_server
+    }
+
+    SettingsGroup(
+        title = stringResource(R.string.account_fetching_section),
+        icon = Icons.Default.CloudDownload
+    ) {
+        SettingsContentRow {
+            OutlinedTextField(
+                value = incomingServer,
+                onValueChange = { incomingServer = it; onEdited() },
+                label = { Text(stringResource(incomingServerLabel)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = incomingPort,
+                onValueChange = { incomingPort = it.filter(Char::isDigit); onEdited() },
+                label = { Text(stringResource(R.string.port)) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text(
+                text = stringResource(R.string.security),
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Security.entries.forEach { mode ->
+                    FilterChip(
+                        selected = security == mode,
+                        onClick = { security = mode; onEdited() },
+                        label = { Text(stringResource(securityLabelRes(mode))) }
+                    )
+                }
+            }
+            Text(
+                text = stringResource(R.string.account_connection_security_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+
+    SettingsGroup(
+        title = stringResource(R.string.account_sending_section),
+        icon = Icons.Default.CloudUpload
+    ) {
+        SettingsContentRow {
+            OutlinedTextField(
+                value = outgoingServer,
+                onValueChange = { outgoingServer = it; onEdited() },
+                label = { Text(stringResource(R.string.outgoing_server)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = outgoingPort,
+                onValueChange = { outgoingPort = it.filter(Char::isDigit); onEdited() },
+                label = { Text(stringResource(R.string.outgoing_port)) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            when (val s = connectionState) {
+                is AccountSettingsViewModel.ConnectionSettingsState.Saved -> Text(
+                    text = stringResource(R.string.account_connection_saved),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+                is AccountSettingsViewModel.ConnectionSettingsState.Failed -> Text(
+                    text = stringResource(R.string.account_connection_failed, s.message),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+                else -> Unit
+            }
+            val testing = connectionState is AccountSettingsViewModel.ConnectionSettingsState.Testing
+            Button(
+                onClick = {
+                    viewModel.testAndSaveConnection(
+                        incomingServer = incomingServer.trim(),
+                        incomingPort = incomingPort.toIntOrNull() ?: account.incomingPort,
+                        outgoingServer = outgoingServer.trim(),
+                        outgoingPort = outgoingPort.toIntOrNull() ?: account.outgoingPort,
+                        security = security
+                    )
+                },
+                enabled = !testing,
+                modifier = Modifier.padding(top = 8.dp)
+            ) {
+                if (testing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.account_connection_testing))
+                } else {
+                    Text(stringResource(R.string.account_connection_test_and_save))
+                }
+            }
+        }
+    }
+}
+
+private fun securityLabelRes(mode: Security): Int = when (mode) {
+    Security.NONE -> R.string.security_none
+    Security.STARTTLS -> R.string.security_starttls
+    Security.SSL_TLS -> R.string.security_ssl_tls
 }
 
 /**

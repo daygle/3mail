@@ -87,6 +87,28 @@ open class AccountRepository @Inject constructor(
     suspend fun setCalendarSyncEnabled(id: Long, enabled: Boolean) =
         accountDao.setCalendarSyncEnabled(id, enabled)
 
+    /**
+     * Updates the incoming/outgoing server connection settings, mapping the
+     * domain [Security] enum back onto the stored (useEncryption, useStartTls)
+     * pair (exactly one true, or both false for [Security.NONE]).
+     */
+    suspend fun setConnectionSettings(
+        id: Long,
+        incomingServer: String?,
+        incomingPort: Int,
+        outgoingServer: String?,
+        outgoingPort: Int,
+        security: Security
+    ) = accountDao.setConnectionSettings(
+        id = id,
+        incomingServer = incomingServer,
+        incomingPort = incomingPort,
+        outgoingServer = outgoingServer,
+        outgoingPort = outgoingPort,
+        useEncryption = security == Security.SSL_TLS,
+        useStartTls = security == Security.STARTTLS
+    )
+
     suspend fun setNotificationsEnabled(id: Long, enabled: Boolean) =
         accountDao.setNotificationsEnabled(id, enabled)
 

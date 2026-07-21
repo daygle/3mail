@@ -54,6 +54,26 @@ interface AccountDao {
     @Query("UPDATE accounts SET pushFoldersJson = :pushFoldersJson WHERE id = :id")
     suspend fun setPushFoldersJson(id: Long, pushFoldersJson: String)
 
+    /**
+     * Updates the incoming/outgoing server connection settings in one write.
+     * Security is stored as the legacy (useEncryption, useStartTls) pair, so
+     * callers pass the already-mapped booleans.
+     */
+    @Query(
+        "UPDATE accounts SET incomingServer = :incomingServer, incomingPort = :incomingPort, " +
+            "outgoingServer = :outgoingServer, outgoingPort = :outgoingPort, " +
+            "useEncryption = :useEncryption, useStartTls = :useStartTls WHERE id = :id"
+    )
+    suspend fun setConnectionSettings(
+        id: Long,
+        incomingServer: String?,
+        incomingPort: Int,
+        outgoingServer: String?,
+        outgoingPort: Int,
+        useEncryption: Boolean,
+        useStartTls: Boolean
+    )
+
     @Query("UPDATE accounts SET autocryptKeysJson = :autocryptKeysJson WHERE id = :id")
     suspend fun setAutocryptKeysJson(id: Long, autocryptKeysJson: String)
 

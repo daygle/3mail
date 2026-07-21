@@ -220,6 +220,15 @@
     <string name="account_settings_notifications_section">Notifications</string>
     <string name="account_settings_notifications_title">New Mail Notifications</string>
     <string name="account_settings_notifications_subtitle">Notify me about new mail on this account.</string>
+
+    <!-- Per-account incoming/outgoing server settings -->
+    <string name="account_fetching_section">Fetching Mail</string>
+    <string name="account_sending_section">Sending Mail</string>
+    <string name="account_connection_security_hint">Connection security applies to both fetching and sending mail.</string>
+    <string name="account_connection_test_and_save">Test &amp; Save</string>
+    <string name="account_connection_testing">Testing connection…</string>
+    <string name="account_connection_saved">Connection verified and saved.</string>
+    <string name="account_connection_failed">Couldn\'t connect: %1$s</string>
     <string name="account_settings_open">Open Settings</string>
     <string name="account_settings_calendar_section">Calendar</string>
     <string name="account_settings_calendar_title">Sync Google Calendar</string>

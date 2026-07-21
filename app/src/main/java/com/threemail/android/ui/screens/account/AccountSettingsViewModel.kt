@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.threemail.android.data.crypto.OpenPgpController
+import com.threemail.android.data.remote.MailRemoteFactory
 import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.repository.MailRepository
 import com.threemail.android.data.settings.SettingsRepository
@@ -11,6 +12,7 @@ import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.FolderType
 import com.threemail.android.domain.model.Identity
 import com.threemail.android.domain.model.MailFolder
+import com.threemail.android.domain.model.Security
 import com.threemail.android.push.PushController
 import com.threemail.android.sync.SyncScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -38,8 +40,17 @@ class AccountSettingsViewModel @Inject constructor(
     private val syncScheduler: SyncScheduler,
     private val pushController: PushController,
     private val openPgpController: OpenPgpController,
+    private val mailRemoteFactory: MailRemoteFactory,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
+
+    /** Outcome of a "Test & Save" on the incoming/outgoing server settings. */
+    sealed interface ConnectionSettingsState {
+        data object Idle : ConnectionSettingsState
+        data object Testing : ConnectionSettingsState
+        data object Saved : ConnectionSettingsState
+        data class Failed(val message: String) : ConnectionSettingsState
+    }
 
     data class UiState(
         val account: Account? = null,
@@ -69,6 +80,10 @@ class AccountSettingsViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState
+
+    private val _connectionState =
+        MutableStateFlow<ConnectionSettingsState>(ConnectionSettingsState.Idle)
+    val connectionState: StateFlow<ConnectionSettingsState> = _connectionState
 
     init {
         viewModelScope.launch {
@@ -189,6 +204,60 @@ class AccountSettingsViewModel @Inject constructor(
     fun setCalendarSyncEnabled(enabled: Boolean) {
         updateAccount { it.copy(calendarSyncEnabled = enabled) }
         viewModelScope.launch { accountRepository.setCalendarSyncEnabled(accountId, enabled) }
+    }
+
+    /** Reset the connection-test banner after the user edits a server field. */
+    fun clearConnectionState() {
+        if (_connectionState.value != ConnectionSettingsState.Idle) {
+            _connectionState.value = ConnectionSettingsState.Idle
+        }
+    }
+
+    /**
+     * Probe the incoming/outgoing servers with the edited settings and only
+     * persist them if the connection (and login) succeeds - so a typo in a host
+     * or port can't silently break sync/send. On success the settings are
+     * written and mirrored into local state; on failure the error is surfaced
+     * and nothing is saved. Gmail accounts never call this (OAuth, fixed hosts).
+     */
+    fun testAndSaveConnection(
+        incomingServer: String,
+        incomingPort: Int,
+        outgoingServer: String,
+        outgoingPort: Int,
+        security: Security
+    ) {
+        val account = _uiState.value.account ?: return
+        _connectionState.value = ConnectionSettingsState.Testing
+        viewModelScope.launch {
+            val candidate = account.copy(
+                incomingServer = incomingServer.ifBlank { null },
+                incomingPort = incomingPort,
+                outgoingServer = outgoingServer.ifBlank { null },
+                outgoingPort = outgoingPort,
+                security = security
+            )
+            val result = withContext(Dispatchers.IO) {
+                runCatching { mailRemoteFactory.create(candidate).testConnection() }
+                    .getOrElse { Result.failure(it) }
+            }
+            result.onSuccess {
+                accountRepository.setConnectionSettings(
+                    id = accountId,
+                    incomingServer = candidate.incomingServer,
+                    incomingPort = candidate.incomingPort,
+                    outgoingServer = candidate.outgoingServer,
+                    outgoingPort = candidate.outgoingPort,
+                    security = security
+                )
+                updateAccount { candidate }
+                _connectionState.value = ConnectionSettingsState.Saved
+            }.onFailure {
+                _connectionState.value = ConnectionSettingsState.Failed(
+                    it.message ?: "Connection failed"
+                )
+            }
+        }
     }
 
     fun addIdentity(identity: Identity) {
