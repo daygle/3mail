@@ -60,7 +60,7 @@ A modern, full-featured Android mail client supporting IMAP (push), Gmail (OAuth
 2. **Android SDK levels** (set in `app/build.gradle.kts`): `minSdk = 26` (Android 8.0), `targetSdk = 35` (Android 15), `compileSdk = 37` (compileSdk is decoupled from targetSdk - several AAR metadata entries in the dependency tree require `minCompileSdk ≥ 36`, but `targetSdk` stays at 35 so runtime behaviour is unchanged).
 3. **Gradle wrapper**: `gradle-wrapper.jar` and `gradle-wrapper.properties` are committed; CI pins Gradle **9.6.1** to match.
 4. **OAuth Web Client ID**: replace `YOUR_WEB_CLIENT_ID` in `app/src/main/res/values/strings.xml` with your OAuth 2.0 Web Client ID from the [Google Cloud Console](https://console.cloud.google.com/). Required for Gmail sign-in and the Google Calendar API.
-5. **Build**: `./gradlew assembleDebug` (or run from Android Studio). JVM unit tests: `./gradlew testDebugUnitTest`. Android lint: `./gradlew lintDebug`.
+5. **Build**: `./gradlew assembleDebug` (or run from Android Studio). JVM unit tests: `./gradlew testDebugUnitTest`. Android lint: `./gradlew lintDebug`. Instrumented Compose UI tests (needs a device or emulator): `./gradlew connectedDebugAndroidTest`.
 
 ## Architecture
 
@@ -99,17 +99,25 @@ The fix, [`sync/ThreeMailWorkerFactory.kt`](app/src/main/java/com/threemail/andr
 
 ## Continuous Integration
 
-`.github/workflows/android.yml` runs on push/PR to `main` (ubuntu-latest):
+`.github/workflows/android.yml` runs two jobs on ubuntu-latest:
 
-- JDK 17 (Temurin) + Gradle 9.6.1 (via `gradle/actions/setup-gradle@v6`)
-- `./gradlew testDebugUnitTest --stacktrace` (Robolectric + JVM tests)
-- `./gradlew assembleDebug --stacktrace`
-- `./gradlew lintDebug --stacktrace` (currently `continue-on-error: true` - the project has no lint baseline yet, so pre-existing findings shouldn't turn CI red on first run)
+**`build`** (every push/PR to `main`):
+
+- JDK 17 (Temurin) + Gradle 9.6.1 (via `gradle/actions/setup-gradle@v4`)
+- `./gradlew testDebugUnitTest --stacktrace` (Robolectric + JVM tests, including the Compose UI label-audit suite in `app/src/test/java/com/threemail/android/ui/`)
+- `./gradlew assembleDebug --stacktrace` and `./gradlew assembleDebugAndroidTest --stacktrace` (the latter gates androidTest compilation on PRs without needing an emulator)
+- `./gradlew lintDebug --stacktrace` (gating: the report is clean, so any newly introduced lint error turns CI red)
 - Uploads `app-debug` APK, unit test reports, and `lint-results-*` as workflow artifacts
+
+**`android-test`** (pushes to `main` + manual dispatch only, to keep CI minutes reasonable):
+
+- Enables KVM on the runner, then boots a hardware-accelerated API 34 x86_64 emulator via `reactivecircus/android-emulator-runner@v2`
+- `./gradlew connectedDebugAndroidTest --stacktrace` runs the instrumented Compose UI smoke suite (`app/src/androidTest/java/com/threemail/android/ui/InboxSettingsTitleCaseDeviceTest.kt`)
+- Uploads the connected-test report as a workflow artifact
 
 ## Next Steps
 
-- Compose UI test scaffolding is in (`app/src/androidTest/java/com/threemail/android/ui/InboxSettingsTitleCaseTest.kt`); the remaining piece is a **CI emulator job** wiring `connectedDebugAndroidTest` on top of the existing `testDebugUnitTest` workflow.
+- ~~CI emulator job for Compose UI tests~~ **Done**: Compose UI coverage now runs at two layers - the full Robolectric label-audit suite (`app/src/test/java/com/threemail/android/ui/InboxSettingsTitleCaseTest.kt`) in `testDebugUnitTest` on every PR, plus an on-device smoke suite (`app/src/androidTest/java/com/threemail/android/ui/InboxSettingsTitleCaseDeviceTest.kt`) run by the `android-test` emulator job (`connectedDebugAndroidTest`) on pushes to `main`.
 - Future hardening for the in-app OpenPGP path (BC-backed `OpenPgpController`):
   - PGP/MIME multipart/encrypted for attachments + structured bodies (`protocol="application/pgp-encrypted"`).
   - Autocrypt header exchange (RFC 8180) with a per-peer key cache in DataStore.

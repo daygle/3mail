@@ -41,6 +41,12 @@ jobs:
       - name: Assemble debug APK
         run: ./gradlew assembleDebug --stacktrace
 
+      # Compile + package the instrumented-test APK on every PR so a broken
+      # androidTest source surfaces here, without waiting for the emulator
+      # job (which only runs on pushes to main).
+      - name: Assemble instrumented-test APK
+        run: ./gradlew assembleDebugAndroidTest --stacktrace
+
       # Android lint gates the build: the report is clean (0 errors), so any
       # newly introduced lint error should turn CI red. lintDebug aborts on
       # errors by default; warnings/hints do not fail the build.
@@ -81,4 +87,69 @@ jobs:
         with:
           name: unit-test-report
           path: app/build/reports/tests/
+          if-no-files-found: ignore
+
+  # Compose UI test runner: instrumented `connectedDebugAndroidTest` on an
+  # emulator. Runs on pushes to main and manual dispatch (not on PRs) to keep
+  # CI minutes reasonable - PRs still gate androidTest compilation via the
+  # assembleDebugAndroidTest step in the build job above.
+  android-test:
+    name: Compose UI tests (instrumented)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ubuntu-latest runners expose /dev/kvm, but the runner user can't open
+      # it by default. Without this the emulator silently falls back to
+      # unaccelerated mode and the AVD boot can exceed any sane timeout -
+      # this was the missing piece in the earlier incarnation of this job.
+      - name: Enable KVM group perms
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Configure Android SDK path
+        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.1"
+
+      - name: Run instrumented Compose UI tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          # minSdk is 31, so an API 30 image can't install the APK
+          # (INSTALL_FAILED_OLDER_SDK); API 34 has stable x86_64 google_apis
+          # system images and satisfies minSdk with headroom.
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          ram-size: 4096
+          disk-size: 4096
+          # Cold boot on a shared runner can still stall; with KVM enabled the
+          # AVD should be up in 2-4 minutes, this is just the safety margin.
+          emulator-boot-timeout: 600
+          disable-animations: true
+          # Headless runner: no window/audio/boot animation. swiftshader is a
+          # safety net where hardware GPU isn't available; harmless with KVM.
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: ./gradlew connectedDebugAndroidTest --stacktrace
+
+      - name: Upload instrumented test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: androidTest-report
+          path: app/build/reports/androidTests/
           if-no-files-found: ignore
