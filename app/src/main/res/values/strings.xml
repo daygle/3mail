@@ -36,7 +36,7 @@
     </plurals>
     <string name="clear_selection">Clear selection</string>
     <string name="pull_to_refresh_hint">Pull down to refresh</string>
-    <string name="display_section">Message list</string>
+    <string name="display_section">Message List</string>
     <string name="swipe_right_label">Swipe Right Action</string>
     <string name="swipe_left_label">Swipe Left Action</string>
     <string name="density_label">List Density</string>
@@ -68,14 +68,14 @@
     <!-- Remote-image loading: global default in Settings, per-message banner
          shown above HTML bodies when the global toggle is off. -->
     <string name="images_section_title">Privacy</string>
-    <string name="images_setting_label">Always load remote images</string>
+    <string name="images_setting_label">Always Load Remote Images</string>
     <string name="images_setting_subtitle">Reveals pixel trackers and your IP to senders. Off by default.</string>
     <string name="images_blocked_banner_title">Remote images are hidden</string>
     <string name="images_blocked_banner_subtitle">Blocked to protect your privacy and avoid email tracking.</string>
     <string name="images_blocked_banner_action">Show images</string>
     <string name="from_label">From</string>
     <string name="request_read_receipt">Request read receipt</string>
-    <string name="identities_section">Send-as identities</string>
+    <string name="identities_section">Send-as Identities</string>
     <string name="identities_description">Extra addresses you can send from. Pick one in the composer\'s From selector.</string>
     <string name="identity_add">Add identity</string>
     <string name="identity_remove">Remove</string>
@@ -169,7 +169,7 @@
          that changes for the user. -->
     <string name="reading_after_delete_section">After Action</string>
     <string name="reading_after_delete_subtitle">What happens after you delete, archive, move, or mark-as-spam a message you\'re reading.</string>
-    <string name="reading_after_delete_row_title">After delete or archive</string>
+    <string name="reading_after_delete_row_title">After Delete or Archive</string>
     <string name="reading_after_delete_return_to_list">Return to inbox</string>
     <string name="reading_after_delete_next_message">Open next message</string>
     <string name="trash_cleanup_notification_channel_description">Reports persistent failures clearing the trash.</string>
@@ -208,7 +208,7 @@
     <string name="remove">Remove</string>
     <string name="account_push_label">Push for New Mail</string>
     <string name="account_push_subtitle">Get notified the moment a new message arrives on this account.</string>
-    <string name="account_push_folders_title">Also push these folders</string>
+    <string name="account_push_folders_title">Also Push These Folders</string>
     <string name="account_push_folders_subtitle">The inbox is always watched. Add extra folders to get pushed here too - each keeps its own always-on connection, so add only what you need: more folders use more battery and may hit your server\'s connection limit.</string>
     <string name="account_push_folders_empty">This account has no other folders to watch.</string>
 
@@ -220,7 +220,7 @@
     <string name="account_settings_signature_label">Signature for This Account</string>
     <string name="account_settings_signature_placeholder">e.g. Sent from my phone</string>
     <string name="account_settings_signature_hint">Appended to new mail from this account. Leave blank to omit a signature.</string>
-    <string name="account_settings_sync_section">Mail checking</string>
+    <string name="account_settings_sync_section">Mail Checking</string>
     <string name="account_settings_sync_enabled_title">Sync This Account</string>
     <string name="account_settings_sync_enabled_subtitle">Fetch new mail for this account in the background.</string>
     <string name="account_settings_frequency_title">Check Frequency</string>
@@ -406,7 +406,7 @@
          specific screen's TopAppBar; the action moves into the bar's
          "MoreVert" overflow so it stays reachable. -->
     <string name="top_bar_settings_section">Top Bar</string>
-    <string name="top_bar_settings_title">Customise top bar</string>
+    <string name="top_bar_settings_title">Customise Top Bar</string>
     <string name="top_bar_settings_subtitle">Choose which actions appear in each screen\'s top bar. Hidden actions still appear in the overflow menu, so nothing disappears.</string>
     <string name="top_bar_settings_inbox_header">Inbox</string>
     <string name="top_bar_settings_detail_header">Message Detail</string>
