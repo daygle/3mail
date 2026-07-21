@@ -131,6 +131,10 @@
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
     <string name="new_mail_notification_title">New mail</string>
+    <plurals name="new_mail_notification_body">
+        <item quantity="one">%1$d new message</item>
+        <item quantity="other">%1$d new messages</item>
+    </plurals>
     <string name="new_mail_notification_channel_name">New mail notifications</string>
     <string name="new_mail_notification_channel_description">Notifies you when new mail arrives</string>
     <string name="default_web_client_id" translatable="false">YOUR_WEB_CLIENT_ID</string>

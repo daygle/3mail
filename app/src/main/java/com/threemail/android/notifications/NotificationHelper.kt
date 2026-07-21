@@ -2,8 +2,11 @@ package com.threemail.android.notifications
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import androidx.core.app.NotificationCompat
+import com.threemail.android.MainActivity
 import com.threemail.android.R
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -75,13 +78,36 @@ class NotificationHelper @Inject constructor(
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.new_mail_notification_title))
-            .setContentText("$count new message${if (count > 1) "s" else ""}")
+            .setContentText(
+                context.resources.getQuantityString(
+                    R.plurals.new_mail_notification_body, count, count
+                )
+            )
+            // Tapping the notification opens the app on its inbox.
+            .setContentIntent(openAppIntent())
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
             .build()
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(NOTIFICATION_ID, notification)
+    }
+
+    /**
+     * PendingIntent that brings [MainActivity] to the front (or launches it)
+     * when a notification is tapped. `SINGLE_TOP` reuses the existing task so
+     * we don't stack a second copy of the app on top of a running instance.
+     */
+    private fun openAppIntent(): PendingIntent {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        return PendingIntent.getActivity(
+            context,
+            0,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
     }
 
     /** Shown when the trash-cleanup worker exhausts all retry attempts and still fails for every account. */

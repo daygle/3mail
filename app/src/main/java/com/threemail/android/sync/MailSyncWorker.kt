@@ -72,11 +72,8 @@ class MailSyncWorker(
                     // when the folder's local cache is empty, so a stale cursor
                     // can't leave an empty folder stuck (it would only ask for
                     // messages newer than itself and get nothing back).
-                    val cursor = if (mailRepository.getFolderMessageCount(folder.id) == 0) {
-                        0L
-                    } else {
-                        folder.syncVersion
-                    }
+                    val countBefore = mailRepository.getFolderMessageCount(folder.id)
+                    val cursor = if (countBefore == 0) 0L else folder.syncVersion
                     val fetch = remote.fetchMessages(folder, cursor, limit = 100).getOrElse {
                         Log.e(TAG, "Failed to fetch messages for folder ${folder.name}", it)
                         return@forEach
@@ -88,8 +85,23 @@ class MailSyncWorker(
                         mailRepository.saveMessages(toSave)
                         // Only feed the aggregate new-mail notification when this
                         // account opts in; the global switch is applied once below.
-                        if (folder.type == FolderType.Inbox && account.notificationsEnabled) {
-                            newMessages += toSave.count { !it.isRead }
+                        //
+                        // Count only genuinely-new unread mail, and never notify
+                        // for the initial backfill of an empty inbox: adding an
+                        // account (or a cache clear) fetches up to 100 existing
+                        // messages at once, and the old `count { !isRead }` fired
+                        // a notification for every one of them. `saveMessages`
+                        // upserts on the unique (folder, account, messageId) index,
+                        // so the row-count delta is exactly the number of newly
+                        // inserted messages; cap the unread tally by that delta so
+                        // re-fetched overlap at the cursor boundary isn't recounted.
+                        if (folder.type == FolderType.Inbox &&
+                            account.notificationsEnabled &&
+                            countBefore > 0
+                        ) {
+                            val countAfter = mailRepository.getFolderMessageCount(folder.id)
+                            val newlyInserted = (countAfter - countBefore).coerceAtLeast(0)
+                            newMessages += minOf(toSave.count { !it.isRead }, newlyInserted)
                         }
                         // Autocrypt-key learner (RFC 8180). After the new
                         // messages are persisted to Room we ask the IMAP
