@@ -17,7 +17,7 @@ A modern, full-featured Android mail client supporting IMAP (push), Gmail (OAuth
 - **Configurable swipe & density**: pick the left/right swipe action (none / archive / delete / read-unread), message-list density (comfortable / compact), and body-preview line count in Settings.
 - **Send-as identities**: multiple sender aliases per account with per-identity signatures, chosen from the composer's From selector; plus optional read-receipt (Disposition-Notification-To) requests.
 - **Folder drawer & visibility**: tap a folder to select and instantly auto-sync its contents, or long-press to add / remove it from favourites via a small dropdown menu. A Manage folders screen hides folders from the drawer while keeping them synced.
-- **OpenPGP encryption (currently dormant)**: the OpenKeychain-brokered integration is preserved in source for future restoration, but the active dependency has been dropped and `OpenPgpController` is a stub: every operation funnels through `PgpResult.Unavailable` / `false`, so the compose Encrypt toggle stays hidden and message-view never enters its decrypt path. The app degrades to plaintext transparently until a working upstream `openpgp-api` coordinate resurfaces; see [`data/crypto/OpenPgpController.kt`](app/src/main/java/com/threemail/android/data/crypto/OpenPgpController.kt) for the restoration doc-comment.
+- **OpenPGP encryption (in-app, Bouncy Castle-backed)**: no OpenKeychain dependency - the app runs its own crypto. Each account gets an Ed25519 (sign) + X25519 (encrypt) keyring generated lazily on first use ([`data/crypto/PgpEngine.kt`](app/src/main/java/com/threemail/android/data/crypto/PgpEngine.kt)), stored in the app's private files dir with the wrap passphrase recorded via the Android Keystore-backed `CredentialStore`. Outgoing mail is opportunistically encrypted by `SendMailWorker` in **strict all-or-nothing mode**: recipient keys resolve from the per-account Autocrypt peer-key cache first, then **WKD** (Web Key Directory) lookups; when *every* recipient resolves, the full inner MIME tree (body + attachments + inline images) is signed, encrypted, and wrapped in an RFC 3156 `multipart/encrypted` envelope (`protocol="application/pgp-encrypted"`) - otherwise the send falls back to plaintext so no recipient is locked out. Every outgoing message (IMAP/Gmail) advertises an **Autocrypt** header (RFC 8180), and inbound `Autocrypt`/`Autocrypt-Gossip` headers are learned into the per-account peer-key cache during IMAP sync (`AutocryptLearner`). The message view decrypts inline-armoured and PGP/MIME bodies and surfaces signature status; rows sent encrypted carry a lock badge that survives re-sync.
 - **Native Gmail sync**: Gmail REST API for labels-as-folders, server-side threads, and label-based read; IMAP/SMTP for everything else.
 - **Modern UI**: Material 3 + Jetpack Compose with dynamic color (Material You), light/dark/system themes, sender avatars, swipe-to-archive/delete, and a folder navigation drawer.
 - **Full message reading**: HTML bodies rendered in a `WebView` (remote images blocked by default), plain-text fallback, and on-demand body fetch.
@@ -43,7 +43,8 @@ A modern, full-featured Android mail client supporting IMAP (push), Gmail (OAuth
 
 - **Kotlin** 2.3.10 + **Jetpack Compose** (Compose BOM 2026.06.01)
 - **Hilt** 2.60.1 for dependency injection. Note: `androidx.hilt:hilt-work` is intentionally **not** used - see [`sync/ThreeMailWorkerFactory.kt`](app/src/main/java/com/threemail/android/sync/ThreeMailWorkerFactory.kt) for the manual `WorkerFactory` dispatch that replaces `@HiltWorker` under KSP2.
-- **Room** 2.8.4 (local database at schema version 17; migrations `MIGRATION_4_5` … `MIGRATION_16_17` in [`Migrations.kt`](app/src/main/java/com/threemail/android/data/local/migrations/Migrations.kt)). Schema JSON export is currently disabled (see note in `app/build.gradle.kts`) - so `app/schemas/` holds the last exported versions, 5-7, rather than the live schema.
+- **Room** 2.8.4 (local database at schema version 21; migrations `MIGRATION_4_5` … `MIGRATION_20_21` in [`Migrations.kt`](app/src/main/java/com/threemail/android/data/local/migrations/Migrations.kt)). Schema JSON export is currently disabled (see note in `app/build.gradle.kts`) - so `app/schemas/` holds the last exported versions, 5-7, rather than the live schema.
+- **Bouncy Castle** 1.85 (`bcpg-jdk18on` + `bcprov-jdk18on`) for the in-app OpenPGP path (key generation, PGP/MIME sign+encrypt, decrypt+verify)
 - **WorkManager** 2.11.2 for background sync (manual worker dispatch via `ThreeMailWorkerFactory`)
 - **DataStore** 1.2.1 (preferences)
 - **JavaMail (`android-mail`)** 1.6.8 + Apache Commons Net 3.13.0 for IMAP / SMTP
@@ -64,7 +65,7 @@ A modern, full-featured Android mail client supporting IMAP (push), Gmail (OAuth
 
 ## Architecture
 
-- `data/local` - Room database (schema v17), DAOs, entities, and `Migrations.kt` (live migrations `MIGRATION_4_5` … `MIGRATION_16_17`). Last exported schema JSON under `app/schemas/` (versions 5-7); export is currently disabled, see the comment in `app/build.gradle.kts`.
+- `data/local` - Room database (schema v21), DAOs, entities, and `Migrations.kt` (live migrations `MIGRATION_4_5` … `MIGRATION_20_21`). Last exported schema JSON under `app/schemas/` (versions 5-7); export is currently disabled, see the comment in `app/build.gradle.kts`.
 - `data/remote/imap` - JavaMail-backed IMAP client (`ImapClient`, `ImapClientFactory`, `ImapRemote`).
 - `data/remote/pop3` - JavaMail-backed POP3 client (`Pop3Client`, `Pop3Remote`); shared MIME walking in `data/remote/MimeParsing.kt`.
 - `data/remote/gmail` - Gmail REST API client, OAuth helper, recoverable-auth handling.
@@ -72,6 +73,7 @@ A modern, full-featured Android mail client supporting IMAP (push), Gmail (OAuth
 - `data/remote/idle` - IMAP IDLE loop (`IdleLoop`), events (`IdleEvent`), folder ops (`IdleFolderOps`).
 - `data/repository` - `AccountRepository`, `MailRepository`, `MailActions`, `CalendarRepository`, `OutboxRepository`, `ContactRepository`.
 - `data/security` - `CredentialStore` (direct Android Keystore AES-256/GCM with per-email AAD, stored in a regular `SharedPreferences` file `threemail_credentials_v2`).
+- `data/crypto` - in-app OpenPGP: `PgpEngine` (pure-BC cipher pipeline, JVM-testable), `OpenPgpController` (per-account key storage + `PgpResult` surface), `MailPgpOutbound` (recipient-key resolution: Autocrypt cache -> WKD, strict-mode outcome), `PgpMimeBuilder` (RFC 3156 envelope), `AutocryptHeader`/`AutocryptLearner` (RFC 8180 parse + sync-time learning), `wkd/WkdClient` + `ZBase32` (Web Key Directory lookups).
 - `data/settings` - `SettingsRepository` (DataStore-backed preferences).
 - `domain/model` - pure-Kotlin domain types.
 - `ui/screens` - Compose screens and ViewModels (inbox, message, compose, search, calendar, account, add-account, account-settings, folder-management, settings).
@@ -95,6 +97,7 @@ The fix, [`sync/ThreeMailWorkerFactory.kt`](app/src/main/java/com/threemail/andr
 - Gmail / Google Calendar use OAuth2 via **Credential Manager** + **Google Identity Services** (`com.google.android.libraries.identity.googleid`); the previous `playservices-auth` `GoogleSignInClient` flow has been replaced. App passwords are no longer recommended by Google.
 - HTML message bodies load with remote images blocked by default to limit tracking pixels.
 - Credential prefs (`threemail_credentials_v2`) are excluded from cloud backup AND device transfer via `res/xml/backup_rules.xml` and `res/xml/data_extraction_rules.xml`. The Android Keystore master key isn't transferable to a new device, so a cloud restore of this file would silently fail to decrypt and force the user to re-enter every IMAP password. Other prefs (settings, FTS state) still transfer normally.
+- OpenPGP private keys are generated on-device and never leave the app's private files dir; the keyring files are ASCII-armoured and passphrase-wrapped (AES-256 S2K), with the passphrase held in the Keystore-encrypted `CredentialStore`. Outbound encryption is strict all-or-nothing - a message is only encrypted when every recipient's key resolved, so no recipient silently loses access - and encrypted payloads carry an MDC integrity packet that is verified on decrypt.
 - `local.properties` is intentionally committed with a developer-specific `sdk.dir`; CI overrides it via `echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties`.
 
 ## Continuous Integration
@@ -118,10 +121,11 @@ The fix, [`sync/ThreeMailWorkerFactory.kt`](app/src/main/java/com/threemail/andr
 ## Next Steps
 
 - ~~CI emulator job for Compose UI tests~~ **Done**: Compose UI coverage now runs at two layers - the full Robolectric label-audit suite (`app/src/test/java/com/threemail/android/ui/InboxSettingsTitleCaseTest.kt`) in `testDebugUnitTest` on every PR, plus an on-device smoke suite (`app/src/androidTest/java/com/threemail/android/ui/InboxSettingsTitleCaseDeviceTest.kt`) run by the `android-test` emulator job (`connectedDebugAndroidTest`) on pushes to `main`.
-- Future hardening for the in-app OpenPGP path (BC-backed `OpenPgpController`):
-  - PGP/MIME multipart/encrypted for attachments + structured bodies (`protocol="application/pgp-encrypted"`).
-  - Autocrypt header exchange (RFC 8180) with a per-peer key cache in DataStore.
-  - WKD recipient-key discovery so `signAndEncrypt` encrypts to real recipient keys rather than the current self-only fallback.
+- ~~Future hardening for the in-app OpenPGP path~~ **Done**: the BC-backed `OpenPgpController`/`PgpEngine` pipeline is live - PGP/MIME `multipart/encrypted` wraps the full inner MIME tree (`protocol="application/pgp-encrypted"`), Autocrypt header exchange (RFC 8180) runs in both directions with the per-peer key cache in the Room `accounts` table (`peerKeysJson` - chosen over DataStore so the cache rides the account row's lifecycle), and WKD recipient-key discovery (advanced + direct methods) feeds `signAndEncrypt` real recipient keys. Round-trip coverage lives in `app/src/test/.../crypto/PgpEngineRoundTripTest.kt`.
+- Remaining OpenPGP niceties (not blocking day-to-day encrypted mail):
+  - Verify peer signatures against cached Autocrypt keys on decrypt (peer-signed mail currently reports "key missing" rather than verifying).
+  - Manual key import / fingerprint verification UI.
+  - WKD publishing of the account's own public key.
 
 ## License
 

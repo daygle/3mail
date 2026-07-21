@@ -13,6 +13,7 @@ import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.repository.OutboxEntry
 import com.threemail.android.data.repository.OutboxRepository
 import com.threemail.android.domain.model.Account
+import com.threemail.android.domain.model.AccountType
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import javax.mail.Message
@@ -20,6 +21,7 @@ import javax.mail.Session
 import javax.mail.internet.InternetAddress
 import javax.mail.internet.MimeMessage
 import javax.mail.internet.MimeMultipart
+import javax.mail.internet.MimeUtility
 import javax.mail.util.ByteArrayDataSource
 
 /**
@@ -127,6 +129,15 @@ class SendMailWorker(
      */
     private suspend fun sendOutgoing(account: Account, entry: OutboxEntry): kotlin.Result<Unit> {
         val plaintextMime = MimeBuilder.build(account.email, account.displayName, entry.message)
+        // RFC 8180 header exchange: advertise our public key on every
+        // outgoing message (encrypted or not) so Autocrypt-capable peers
+        // can reply encrypted without a WKD round-trip. Folded to keep
+        // the base64 keydata within SMTP line limits. Null (key material
+        // unavailable) just skips the header.
+        val autocryptHeader = runCatching { mailPgpOutbound.autocryptHeaderValue() }.getOrNull()
+        if (autocryptHeader != null) {
+            plaintextMime.setHeader("Autocrypt", MimeUtility.fold(AUTOCRYPT_FOLD_OFFSET, autocryptHeader))
+        }
         val plaintextBytes = ByteArrayOutputStream().also { plaintextMime.writeTo(it) }.toByteArray()
 
         val recipients = buildList {
@@ -169,9 +180,18 @@ class SendMailWorker(
                 }
             }
             result
-        } else {
+        } else if (account.accountType != AccountType.POP3) {
             // Plaintext fallback: any unresolved recipient -> can't form a
             // single wire body that works for everyone, so send unencrypted.
+            // The worker-built MIME goes out via sendRaw so the Autocrypt
+            // header survives; for IMAP/Gmail the transport is identical to
+            // send() (same SMTP session / same messages.send endpoint), and
+            // the bytes come from the same MimeBuilder.build call send()
+            // would make.
+            remote.sendRaw(plaintextBytes)
+        } else {
+            // POP3 has no raw-send path; plaintext goes out the legacy way
+            // (without the Autocrypt header).
             remote.send(entry.message)
         }
     }
@@ -214,6 +234,11 @@ class SendMailWorker(
         // the receiver threads us back on. Falls back to whatever
         // JavaMail auto-assigns if the plaintext didn't have one.
         plaintextMime.messageID?.let { outer.setHeader("Message-ID", it) }
+        // The Autocrypt advertisement must ride the OUTER headers - the
+        // inner copy is encrypted and unreadable until after key discovery.
+        plaintextMime.getHeader("Autocrypt")?.firstOrNull()?.let {
+            outer.setHeader("Autocrypt", it)
+        }
         outer.sentDate = plaintextMime.sentDate ?: java.util.Date()
         // Body is the multipart/encrypted envelope. DataSource-based
         // parsing so the inner Content-Type / boundary headers ride
@@ -229,5 +254,7 @@ class SendMailWorker(
 
     private companion object {
         const val MAX_ATTEMPTS = 10
+        /** Chars already used on the header line: "Autocrypt: ".length. */
+        const val AUTOCRYPT_FOLD_OFFSET = 11
     }
 }
