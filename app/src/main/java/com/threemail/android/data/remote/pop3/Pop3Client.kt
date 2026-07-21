@@ -178,12 +178,7 @@ class Pop3Client(private val account: Account) {
         try {
             withInbox(Folder.READ_ONLY) { inbox ->
                 val msg = messageByNumber(inbox, number) ?: return@withInbox ""
-                val builder = StringBuilder()
-                val lines = msg.allHeaderLines
-                while (lines.hasMoreElements()) {
-                    builder.append(lines.nextElement()).append("\r\n")
-                }
-                builder.toString()
+                MimeParsing.buildHeaderText(msg)
             }.let { Result.success(it) }
         } catch (e: MessagingException) {
             Result.failure(e)

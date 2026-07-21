@@ -10,6 +10,7 @@ import com.threemail.android.data.remote.OutgoingMessage
 import com.threemail.android.data.remote.RemoteFetch
 import com.threemail.android.data.remote.gmail.RecoverableAuthException
 import com.threemail.android.data.remote.idle.IdleEvent
+import com.threemail.android.data.remote.MimeParsing
 import com.threemail.android.data.remote.idle.IdleFolderOps
 import com.threemail.android.data.remote.idle.IdleLoop
 import com.threemail.android.domain.model.Account
@@ -486,17 +487,12 @@ class ImapClient(
             Result.failure(e)
         }
 
-    /** Fetches the full raw header block (all header lines) for one message. */
+    /** Fetches the full header block (every header, as "Name: value") for one message. */
     suspend fun fetchRawHeaders(folderServerId: String, uid: Long): Result<String> =
         try {
             withFolder(folderServerId, Folder.READ_ONLY) { folder ->
                 val msg = folder.getMessageByUID(uid) ?: return@withFolder ""
-                val builder = StringBuilder()
-                val lines = msg.allHeaderLines
-                while (lines.hasMoreElements()) {
-                    builder.append(lines.nextElement()).append("\r\n")
-                }
-                builder.toString()
+                MimeParsing.buildHeaderText(msg)
             }.let { Result.success(it) }
         } catch (e: RecoverableAuthException) {
             throw e
