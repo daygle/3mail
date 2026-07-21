@@ -109,6 +109,13 @@ class GmailRemote(
         )
     }
 
+    override suspend fun fetchRawHeaders(folder: MailFolder, message: MailMessage): Result<String> = gmail { svc ->
+        val meta = svc.users().messages().get(USER, message.remoteId).setFormat("metadata").execute()
+        meta.payload?.headers
+            ?.joinToString("\r\n") { "${it.name}: ${it.value}" }
+            ?: ""
+    }
+
     override suspend fun setSeen(folder: MailFolder, message: MailMessage, seen: Boolean): Result<Unit> =
         gmail { svc ->
             val req = ModifyMessageRequest().apply {

@@ -486,6 +486,24 @@ class ImapClient(
             Result.failure(e)
         }
 
+    /** Fetches the full raw header block (all header lines) for one message. */
+    suspend fun fetchRawHeaders(folderServerId: String, uid: Long): Result<String> =
+        try {
+            withFolder(folderServerId, Folder.READ_ONLY) { folder ->
+                val msg = folder.getMessageByUID(uid) ?: return@withFolder ""
+                val builder = StringBuilder()
+                val lines = msg.allHeaderLines
+                while (lines.hasMoreElements()) {
+                    builder.append(lines.nextElement()).append("\r\n")
+                }
+                builder.toString()
+            }.let { Result.success(it) }
+        } catch (e: RecoverableAuthException) {
+            throw e
+        } catch (e: MessagingException) {
+            Result.failure(e)
+        }
+
     /** Downloads a single attachment (matched by file name) to [destFile]. */
     suspend fun downloadAttachment(folderServerId: String, uid: Long, fileName: String, destFile: File): Result<File> =
         try {

@@ -215,10 +215,10 @@ fun MessageDetailScreen(
     }
 
     if (showHeaders && message != null) {
-        // Header field names are the literal RFC 5322 field names, so they are
-        // intentionally not localized. Values come from the parsed message we
-        // already hold (no extra server round-trip).
-        val headerLines = buildList {
+        // Parsed-field fallback shown while the raw headers load, or if the
+        // server fetch fails / returns nothing. Field names are the literal
+        // RFC 5322 names, so they are intentionally not localized.
+        val parsedFallback = buildList {
             add("From" to message.from.joinToString(", ") { it.toString() })
             if (message.to.isNotEmpty()) add("To" to message.to.joinToString(", ") { it.toString() })
             if (message.cc.isNotEmpty()) add("Cc" to message.cc.joinToString(", ") { it.toString() })
@@ -231,19 +231,38 @@ fun MessageDetailScreen(
             onDismissRequest = { showHeaders = false },
             title = { Text(stringResource(R.string.headers_title)) },
             text = {
-                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    headerLines.forEach { (label, value) ->
+                when {
+                    state.isLoadingHeaders -> {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.size(12.dp))
+                            Text(stringResource(R.string.headers_loading))
+                        }
+                    }
+                    !state.rawHeaders.isNullOrBlank() -> {
                         Text(
-                            text = label,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = value,
+                            text = state.rawHeaders!!,
                             style = MaterialTheme.typography.bodySmall,
-                            fontFamily = FontFamily.Monospace
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.verticalScroll(rememberScrollState())
                         )
-                        Spacer(Modifier.height(8.dp))
+                    }
+                    else -> {
+                        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                            parsedFallback.forEach { (label, value) ->
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = value,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                                Spacer(Modifier.height(8.dp))
+                            }
+                        }
                     }
                 }
             },
@@ -312,6 +331,7 @@ fun MessageDetailScreen(
                             enabled = message != null,
                             onClick = {
                                 menuOpen = false
+                                viewModel.loadHeaders()
                                 showHeaders = true
                             }
                         )

@@ -98,7 +98,11 @@ class MessageDetailViewModel @Inject constructor(
          * MessageDetailViewModel - Compose keys the WebView off this flag so
          * the page reloads with images enabled.
          */
-        val imagesShownForThisMessage: Boolean = false
+        val imagesShownForThisMessage: Boolean = false,
+        /** Full raw RFC 5322 header block, fetched on demand for the headers viewer. */
+        val rawHeaders: String? = null,
+        val isLoadingHeaders: Boolean = false,
+        val headersError: String? = null
     )
 
     private val _uiState = MutableStateFlow(UiState())
@@ -320,6 +324,47 @@ class MessageDetailViewModel @Inject constructor(
 
     fun onFileOpened() {
         _uiState.value = _uiState.value.copy(openFile = null)
+    }
+
+    /**
+     * Fetch the message's full raw header block from the server on demand (for
+     * the "Show headers" viewer). Cached in state once loaded; the parsed-field
+     * fallback in the dialog covers the loading/error/empty cases.
+     */
+    fun loadHeaders() {
+        val message = _uiState.value.message ?: return
+        val state = _uiState.value
+        if (state.rawHeaders != null || state.isLoadingHeaders) return
+        _uiState.value = state.copy(isLoadingHeaders = true, headersError = null)
+        viewModelScope.launch {
+            try {
+                val account = accountRepository.getAccountById(message.accountId)
+                val folder = mailRepository.getFolderById(message.folderId)
+                if (account == null || folder == null) {
+                    _uiState.value = _uiState.value.copy(
+                        isLoadingHeaders = false,
+                        headersError = "Unable to locate message"
+                    )
+                    return@launch
+                }
+                val remote = mailRemoteFactory.create(account)
+                remote.fetchRawHeaders(folder, message)
+                    .onSuccess { headers ->
+                        _uiState.value = _uiState.value.copy(
+                            isLoadingHeaders = false,
+                            rawHeaders = headers
+                        )
+                    }
+                    .onFailure {
+                        _uiState.value = _uiState.value.copy(
+                            isLoadingHeaders = false,
+                            headersError = it.message
+                        )
+                    }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoadingHeaders = false, headersError = e.message)
+            }
+        }
     }
 
     /**
