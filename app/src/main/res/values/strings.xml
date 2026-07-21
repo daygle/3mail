@@ -227,9 +227,10 @@
 
     <!-- Per-account folder-role overrides -->
     <string name="account_folder_roles_section">Folder Roles</string>
-    <string name="account_folder_roles_description">Pick which server folders hold incoming mail, sent mail, drafts, trash, spam, and archives. Auto-detected uses the folder\'s name.</string>
+    <string name="account_folder_roles_description">Pick which server folders hold incoming mail, sent mail, drafts, trash, spam, and archives. Automatic detects the folder by its name; it is set automatically when the account is added.</string>
     <string name="account_folder_role_auto_detected">Auto-detected</string>
-    <string name="account_folder_role_unset">Unset</string>
+    <string name="account_folder_role_automatic">Automatic</string>
+    <string name="account_folder_role_automatic_named">Automatic (%1$s)</string>
     <string name="account_folder_role_inbox">Inbox</string>
     <string name="account_folder_role_sent">Sent</string>
     <string name="account_folder_role_drafts">Drafts</string>

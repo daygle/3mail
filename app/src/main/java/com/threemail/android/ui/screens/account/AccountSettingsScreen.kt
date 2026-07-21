@@ -343,15 +343,31 @@ fun AccountSettingsScreen(
                                 )
                             }
                             FOLDER_ROLES.forEach { role ->
-                                val currentServerId = account.folderRoles[role]
-                                val assignedFolder = state.folders.firstOrNull {
-                                    it.serverId == currentServerId
+                                // A user override pins a specific folder; with no
+                                // override the value shows what auto-detection
+                                // resolved to - "Automatic (Junk)" - so the user
+                                // can see the mapping the heuristic picked on add,
+                                // matching the standard-folders UX. The auto
+                                // target is the folder the name heuristic already
+                                // classified with this role's type.
+                                val overrideFolder = state.folders.firstOrNull {
+                                    it.serverId == account.folderRoles[role]
+                                }
+                                val autoFolder = state.folders.firstOrNull {
+                                    it.type == role
+                                }
+                                val valueText = when {
+                                    overrideFolder != null -> overrideFolder.name
+                                    autoFolder != null -> stringResource(
+                                        R.string.account_folder_role_automatic_named,
+                                        autoFolder.name
+                                    )
+                                    else -> stringResource(R.string.account_folder_role_automatic)
                                 }
                                 CardDivider()
                                 SettingsRow(
                                     title = stringResource(role.displayNameRes()),
-                                    value = assignedFolder?.name
-                                        ?: stringResource(R.string.account_folder_role_auto_detected),
+                                    value = valueText,
                                     onClick = { editingRole = role }
                                 )
                             }
@@ -377,7 +393,7 @@ fun AccountSettingsScreen(
 
     editingRole?.let { role ->
         val options = buildList {
-            add(SettingsChoice<String?>(null, stringResource(R.string.account_folder_role_unset)))
+            add(SettingsChoice<String?>(null, stringResource(R.string.account_folder_role_automatic)))
             state.folders.forEach { add(SettingsChoice<String?>(it.serverId, it.name)) }
         }
         SettingsChoiceDialog(
