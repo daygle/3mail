@@ -4,8 +4,6 @@ import com.threemail.android.data.crypto.ZBase32
 import org.bouncycastle.openpgp.PGPPublicKeyRing
 import org.bouncycastle.openpgp.PGPUtil
 import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
@@ -135,20 +133,5 @@ class WkdClient @Inject constructor() {
             // ctor wins.
             org.bouncycastle.openpgp.PGPPublicKeyRing(input, JcaKeyFingerprintCalculator())
         }.getOrNull()
-    }
-
-    @Suppress("unused")
-    private fun readHeaders(http: HttpURLConnection): Map<String, List<String>> {
-        val out: Map<String, List<String>> = http.headerFields ?: emptyMap()
-        return out
-    }
-
-    @Suppress("unused")
-    private fun readBodyPlaceholder(): String {
-        val url = URL("https://example.com")
-        val conn = url.openConnection() as HttpURLConnection
-        return conn.inputStream.use { strm ->
-            BufferedReader(InputStreamReader(strm)).readText()
-        }
     }
 }

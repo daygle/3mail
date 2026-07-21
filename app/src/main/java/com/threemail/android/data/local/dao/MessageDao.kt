@@ -15,9 +15,6 @@ interface MessageDao {
     @Query("SELECT * FROM messages WHERE folderId = :folderId ORDER BY date DESC")
     fun getByFolder(folderId: Long): Flow<List<MessageEntity>>
 
-    @Query("SELECT * FROM messages WHERE folderId = :folderId ORDER BY date DESC LIMIT :limit OFFSET :offset")
-    suspend fun getByFolderPaged(folderId: Long, limit: Int, offset: Int): List<MessageEntity>
-
     /**
      * Reactive, unbounded feed of a single folder, newest first. Room re-emits
      * on any insert / delete / flag flip touching the folder, so the inbox

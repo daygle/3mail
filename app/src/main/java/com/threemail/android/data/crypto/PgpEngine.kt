@@ -21,6 +21,7 @@ import org.bouncycastle.openpgp.PGPPublicKeyEncryptedData
 import org.bouncycastle.openpgp.PGPPublicKeyRing
 import org.bouncycastle.openpgp.PGPSecretKeyRing
 import org.bouncycastle.openpgp.PGPSignature
+import org.bouncycastle.openpgp.PGPSignatureList
 import org.bouncycastle.openpgp.PGPSignatureGenerator
 import org.bouncycastle.openpgp.PGPSignatureSubpacketGenerator
 import org.bouncycastle.openpgp.PGPUtil
@@ -322,26 +323,37 @@ internal object PgpEngine {
         val resolvedStream = clearStream
             ?: throw IllegalArgumentException("No matching recipient key in cipher")
 
+        // Walk the decrypted packet stream in a single forward pass. The
+        // canonical order is `[compressed]? [onePass]? literal [signature]?`,
+        // but the one-pass and compression packets are both optional: mail
+        // from a client that encrypts without signing, or without ZIP
+        // compression, is legal. Scanning forward for an optional packet
+        // that isn't present would consume the literal-data packet and make
+        // the message decrypt as empty, so we collect each packet as we meet
+        // it rather than searching for one type at a time.
         var factory = PGPObjectFactory(resolvedStream, JcaKeyFingerprintCalculator())
-        val compressed = firstOfType(factory, PGPCompressedData::class.java)
-        if (compressed != null) {
-            factory = PGPObjectFactory(compressed.dataStream, JcaKeyFingerprintCalculator())
+        var packet = factory.nextObject()
+        if (packet is PGPCompressedData) {
+            factory = PGPObjectFactory(packet.dataStream, JcaKeyFingerprintCalculator())
+            packet = factory.nextObject()
         }
-        val onePassList = firstOfType(factory, PGPOnePassSignatureList::class.java)
-        val literalData = firstOfType(factory, PGPLiteralData::class.java)
-            ?: throw IllegalArgumentException("Decrypted payload has no literal-data packet")
-        val plainBytes = ByteArrayOutputStream().use { collector ->
-            literalData.inputStream.use { it.copyTo(collector) }
-            collector.toByteArray()
-        }
+        var onePassList: PGPOnePassSignatureList? = null
+        var plainBytes: ByteArray? = null
         val signatures = mutableListOf<PGPSignature>()
-        while (true) {
-            val packet = factory.nextObject() ?: break
-            if (packet is PGPSignature) signatures.add(packet)
-            if (packet is org.bouncycastle.openpgp.PGPSignatureList) {
-                for (i in 0 until packet.size()) signatures.add(packet[i])
+        while (packet != null) {
+            when (val current = packet) {
+                is PGPOnePassSignatureList -> onePassList = current
+                is PGPLiteralData -> plainBytes = ByteArrayOutputStream().use { collector ->
+                    current.inputStream.use { it.copyTo(collector) }
+                    collector.toByteArray()
+                }
+                is PGPSignatureList -> for (i in 0 until current.size()) signatures.add(current[i])
+                is PGPSignature -> signatures.add(current)
             }
+            packet = factory.nextObject()
         }
+        val plain = plainBytes
+            ?: throw IllegalArgumentException("Decrypted payload has no literal-data packet")
         // MDC check only after the stream is fully consumed.
         if (matched != null && matched.isIntegrityProtected && !matched.verify()) {
             throw IllegalStateException("Message failed integrity (MDC) check")
@@ -354,7 +366,7 @@ internal object PgpEngine {
             if (signerKey != null) {
                 signerUserId = signerKey.userIDs.asSequence().firstOrNull()
                 onePass.init(JcaPGPContentVerifierBuilderProvider().setProvider(PROVIDER), signerKey)
-                onePass.update(plainBytes)
+                onePass.update(plain)
                 if (onePass.verify(signatures.first())) SignatureStatus.VALID else SignatureStatus.INVALID
             } else {
                 SignatureStatus.KEY_MISSING
@@ -362,7 +374,7 @@ internal object PgpEngine {
         } else {
             SignatureStatus.NONE
         }
-        return Decrypted(plainBytes, signatureStatus, signerUserId)
+        return Decrypted(plain, signatureStatus, signerUserId)
     }
 
     /**

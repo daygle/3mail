@@ -22,11 +22,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
-import java.time.ZoneOffset
 import javax.inject.Inject
 
 /** Six weeks of cells, padded with overflow from the previous/next month. */
@@ -163,22 +161,5 @@ class CalendarViewModel @Inject constructor(
         return byDay.mapValues { (_, value) ->
             value.sortedWith(compareBy({ !it.allDay }, { it.startEpochMs }))
         }
-    }
-
-    /**
-     * Mappers from `Event` rows to a deterministic, low-overlap indicator "color" derived
-     * from the event's calendar id (or its title when no calendar id is set).
-     * Stable across recompositions to avoid pill color thrash.
-     */
-    @Suppress("unused")
-    private fun accountColorIndex(event: CalendarEvent): Int =
-        ((event.calendarId.hashCode() and 0x7FFFFFFF) % ACCOUNT_COLOR_COUNT)
-
-    companion object {
-        const val ACCOUNT_COLOR_COUNT = 6
-
-        @Suppress("unused")
-        private fun epochToLocalDate(epochMs: Long, zone: ZoneId): LocalDate =
-            Instant.ofEpochMilli(epochMs).atZone(if (epochMs % 86_400_000 == 0L) ZoneOffset.UTC else zone).toLocalDate()
     }
 }
