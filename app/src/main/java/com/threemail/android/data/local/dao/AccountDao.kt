@@ -51,6 +51,9 @@ interface AccountDao {
     @Query("UPDATE accounts SET folderRolesJson = :folderRolesJson WHERE id = :id")
     suspend fun setFolderRolesJson(id: Long, folderRolesJson: String)
 
+    @Query("UPDATE accounts SET pushFoldersJson = :pushFoldersJson WHERE id = :id")
+    suspend fun setPushFoldersJson(id: Long, pushFoldersJson: String)
+
     @Query("UPDATE accounts SET autocryptKeysJson = :autocryptKeysJson WHERE id = :id")
     suspend fun setAutocryptKeysJson(id: Long, autocryptKeysJson: String)
 

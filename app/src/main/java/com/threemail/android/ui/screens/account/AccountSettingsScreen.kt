@@ -284,6 +284,46 @@ fun AccountSettingsScreen(
                                 checked = account.pushEnabled,
                                 onCheckedChange = viewModel::setPushEnabled
                             )
+                            // Opt-in extra push folders. INBOX is always watched
+                            // and never listed. Only meaningful while push is on.
+                            if (account.pushEnabled) {
+                                CardDivider()
+                                SettingsContentRow {
+                                    Text(
+                                        text = stringResource(R.string.account_push_folders_title),
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                    Text(
+                                        text = stringResource(R.string.account_push_folders_subtitle),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 4.dp)
+                                    )
+                                }
+                                val extraFolders = state.folders.filter {
+                                    it.type != FolderType.Inbox
+                                }
+                                if (extraFolders.isEmpty()) {
+                                    SettingsContentRow {
+                                        Text(
+                                            text = stringResource(R.string.account_push_folders_empty),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                } else {
+                                    extraFolders.forEach { folder ->
+                                        CardDivider()
+                                        SettingsSwitchRow(
+                                            title = folder.name,
+                                            checked = folder.serverId in account.pushFolders,
+                                            onCheckedChange = { on ->
+                                                viewModel.togglePushFolder(folder.serverId, on)
+                                            }
+                                        )
+                                    }
+                                }
+                            }
                         }
 
                         // Folder-role picker is IMAP-only too. Gmail's labels

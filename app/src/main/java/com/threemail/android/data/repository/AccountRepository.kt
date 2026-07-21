@@ -101,6 +101,13 @@ open class AccountRepository @Inject constructor(
         accountDao.setFolderRolesJson(id, serializeFolderRoles(folderRoles))
 
     /**
+     * Replaces the per-account extra-push-folders list (IMAP `serverId`s watched
+     * via IDLE beyond INBOX). Pass an empty list to return to INBOX-only push.
+     */
+    suspend fun setPushFolders(id: Long, pushFolders: List<String>) =
+        accountDao.setPushFoldersJson(id, serializeStringList(pushFolders))
+
+    /**
      * Persist a per-peer OpenPGP public key exchange over Autocrypt
      * (RFC 8180) or WKD (RFC 9582). Storage: a single JSON-encoded map
      * of `Map<String, String>` (lowercased email -> base64-blocked keydata)
@@ -159,7 +166,8 @@ open class AccountRepository @Inject constructor(
         notificationsEnabled = notificationsEnabled,
         identities = parseIdentities(identitiesJson),
         folderRoles = parseFolderRoles(folderRolesJson),
-        peerKeys = parsePeerKeysJson(autocryptKeysJson)
+        peerKeys = parsePeerKeysJson(autocryptKeysJson),
+        pushFolders = parseStringList(pushFoldersJson)
     )
 
     private fun Account.toEntity(): AccountEntity = AccountEntity(
@@ -187,7 +195,8 @@ open class AccountRepository @Inject constructor(
         notificationsEnabled = notificationsEnabled,
         identitiesJson = serializeIdentities(identities),
         folderRolesJson = serializeFolderRoles(folderRoles),
-        autocryptKeysJson = serializePeerKeysJson(peerKeys)
+        autocryptKeysJson = serializePeerKeysJson(peerKeys),
+        pushFoldersJson = serializeStringList(pushFolders)
     )
 
     private fun serializeIdentities(identities: List<Identity>): String {
@@ -252,6 +261,22 @@ open class AccountRepository @Inject constructor(
      * hunt. We deliberately do NOT parse the keys into PGPPublicKey objects
      * here; that work belongs to the importer, not the entity layer.
      */
+    /** JSON array of strings, e.g. IMAP folder serverIds: `["INBOX.Important","Work"]`. */
+    private fun serializeStringList(values: List<String>): String {
+        val json = JSONArray()
+        values.forEach { json.put(it) }
+        return json.toString()
+    }
+
+    private fun parseStringList(json: String): List<String> = try {
+        val array = JSONArray(json)
+        (0 until array.length()).mapNotNull { i ->
+            array.optString(i, "").takeIf { it.isNotBlank() }
+        }
+    } catch (e: Exception) {
+        emptyList()
+    }
+
     private fun serializePeerKeysJson(keys: Map<String, String>): String {
         val obj = JSONObject()
         keys.forEach { (email, keydata) -> obj.put(email.lowercase(), keydata) }

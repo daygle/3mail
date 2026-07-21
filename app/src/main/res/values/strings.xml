@@ -200,6 +200,9 @@
     <string name="remove">Remove</string>
     <string name="account_push_label">Push for New Mail</string>
     <string name="account_push_subtitle">Get notified the moment a new message arrives on this account.</string>
+    <string name="account_push_folders_title">Also push these folders</string>
+    <string name="account_push_folders_subtitle">The inbox is always watched. Add extra folders to get pushed here too - each keeps its own always-on connection, so add only what you need: more folders use more battery and may hit your server\'s connection limit.</string>
+    <string name="account_push_folders_empty">This account has no other folders to watch.</string>
 
     <!-- Per-account settings -->
     <string name="account_settings_title">Account Settings</string>

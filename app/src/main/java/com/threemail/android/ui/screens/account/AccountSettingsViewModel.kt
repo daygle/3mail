@@ -234,6 +234,26 @@ class AccountSettingsViewModel @Inject constructor(
     }
 
     /**
+     * Toggle an extra push folder (by IMAP `serverId`) on or off. INBOX is
+     * always watched and is never part of this set. After persisting, refresh
+     * this account's push so the IDLE service opens/closes the matching
+     * connection without waiting for the next app foreground.
+     */
+    fun togglePushFolder(serverId: String, enabled: Boolean) {
+        val current = _uiState.value.account ?: return
+        val next = if (enabled) {
+            (current.pushFolders + serverId).distinct()
+        } else {
+            current.pushFolders - serverId
+        }
+        updateAccount { it.copy(pushFolders = next) }
+        viewModelScope.launch {
+            accountRepository.setPushFolders(accountId, next)
+            pushController.enablePushFor(accountId)
+        }
+    }
+
+    /**
      * Re-derives this account's periodic sync from its current (enabled,
      * interval) state and the global default. Cancels the worker when sync is
      * paused so a disabled account stops waking WorkManager.

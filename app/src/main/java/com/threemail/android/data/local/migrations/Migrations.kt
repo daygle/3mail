@@ -497,6 +497,20 @@ val MIGRATION_20_21: Migration = object : Migration(20, 21) {
 }
 
 /**
+ * Adds the per-account extra-push-folders list backing the opt-in "watch more
+ * folders with IMAP IDLE" feature. Defaults to `"[]"` so existing accounts keep
+ * INBOX-only push. Additive column with no FK / index / trigger, so a partial
+ * application is safe to resume.
+ */
+val MIGRATION_21_22: Migration = object : Migration(21, 22) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "ALTER TABLE accounts ADD COLUMN pushFoldersJson TEXT NOT NULL DEFAULT '[]'"
+        )
+    }
+}
+
+/**
  * Idempotently creates the FTS4 virtual table, the keep-in-sync triggers and an
  * initial backfill.  All statements use IF NOT EXISTS so a partial state can be
  * resumed without crashing; the backfill is a no-op on empty `messages`.

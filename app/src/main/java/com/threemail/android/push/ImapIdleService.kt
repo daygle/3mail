@@ -53,8 +53,16 @@ class ImapIdleService : Service() {
 
     private val supervisor = SupervisorJob()
     private val scope = CoroutineScope(supervisor + Dispatchers.IO + CoroutineName("ImapIdleService"))
-    private val jobs = ConcurrentHashMap<Long, Job>()
-    private val registered = ConcurrentHashMap.newKeySet<Long>()
+
+    /**
+     * One IDLE connection per watched (account, folder) pair. INBOX is always
+     * watched; [com.threemail.android.domain.model.Account.pushFolders] adds
+     * extra folders, each getting its own key/connection.
+     */
+    private data class PushKey(val accountId: Long, val folder: String)
+
+    private val jobs = ConcurrentHashMap<PushKey, Job>()
+    private val registered = ConcurrentHashMap.newKeySet<PushKey>()
 
     override fun onCreate() {
         super.onCreate()
@@ -88,99 +96,151 @@ class ImapIdleService : Service() {
         super.onDestroy()
     }
 
+    /** INBOX (always) plus any opt-in extra push folders for this account. */
+    private fun watchedFolders(account: com.threemail.android.domain.model.Account): List<String> =
+        (listOf(INBOX_FOLDER) + account.pushFolders).distinct()
+
     /**
-     * Re-derive the set of accounts that should be on push and ensure each
-     * one has a running IDLE job. The service MUST refresh its push set on
-     * `onStartCommand(null)` so that an OS kill + `START_STICKY` recreate
+     * Re-derive the set of (account, folder) targets that should be on push and
+     * ensure each has a running IDLE job. The service MUST refresh its push set
+     * on `onStartCommand(null)` so that an OS kill + `START_STICKY` recreate
      * doesn't leave us connected to nothing.
      *
      * v1 simplification: takes a snapshot of accounts + settings. Mid-session
-     * account changes (sign-in / sign-out, push toggle) require another
-     * [PushController.refresh] call - typically fired from the call site that
-     * performed the mutation. A future iteration should subscribe via the
-     * existing [kotlinx.coroutines.flow.Flow] APIs to react automatically.
+     * account changes (sign-in / sign-out, push toggle, push-folder edits)
+     * require another [PushController.refresh]/`enablePushFor` call - typically
+     * fired from the call site that performed the mutation.
      */
     private fun refreshAll() {
         scope.launch {
-            val candidates = accountRepository.getAccounts().first()
+            val pushEnabled = settingsRepository.settings.first().pushEnabled
+            val candidates = if (!pushEnabled) emptyList() else accountRepository.getAccounts().first()
                 .filter {
                     it.accountType == AccountType.IMAP &&
                         it.isActive &&
                         it.syncEnabled &&
                         it.pushEnabled
                 }
+            // Desired watch set across every eligible account: INBOX + extras.
+            val desired = candidates.flatMap { account ->
+                watchedFolders(account).map { PushKey(account.id, it) }
+            }.toSet()
             registered.clear()
-            registered.addAll(candidates.map { it.id })
-            jobs.keys.filter { it !in registered }.forEach(::stopAccountPush)
-            val pushEnabled = settingsRepository.settings.first().pushEnabled
-            if (!pushEnabled) {
-                Log.d(TAG, "Push disabled in settings - refreshing without subscriptions")
-                maybeStop()
-                return@launch
-            }
-            if (candidates.isEmpty()) {
-                // Nothing to push (e.g. fresh install with no accounts yet).
+            registered.addAll(desired)
+            jobs.keys.filter { it !in desired }.forEach(::stopJob)
+            if (desired.isEmpty()) {
+                // Nothing to push (push off, or fresh install with no accounts).
                 // Stand down instead of holding an empty foreground service.
-                Log.d(TAG, "No push-eligible accounts - standing down")
+                Log.d(TAG, "No push targets - standing down")
                 maybeStop()
                 return@launch
             }
-            promoteToForeground(candidates.size)
-            candidates.forEach { ensureAccountPush(it.id) }
+            promoteToForeground(desired.mapTo(HashSet()) { it.accountId }.size)
+            desired.forEach(::ensureJob)
         }
     }
 
+    /**
+     * Reconcile a single account's watch set: open IDLE for INBOX + its extra
+     * push folders, and cancel any connection for a folder it no longer wants.
+     * Fired by [PushController.enablePushFor] after the account's push flag or
+     * push-folder list changes.
+     */
     private fun ensureAccountPush(accountId: Long) {
-        jobs[accountId]?.let { existing ->
+        scope.launch {
+            val account = accountRepository.getAccountById(accountId)
+            val pushEnabled = settingsRepository.settings.first().pushEnabled
+            val eligible = account != null &&
+                account.accountType == AccountType.IMAP &&
+                account.isActive &&
+                account.syncEnabled &&
+                account.pushEnabled &&
+                pushEnabled
+            val desired = if (eligible && account != null) {
+                watchedFolders(account).map { PushKey(accountId, it) }.toSet()
+            } else {
+                emptySet()
+            }
+            // Swap this account's registered targets for the freshly-derived set.
+            registered.removeIf { it.accountId == accountId }
+            registered.addAll(desired)
+            jobs.keys
+                .filter { it.accountId == accountId && it !in desired }
+                .forEach(::stopJob)
+            if (desired.isEmpty()) {
+                maybeStop()
+                return@launch
+            }
+            desired.forEach(::ensureJob)
+            promoteToForeground(distinctAccountCount())
+        }
+    }
+
+    private fun ensureJob(key: PushKey) {
+        jobs[key]?.let { existing ->
             if (existing.isActive) return
         }
-        registered.add(accountId)
-        jobs[accountId] = scope.launch(CoroutineName("idle-$accountId")) {
+        jobs[key] = scope.launch(CoroutineName("idle-${key.accountId}-${key.folder}")) {
             try {
-                val account = accountRepository.getAccountById(accountId) ?: return@launch
+                val account = accountRepository.getAccountById(key.accountId) ?: return@launch
                 val client = imapClientFactory.create(account)
                 if (!client.supportsIdle()) {
                     Log.w(TAG, "Server for ${account.email} does not advertise IDLE - skipping push")
                     return@launch
                 }
-                client.idle("INBOX").collect { event ->
-                    handleIdleEvent(accountId, event)
+                client.idle(key.folder).collect { event ->
+                    handleIdleEvent(key, event)
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.w(TAG, "IDLE loop crashed for account $accountId", e)
+                Log.w(TAG, "IDLE loop crashed for $key", e)
             } finally {
-                jobs.remove(accountId)
+                jobs.remove(key)
                 maybeStop()
             }
         }
-        promoteToForeground(jobs.size)
+        promoteToForeground(distinctAccountCount())
     }
 
-    private fun stopAccountPush(accountId: Long) {
-        jobs.remove(accountId)?.let { runCatching { it.cancel() } }
-        registered.remove(accountId)
-        promoteToForeground(jobs.size)
+    private fun stopJob(key: PushKey) {
+        jobs.remove(key)?.let { runCatching { it.cancel() } }
+        promoteToForeground(distinctAccountCount())
         maybeStop()
     }
 
-    private fun handleIdleEvent(accountId: Long, event: IdleEvent) {
+    private fun stopAccountPush(accountId: Long) {
+        registered.removeIf { it.accountId == accountId }
+        jobs.keys.filter { it.accountId == accountId }.forEach { key ->
+            jobs.remove(key)?.let { runCatching { it.cancel() } }
+        }
+        promoteToForeground(distinctAccountCount())
+        maybeStop()
+    }
+
+    /** Distinct accounts currently watched - drives the FGS subtitle count. */
+    private fun distinctAccountCount(): Int =
+        jobs.keys.mapTo(HashSet()) { it.accountId }.size
+
+    private fun handleIdleEvent(key: PushKey, event: IdleEvent) {
         when (event) {
             is IdleEvent.Open ->
-                Log.d(TAG, "IDLE opened for account $accountId (${event.messageCount} messages)")
+                Log.d(TAG, "IDLE opened for $key (${event.messageCount} messages)")
             is IdleEvent.NewMail -> {
-                Log.i(TAG, "IDLE new mail for account $accountId (delta=${event.delta})")
-                syncScheduler.enqueueImmediateSync(accountId)
+                Log.i(TAG, "IDLE new mail for $key (delta=${event.delta})")
+                // Account-level immediate sync; MailSyncWorker deep-syncs INBOX
+                // plus this account's push folders, so the folder that fired is
+                // fetched (and notified) regardless of which one it was.
+                syncScheduler.enqueueImmediateSync(key.accountId)
             }
             is IdleEvent.Disconnected -> {
-                Log.w(TAG, "IDLE disconnected for account $accountId: ${event.cause}")
-                jobs.remove(accountId)
+                Log.w(TAG, "IDLE disconnected for $key: ${event.cause}")
+                jobs.remove(key)
                 // Best-effort reconnect with a fixed backoff so a momentary
                 // network blip doesn't burn the battery looping.
                 scope.launch {
                     delay(RECONNECT_BACKOFF_MS)
-                    if (accountId in registered) ensureAccountPush(accountId)
+                    if (key in registered) ensureJob(key)
                 }
             }
         }
@@ -231,6 +291,9 @@ class ImapIdleService : Service() {
         const val ACTION_REFRESH = "com.threemail.android.push.REFRESH"
         const val EXTRA_ACCOUNT_ID = "accountId"
         const val PUSH_NOTIFICATION_ID = 1004
+
+        /** The always-watched inbox folder serverId. */
+        private const val INBOX_FOLDER = "INBOX"
 
         private const val RECONNECT_BACKOFF_MS = 15_000L
         private const val TAG = "ImapIdleService"

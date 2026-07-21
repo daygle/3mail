@@ -64,8 +64,12 @@ class MailSyncWorker(
                 val savedFolders = mailRepository.saveFolders(remoteFolders)
 
                 savedFolders.forEach { folder ->
-                    // Only deep-sync the folders users care about most.
-                    if (folder.type !in SYNCED_FOLDERS) return@forEach
+                    // Deep-sync the core folders, plus any folder the user opted
+                    // into IMAP push for (so an IDLE hit on it actually fetches
+                    // and can notify).
+                    if (folder.type !in SYNCED_FOLDERS &&
+                        folder.serverId !in account.pushFolders
+                    ) return@forEach
 
                     Log.d(TAG, "Syncing folder: ${folder.name} (${folder.serverId}) [Type: ${folder.type}]")
                     // Fetch from the stored cursor normally, but from the start
@@ -95,7 +99,9 @@ class MailSyncWorker(
                         // so the row-count delta is exactly the number of newly
                         // inserted messages; cap the unread tally by that delta so
                         // re-fetched overlap at the cursor boundary isn't recounted.
-                        if (folder.type == FolderType.Inbox &&
+                        val isNotifyFolder = folder.type == FolderType.Inbox ||
+                            folder.serverId in account.pushFolders
+                        if (isNotifyFolder &&
                             account.notificationsEnabled &&
                             countBefore > 0
                         ) {

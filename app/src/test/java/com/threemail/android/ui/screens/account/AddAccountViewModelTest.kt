@@ -225,6 +225,7 @@ class AddAccountViewModelTest {
         override suspend fun setNotificationsEnabled(id: Long, enabled: Boolean) {}
         override suspend fun setIdentitiesJson(id: Long, identitiesJson: String) {}
         override suspend fun setFolderRolesJson(id: Long, folderRolesJson: String) {}
+        override suspend fun setPushFoldersJson(id: Long, pushFoldersJson: String) {}
         override suspend fun setAutocryptKeysJson(id: Long, autocryptKeysJson: String) {}
         override suspend fun getAutocryptKeysJson(id: Long): String? = null
         override suspend fun update(account: AccountEntity) { rows[account.email] = account }
