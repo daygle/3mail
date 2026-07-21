@@ -10,6 +10,16 @@
     <string name="sign_in_with_google">Sign in with Google</string>
     <string name="autoconfig_found">Found settings for your provider. Just add your password below.</string>
     <string name="autoconfig_not_found">Couldn\'t detect settings automatically. Enter your server details below.</string>
+    <string name="add_account_details_title">Account Details</string>
+    <string name="add_account_choose_provider">Choose your email provider</string>
+    <string name="add_account_other">Other (IMAP/POP3)</string>
+    <string name="add_account_setup_title">Set up %1$s</string>
+    <string name="add_account_app_password_hint">This provider needs an app-specific password, not your normal login password.</string>
+    <string name="add_account_credentials">Account</string>
+    <string name="add_account_server_section">Server</string>
+    <string name="add_account_detect">Detect settings automatically</string>
+    <string name="add_account_advanced">Advanced server settings</string>
+    <string name="add_account_hide_advanced">Hide advanced settings</string>
     <string name="to">To</string>
     <string name="cc">Cc</string>
     <string name="bcc">Bcc</string>
@@ -202,7 +212,6 @@
     <string name="loading_message">Loading message…</string>
 
     <!-- Account management -->
-    <string name="add_account_imap_label">Or add an IMAP account manually</string>
     <string name="display_name">Display Name</string>
     <string name="remove_account">Remove account</string>
     <string name="remove_account_title">Remove account?</string>
