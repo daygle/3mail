@@ -281,16 +281,18 @@ class InboxViewModel @Inject constructor(
                 } else {
                     syncSelectedFolder()
                 }
-                _transient.value = _transient.value.copy(isSyncing = false)
             } catch (e: CancellationException) {
                 // Ignore cancellation
             } catch (e: RecoverableAuthException) {
-                _transient.value = _transient.value.copy(isSyncing = false, recoverableAuthIntent = e.intent)
+                _transient.value = _transient.value.copy(recoverableAuthIntent = e.intent)
             } catch (e: Exception) {
-                _transient.value = _transient.value.copy(isSyncing = false, error = e.message)
+                _transient.value = _transient.value.copy(error = e.message)
             } finally {
-                if (syncJob?.isActive == false) {
-                    // Only clear isSyncing if this was the last active job
+                // Only clear isSyncing if this job is still the active syncJob.
+                // If it was cancelled by a newer syncJob, the newer one owns
+                // the isSyncing state.
+                if (syncJob == coroutineContext[Job]) {
+                    _transient.value = _transient.value.copy(isSyncing = false)
                 }
             }
         }

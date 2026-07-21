@@ -439,10 +439,13 @@ class ImapClient(
                 // Add any extra headers we need for Autocrypt/Gossip.
                 add("Autocrypt")
                 add("Autocrypt-Gossip")
+                add("Message-ID")
+                add("References")
+                add("In-Reply-To")
             }
             folder.fetch(messages, fp)
 
-            messages.associate { msg ->
+            messages.filterNotNull().associate { msg ->
                 val uid = uidFolder.getUID(msg)
                 val headersMap = mutableMapOf<String, MutableList<String>>()
                 val enumeration = msg.allHeaders

@@ -62,7 +62,7 @@ interface MessageDao {
         FROM messages m 
         LEFT JOIN message_flags f ON m.accountId = f.accountId AND m.messageId = f.messageId
         JOIN folders fold ON m.folderId = fold.id
-        WHERE fold.type = 'Inbox'
+        WHERE fold.type IN ('Inbox', 'INBOX')
         ORDER BY m.date DESC
     """)
     fun observeUnifiedInboxWithFlags(): Flow<List<MessageWithFlags>>
