@@ -600,6 +600,17 @@ val MIGRATION_22_23: Migration = object : Migration(22, 23) {
 }
 
 /**
+ * CalDAV write-back: cached events gain an `etag` (the server's concurrency
+ * token for the backing calendar object) so edits can use `If-Match` and
+ * detect concurrent modification instead of silently overwriting.
+ */
+val MIGRATION_23_24: Migration = object : Migration(23, 24) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE calendar_events ADD COLUMN etag TEXT")
+    }
+}
+
+/**
  * Idempotently creates the FTS4 virtual table, the keep-in-sync triggers and an
  * initial backfill.  All statements use IF NOT EXISTS so a partial state can be
  * resumed without crashing; the backfill is a no-op on empty `messages`.

@@ -223,6 +223,11 @@ fun ThreeMailNavHost(navController: NavHostController) {
                 onCreateEvent = { accountId ->
                     navController.navigate(Screen.CalendarEvent.createRoute(accountId, -1L))
                 },
+                onCreateSourceEvent = { sourceId ->
+                    navController.navigate(
+                        Screen.CalendarEvent.createRoute(0L, -1L, sourceId = sourceId)
+                    )
+                },
                 onEditEvent = { accountId, eventId ->
                     navController.navigate(Screen.CalendarEvent.createRoute(accountId, eventId))
                 },
@@ -235,13 +240,15 @@ fun ThreeMailNavHost(navController: NavHostController) {
             route = Screen.CalendarEvent.route,
             arguments = listOf(
                 navArgument("accountId") { type = NavType.LongType },
-                navArgument("eventId") { type = NavType.LongType; defaultValue = -1L }
+                navArgument("eventId") { type = NavType.LongType; defaultValue = -1L },
+                navArgument("sourceId") { type = NavType.LongType; defaultValue = -1L }
             )
         ) { backStackEntry ->
             CalendarEventScreen(
                 viewModel = hiltViewModel(),
                 accountId = backStackEntry.arguments?.getLong("accountId") ?: 0L,
                 eventId = backStackEntry.arguments?.getLong("eventId") ?: -1L,
+                sourceId = backStackEntry.arguments?.getLong("sourceId") ?: -1L,
                 onNavigateBack = { navController.popBackStack() }
             )
         }

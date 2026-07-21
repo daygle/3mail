@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.EditCalendar
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -53,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.threemail.android.ui.theme.appTopBarColors
@@ -79,6 +81,8 @@ fun ManageCalendarsScreen(
     var showSubscribeDialog by remember { mutableStateOf(false) }
     var showCreateDialog by remember { mutableStateOf(false) }
     var showAddIcsDialog by remember { mutableStateOf(false) }
+    var showAddCalDavDialog by remember { mutableStateOf(false) }
+    val calDavDiscovery by viewModel.calDavDiscovery.collectAsState()
 
     // Resolve the Gmail account we'll subscribe / create under. Picking the
     // first signed-in GMAIL keeps behaviour sensible even after the user
@@ -101,6 +105,8 @@ fun ManageCalendarsScreen(
             SnackbarMessage.InvalidUrl -> "Enter a valid iCal URL"
             SnackbarMessage.InvalidSummary -> "Enter a calendar name"
             is SnackbarMessage.SourceRemoved -> "Removed ${msg.summary}"
+            is SnackbarMessage.CalDavAdded ->
+                if (msg.count == 1) "Added 1 calendar" else "Added ${msg.count} calendars"
         }
         scope.launch {
             snackbarHost.showSnackbar(text)
@@ -180,6 +186,9 @@ fun ManageCalendarsScreen(
             },
             onPickIcs = {
                 showAddChooser = false; showAddIcsDialog = true
+            },
+            onPickCalDav = {
+                showAddChooser = false; showAddCalDavDialog = true
             }
         )
     }
@@ -191,6 +200,29 @@ fun ManageCalendarsScreen(
                 viewModel.addIcsSource(url, name)
                 showAddIcsDialog = false
             }
+        )
+    }
+
+    if (showAddCalDavDialog) {
+        AddCalDavDialog(
+            discovering = calDavDiscovery is CalDavDiscovery.Discovering,
+            onDismiss = {
+                showAddCalDavDialog = false
+                viewModel.dismissCalDavDiscovery()
+            },
+            onFind = { url, user, pass -> viewModel.discoverCalDav(url, user, pass) }
+        )
+    }
+
+    // Discovery succeeded: swap the credentials dialog for the picker.
+    LaunchedEffect(calDavDiscovery) {
+        if (calDavDiscovery is CalDavDiscovery.Found) showAddCalDavDialog = false
+    }
+    (calDavDiscovery as? CalDavDiscovery.Found)?.let { found ->
+        CalDavPickDialog(
+            calendars = found.calendars,
+            onDismiss = viewModel::dismissCalDavDiscovery,
+            onAdd = viewModel::addCalDavCalendars
         )
     }
 
@@ -490,7 +522,8 @@ private fun AddCalendarChooserDialog(
     onDismiss: () -> Unit,
     onPickGoogleSubscribe: () -> Unit,
     onPickGoogleCreate: () -> Unit,
-    onPickIcs: () -> Unit
+    onPickIcs: () -> Unit,
+    onPickCalDav: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -499,6 +532,9 @@ private fun AddCalendarChooserDialog(
             Column {
                 TextButton(onClick = onPickIcs, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.manage_calendars_add_choice_ics))
+                }
+                TextButton(onClick = onPickCalDav, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.manage_calendars_add_choice_caldav))
                 }
                 if (hasGoogleAccount) {
                     TextButton(
@@ -576,6 +612,137 @@ private fun AddIcsDialog(
                 enabled = url.isNotBlank()
             ) {
                 Text(stringResource(R.string.manage_calendars_subscribe_action))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+/**
+ * CalDAV connect step 1: server + sign-in details. "Find Calendars" runs
+ * discovery; on success the caller swaps this for [CalDavPickDialog].
+ */
+@Composable
+private fun AddCalDavDialog(
+    discovering: Boolean,
+    onDismiss: () -> Unit,
+    onFind: (url: String, username: String, password: String) -> Unit
+) {
+    var url by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.manage_calendars_caldav_title)) },
+        text = {
+            Column {
+                Text(
+                    text = stringResource(R.string.manage_calendars_caldav_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = url,
+                    onValueChange = { url = it.trim() },
+                    label = { Text(stringResource(R.string.manage_calendars_caldav_url_label)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                    leadingIcon = { Icon(Icons.Default.Public, contentDescription = null) }
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = { username = it.trim() },
+                    label = { Text(stringResource(R.string.manage_calendars_caldav_username_label)) },
+                    singleLine = true
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text(stringResource(R.string.password)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    visualTransformation = PasswordVisualTransformation()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onFind(url, username, password) },
+                enabled = url.isNotBlank() && username.isNotBlank() && !discovering
+            ) {
+                Text(
+                    stringResource(
+                        if (discovering) {
+                            R.string.manage_calendars_caldav_finding
+                        } else {
+                            R.string.manage_calendars_caldav_find
+                        }
+                    )
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+/** CalDAV connect step 2: tick the discovered collections to subscribe. */
+@Composable
+private fun CalDavPickDialog(
+    calendars: List<com.threemail.android.data.remote.calendar.CalDavClient.DiscoveredCalendar>,
+    onDismiss: () -> Unit,
+    onAdd: (List<com.threemail.android.data.remote.calendar.CalDavClient.DiscoveredCalendar>) -> Unit
+) {
+    var selectedUrls by remember(calendars) {
+        mutableStateOf(calendars.map { it.url }.toSet())
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.manage_calendars_caldav_pick_title)) },
+        text = {
+            Column {
+                calendars.forEach { calendar ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = calendar.url in selectedUrls,
+                            onCheckedChange = { checked ->
+                                selectedUrls = if (checked) {
+                                    selectedUrls + calendar.url
+                                } else {
+                                    selectedUrls - calendar.url
+                                }
+                            }
+                        )
+                        Text(
+                            text = calendar.displayName,
+                            style = MaterialTheme.typography.bodyLarge,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onAdd(calendars.filter { it.url in selectedUrls }) },
+                enabled = selectedUrls.isNotEmpty()
+            ) {
+                Text(stringResource(R.string.manage_calendars_caldav_add))
             }
         },
         dismissButton = {

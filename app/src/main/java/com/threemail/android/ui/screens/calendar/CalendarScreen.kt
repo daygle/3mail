@@ -63,6 +63,7 @@ fun CalendarScreen(
     viewModel: CalendarViewModel,
     onNavigateBack: () -> Unit,
     onCreateEvent: (accountId: Long) -> Unit,
+    onCreateSourceEvent: (sourceId: Long) -> Unit = {},
     onEditEvent: (accountId: Long, eventId: Long) -> Unit,
     onNavigateToManageCalendars: () -> Unit = {},
     onAddAccount: () -> Unit = {},
@@ -135,12 +136,19 @@ fun CalendarScreen(
             )
         },
         floatingActionButton = {
-            // Creating an event needs a writable (Google) calendar; standalone
-            // ICS subscriptions are read-only, so the FAB hides without one.
+            // Creating an event needs a writable calendar: a Google account
+            // or a CalDAV subscription. ICS feeds are read-only, so with
+            // neither the FAB hides entirely.
             val fabAccountId = activeAccounts.firstOrNull()?.id ?: 0L
-            if (fabAccountId > 0L) {
+            val fabSourceId = sources.firstOrNull {
+                it.type == com.threemail.android.domain.model.CalendarSourceType.CALDAV
+            }?.id
+            if (fabAccountId > 0L || fabSourceId != null) {
                 ExtendedFloatingActionButton(
-                    onClick = { onCreateEvent(fabAccountId) },
+                    onClick = {
+                        if (fabAccountId > 0L) onCreateEvent(fabAccountId)
+                        else onCreateSourceEvent(fabSourceId!!)
+                    },
                     icon = { Icon(Icons.Default.Add, contentDescription = null) },
                     text = { Text(stringResource(R.string.calendar_new_event)) },
                     expanded = true
@@ -185,13 +193,22 @@ fun CalendarScreen(
                 onSelectDay = viewModel::selectDay,
                 onEventClick = { event ->
                     when {
+                        // CalDAV single events carry their object href and
+                        // open the full editor; ICS / recurring CalDAV rows
+                        // are read-only and get the detail card.
+                        event.sourceId != null && event.isEditable ->
+                            onEditEvent(0L, event.id)
                         event.sourceId != null -> sourceDetailEvent = event
                         event.eventId != null -> onEditEvent(event.accountId, event.id)
                     }
                 },
                 onCreateEvent = {
                     val accountId = selectedAccountId ?: activeAccounts.firstOrNull()?.id ?: 0L
+                    val caldavId = sources.firstOrNull {
+                        it.type == com.threemail.android.domain.model.CalendarSourceType.CALDAV
+                    }?.id
                     if (accountId > 0L) onCreateEvent(accountId)
+                    else if (caldavId != null) onCreateSourceEvent(caldavId)
                 },
                 onRefresh = viewModel::refresh
             )

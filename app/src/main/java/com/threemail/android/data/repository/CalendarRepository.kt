@@ -317,6 +317,7 @@ internal fun CalendarEvent.toEntity(): CalendarEventEntity = CalendarEventEntity
     organizer = organizer,
     attendeesJson = serializeAttendeeEmailsRaw(attendees),
     htmlLink = htmlLink,
+    etag = etag,
     syncedAt = syncedAt
 )
 
@@ -340,6 +341,7 @@ internal fun CalendarEventEntity.toDomain(): CalendarEvent = CalendarEvent(
     organizer = organizer,
     attendees = parseAttendees(attendeesJson),
     htmlLink = htmlLink,
+    etag = etag,
     syncedAt = syncedAt
 )
 

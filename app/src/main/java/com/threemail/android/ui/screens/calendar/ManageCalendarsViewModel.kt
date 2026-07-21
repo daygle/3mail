@@ -3,6 +3,7 @@ package com.threemail.android.ui.screens.calendar
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.threemail.android.data.remote.calendar.CalDavClient
 import com.threemail.android.data.repository.CalendarRepository
 import com.threemail.android.data.repository.CalendarSourceRepository
 import com.threemail.android.domain.model.Account
@@ -115,6 +116,63 @@ class ManageCalendarsViewModel @Inject constructor(
         viewModelScope.launch { calendarSourceRepository.setVisible(id, isVisible) }
     }
 
+    /* ---------- CalDAV connect flow ---------- */
+
+    /**
+     * Two-step connect: [discoverCalDav] probes the server and lands in
+     * [CalDavDiscovery.Found] (keeping the credentials so the add step can
+     * reuse them), then [addCalDavCalendars] subscribes the picked
+     * collections. [dismissCalDavDiscovery] abandons the flow.
+     */
+    private val _calDavDiscovery = MutableStateFlow<CalDavDiscovery>(CalDavDiscovery.Idle)
+    val calDavDiscovery: StateFlow<CalDavDiscovery> = _calDavDiscovery.asStateFlow()
+
+    fun discoverCalDav(url: String, username: String, password: String) {
+        if (url.isBlank()) {
+            _snackbar.value = SnackbarMessage.InvalidUrl
+            return
+        }
+        _calDavDiscovery.value = CalDavDiscovery.Discovering
+        viewModelScope.launch {
+            runCatching { calendarSourceRepository.discoverCalDav(url, username, password) }
+                .onSuccess { calendars ->
+                    if (calendars.isEmpty()) {
+                        _calDavDiscovery.value = CalDavDiscovery.Idle
+                        _snackbar.value = SnackbarMessage.SubscribeFailed("No calendars found")
+                    } else {
+                        _calDavDiscovery.value =
+                            CalDavDiscovery.Found(calendars, username, password)
+                    }
+                }
+                .onFailure {
+                    _calDavDiscovery.value = CalDavDiscovery.Idle
+                    _snackbar.value =
+                        SnackbarMessage.SubscribeFailed(it.message ?: "Unknown error")
+                }
+        }
+    }
+
+    fun addCalDavCalendars(selected: List<CalDavClient.DiscoveredCalendar>) {
+        val found = _calDavDiscovery.value as? CalDavDiscovery.Found ?: return
+        _calDavDiscovery.value = CalDavDiscovery.Idle
+        if (selected.isEmpty()) return
+        viewModelScope.launch {
+            _busy.value = true
+            runCatching {
+                calendarSourceRepository.addCalDavSources(selected, found.username, found.password)
+            }
+                .onSuccess { _snackbar.value = SnackbarMessage.CalDavAdded(it.size) }
+                .onFailure {
+                    _snackbar.value = SnackbarMessage.SubscribeFailed(it.message ?: "Unknown error")
+                }
+            _busy.value = false
+        }
+    }
+
+    fun dismissCalDavDiscovery() {
+        _calDavDiscovery.value = CalDavDiscovery.Idle
+    }
+
     fun deleteSource(source: CalendarSource) {
         viewModelScope.launch {
             calendarSourceRepository.delete(source.id)
@@ -172,4 +230,16 @@ sealed interface SnackbarMessage {
     data class SyncFailed(val accountEmail: String) : SnackbarMessage
     data object SyncSucceeded : SnackbarMessage
     data class SourceRemoved(val summary: String) : SnackbarMessage
+    data class CalDavAdded(val count: Int) : SnackbarMessage
+}
+
+/** State machine for the CalDAV connect dialog flow. */
+sealed interface CalDavDiscovery {
+    data object Idle : CalDavDiscovery
+    data object Discovering : CalDavDiscovery
+    data class Found(
+        val calendars: List<CalDavClient.DiscoveredCalendar>,
+        val username: String,
+        val password: String
+    ) : CalDavDiscovery
 }

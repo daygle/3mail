@@ -63,10 +63,15 @@ sealed class Screen(val route: String) {
 
     data object Calendar : Screen("calendar")
 
-    data object CalendarEvent : Screen("calendar_event/{accountId}/{eventId}") {
-        /** eventId = -1 means "create a new event"; any other value means "edit existing". */
-        fun createRoute(accountId: Long, eventId: Long = -1L): String =
-            "calendar_event/$accountId/$eventId"
+    data object CalendarEvent : Screen("calendar_event/{accountId}/{eventId}?sourceId={sourceId}") {
+        /**
+         * eventId = -1 means "create a new event"; any other value means
+         * "edit existing". A positive [sourceId] targets a CalDAV
+         * subscription instead of a Google account (create mode only —
+         * edits carry their source on the loaded event).
+         */
+        fun createRoute(accountId: Long, eventId: Long = -1L, sourceId: Long = -1L): String =
+            "calendar_event/$accountId/$eventId?sourceId=$sourceId"
     }
 
     /**

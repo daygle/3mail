@@ -27,10 +27,18 @@ data class CalendarEvent(
     val organizer: String? = null,
     val attendees: List<String> = emptyList(),
     val htmlLink: String? = null,
+    /** CalDAV concurrency token; see the entity field of the same name. */
+    val etag: String? = null,
     val syncedAt: Long = 0
 ) {
-    /** Standalone-source events are read-only caches of a remote feed. */
-    val isEditable: Boolean get() = sourceId == null && (eventId != null || id > 0)
+    /**
+     * Google events are editable; standalone-source events only when the
+     * source protocol can write back (CalDAV single-instance objects, which
+     * carry their href in [eventId] — ICS feeds and recurring CalDAV
+     * expansions leave it null and stay read-only).
+     */
+    val isEditable: Boolean
+        get() = if (sourceId == null) (eventId != null || id > 0) else eventId != null
 
     companion object {
         const val DEFAULT_CALENDAR_ID = "primary"

@@ -63,5 +63,12 @@ data class CalendarEventEntity(
     val organizer: String? = null,
     val attendeesJson: String = "[]",
     val htmlLink: String? = null,
+    /**
+     * CalDAV concurrency token for the backing calendar object. Only set on
+     * events from a CALDAV source whose object holds a single instance
+     * (recurring expansions are read-only); paired with `eventId`, which for
+     * CalDAV rows carries the object's href.
+     */
+    val etag: String? = null,
     val syncedAt: Long = 0
 )

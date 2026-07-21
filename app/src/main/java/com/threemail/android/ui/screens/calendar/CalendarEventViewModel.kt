@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.repository.CalendarRepository
-import com.threemail.android.domain.model.Account
+import com.threemail.android.data.repository.CalendarSourceRepository
 import com.threemail.android.domain.model.CalendarEvent
 import com.threemail.android.domain.model.CalendarEventStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -33,7 +33,8 @@ import javax.inject.Inject
 @HiltViewModel
 class CalendarEventViewModel @Inject constructor(
     private val accountRepository: AccountRepository,
-    private val calendarRepository: CalendarRepository
+    private val calendarRepository: CalendarRepository,
+    private val calendarSourceRepository: CalendarSourceRepository
 ) : ViewModel() {
 
     private val zone: ZoneId = ZoneId.systemDefault()
@@ -47,18 +48,42 @@ class CalendarEventViewModel @Inject constructor(
     private var initialAccountId: Long = 0L
     private var existingEventId: Long = 0L
 
-    fun bindInitial(accountId: Long, eventId: Long) {
+    /**
+     * The Room row backing edit mode, kept so a CalDAV save can carry the
+     * object's href / iCalUID / etag through unchanged — the form only edits
+     * the user-visible fields.
+     */
+    private var loadedEvent: CalendarEvent? = null
+
+    fun bindInitial(accountId: Long, eventId: Long, sourceId: Long = 0L) {
         if (_state.value.isBound) return
         initialAccountId = accountId
         existingEventId = eventId
         viewModelScope.launch {
             val account = if (accountId > 0L) accountRepository.getAccountById(accountId) else null
             if (eventId <= 0L) {
-                _state.value = CalendarFormUiState.empty(zone).copy(accountId = accountId, accountEmail = account?.email ?: "")
+                // Create mode: a positive sourceId targets a CalDAV
+                // collection instead of a Google calendar.
+                val source = if (sourceId > 0L) {
+                    calendarSourceRepository.getSources().firstOrNull { it.id == sourceId }
+                } else {
+                    null
+                }
+                _state.value = CalendarFormUiState.empty(zone).copy(
+                    accountId = accountId,
+                    sourceId = source?.id,
+                    accountEmail = source?.displayName ?: account?.email ?: ""
+                )
             } else {
                 val event = calendarRepository.getById(eventId)
                 if (event != null) {
-                    _state.value = CalendarFormUiState.fromExisting(zone, account?.email ?: "", event)
+                    loadedEvent = event
+                    val sourceName = event.sourceId?.let { sid ->
+                        calendarSourceRepository.getSources().firstOrNull { it.id == sid }?.displayName
+                    }
+                    _state.value = CalendarFormUiState.fromExisting(
+                        zone, sourceName ?: account?.email ?: "", event
+                    )
                 } else {
                     _state.value = CalendarFormUiState.empty(zone).copy(accountId = accountId, accountEmail = account?.email ?: "")
                 }
@@ -154,20 +179,38 @@ class CalendarEventViewModel @Inject constructor(
             _saveResult.value = CalendarSaveResult.Invalid
             return
         }
-        if (initialAccountId <= 0L) {
-            _saveResult.value = CalendarSaveResult.Error("No Google account available.")
+        val sourceId = snapshot.sourceId
+        if (sourceId == null && initialAccountId <= 0L) {
+            _saveResult.value = CalendarSaveResult.Error("No writable calendar available.")
             return
         }
         _saveResult.value = CalendarSaveResult.Saving
         viewModelScope.launch {
             try {
-                val account = accountRepository.getAccountById(initialAccountId)
-                    ?: throw IllegalStateException("Account $initialAccountId not found")
-                val draft = snapshot.toDomain(initialAccountId)
-                val saved = if (snapshot.isEditing) {
-                    calendarRepository.updateRemote(account, draft.calendarId, draft)
+                val saved = if (sourceId != null) {
+                    // CalDAV path: merge the edited fields onto the loaded
+                    // row so href / iCalUID / etag survive the round-trip.
+                    val draft = snapshot.toDomain(CalendarEvent.NO_ACCOUNT).copy(
+                        sourceId = sourceId,
+                        calendarId = "source:$sourceId",
+                        eventId = loadedEvent?.eventId,
+                        iCalUID = loadedEvent?.iCalUID,
+                        etag = loadedEvent?.etag
+                    )
+                    if (snapshot.isEditing) {
+                        calendarSourceRepository.updateCalDavEvent(draft)
+                    } else {
+                        calendarSourceRepository.createCalDavEvent(sourceId, draft)
+                    }
                 } else {
-                    calendarRepository.createRemote(account, draft.calendarId, draft)
+                    val account = accountRepository.getAccountById(initialAccountId)
+                        ?: throw IllegalStateException("Account $initialAccountId not found")
+                    val draft = snapshot.toDomain(initialAccountId)
+                    if (snapshot.isEditing) {
+                        calendarRepository.updateRemote(account, draft.calendarId, draft)
+                    } else {
+                        calendarRepository.createRemote(account, draft.calendarId, draft)
+                    }
                 }
                 _saveResult.value = CalendarSaveResult.Success(saved.id)
             } catch (e: Exception) {
@@ -189,9 +232,14 @@ class CalendarEventViewModel @Inject constructor(
         _saveResult.value = CalendarSaveResult.Deleting
         viewModelScope.launch {
             try {
-                val account = accountRepository.getAccountById(initialAccountId)
-                    ?: throw IllegalStateException("Account $initialAccountId not found")
-                calendarRepository.deleteRemote(account, snapshot.calendarId, remoteId)
+                val sourced = loadedEvent?.takeIf { it.sourceId != null }
+                if (sourced != null) {
+                    calendarSourceRepository.deleteCalDavEvent(sourced)
+                } else {
+                    val account = accountRepository.getAccountById(initialAccountId)
+                        ?: throw IllegalStateException("Account $initialAccountId not found")
+                    calendarRepository.deleteRemote(account, snapshot.calendarId, remoteId)
+                }
                 _saveResult.value = CalendarSaveResult.Deleted
             } catch (e: Exception) {
                 _saveResult.value = CalendarSaveResult.Error(e.message ?: e.javaClass.simpleName)
@@ -220,6 +268,9 @@ data class CalendarFormUiState(
     val remoteEventId: String? = null,
     val localId: Long = 0L,
     val accountId: Long = 0L,
+    /** Non-null when the event lives in a CalDAV source instead of Google. */
+    val sourceId: Long? = null,
+    /** Display label: the account email, or the source's name for CalDAV. */
     val accountEmail: String = "",
     val title: String = "",
     val description: String = "",
@@ -232,7 +283,8 @@ data class CalendarFormUiState(
     val status: CalendarEventStatus = CalendarEventStatus.CONFIRMED
 ) {
     val canSave: Boolean
-        get() = title.isNotBlank() && startMs <= endMs && accountId > 0L &&
+        get() = title.isNotBlank() && startMs <= endMs &&
+            (accountId > 0L || sourceId != null) &&
             (!isEditing || remoteEventId != null)
 
     fun toDomain(accountId: Long): CalendarEvent = CalendarEvent(
@@ -271,6 +323,7 @@ data class CalendarFormUiState(
                 remoteEventId = event.eventId,
                 localId = event.id,
                 accountId = event.accountId,
+                sourceId = event.sourceId,
                 accountEmail = accountEmail,
                 title = event.title,
                 description = event.description ?: "",

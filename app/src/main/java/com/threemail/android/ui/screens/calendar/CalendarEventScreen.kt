@@ -75,10 +75,11 @@ fun CalendarEventScreen(
     viewModel: CalendarEventViewModel,
     accountId: Long,
     eventId: Long,
+    sourceId: Long = -1L,
     onNavigateBack: () -> Unit
 ) {
-    LaunchedEffect(accountId, eventId) {
-        viewModel.bindInitial(accountId, eventId)
+    LaunchedEffect(accountId, eventId, sourceId) {
+        viewModel.bindInitial(accountId, eventId, sourceId)
     }
     val state by viewModel.state.collectAsState()
     val saveResult by viewModel.saveResult.collectAsState()

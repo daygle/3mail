@@ -4,8 +4,10 @@ import com.threemail.android.data.local.dao.CalendarEventDao
 import com.threemail.android.data.local.dao.CalendarSourceDao
 import com.threemail.android.data.local.entity.CalendarEventEntity
 import com.threemail.android.data.local.entity.CalendarSourceEntity
+import com.threemail.android.data.remote.calendar.CalDavClient
 import com.threemail.android.data.remote.calendar.IcsCalendarClient
 import com.threemail.android.data.remote.calendar.IcsParser
+import com.threemail.android.data.remote.calendar.IcsWriter
 import com.threemail.android.domain.model.CalendarEvent
 import com.threemail.android.domain.model.CalendarSource
 import com.threemail.android.domain.model.CalendarSourceType
@@ -13,6 +15,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -30,7 +33,8 @@ import javax.inject.Singleton
 class CalendarSourceRepository @Inject constructor(
     private val sourceDao: CalendarSourceDao,
     private val eventDao: CalendarEventDao,
-    private val icsClient: IcsCalendarClient
+    private val icsClient: IcsCalendarClient,
+    private val calDavClient: CalDavClient
 ) {
 
     fun observeSources(): Flow<List<CalendarSource>> =
@@ -77,6 +81,42 @@ class CalendarSourceRepository @Inject constructor(
         return sourceDao.getById(id)!!.toDomain()
     }
 
+    /** Finds the event-capable collections behind a CalDAV server URL. */
+    suspend fun discoverCalDav(
+        url: String,
+        username: String,
+        password: String
+    ): List<CalDavClient.DiscoveredCalendar> =
+        calDavClient.discoverCalendars(url, username, password)
+
+    /**
+     * Adds one source per picked CalDAV collection and pulls its default
+     * event window. The password stays in the entity — the domain model
+     * never carries it.
+     */
+    suspend fun addCalDavSources(
+        calendars: List<CalDavClient.DiscoveredCalendar>,
+        username: String,
+        password: String
+    ): List<CalendarSource> {
+        val (windowStart, windowEnd) = defaultWindow()
+        return calendars.map { calendar ->
+            val id = sourceDao.insert(
+                CalendarSourceEntity(
+                    type = CalendarSourceType.CALDAV.name,
+                    url = calendar.url,
+                    displayName = calendar.displayName,
+                    color = calendar.color,
+                    username = username,
+                    password = password
+                )
+            )
+            val source = sourceDao.getById(id)!!.toDomain()
+            syncSource(source, windowStart, windowEnd)
+            sourceDao.getById(id)!!.toDomain()
+        }
+    }
+
     suspend fun setVisible(id: Long, isVisible: Boolean) = sourceDao.setVisible(id, isVisible)
 
     suspend fun setSyncEnabled(id: Long, enabled: Boolean) = sourceDao.setSyncEnabled(id, enabled)
@@ -98,11 +138,128 @@ class CalendarSourceRepository @Inject constructor(
         windowStartMs: Long,
         windowEndMs: Long
     ): Result<Unit> = runCatching {
-        val body = icsClient.fetch(source.url)
-        cacheParsedEvents(source.id, body, windowStartMs, windowEndMs)
+        when (source.type) {
+            CalendarSourceType.ICS -> {
+                val body = icsClient.fetch(source.url)
+                cacheParsedEvents(source.id, body, windowStartMs, windowEndMs)
+            }
+            CalendarSourceType.CALDAV -> syncCalDav(source, windowStartMs, windowEndMs)
+        }
         sourceDao.markSynced(source.id, System.currentTimeMillis())
     }.onFailure { e ->
         runCatching { sourceDao.markSyncError(source.id, e.message ?: "Sync failed") }
+    }
+
+    /**
+     * CalDAV refresh: `calendar-query` the collection's window, then expand
+     * each returned object with the same ICS parser the feed path uses. An
+     * object that expands to exactly one instance keeps its href/etag on the
+     * cached row and stays editable; recurring expansions drop them and
+     * render read-only (editing one occurrence would rewrite the whole
+     * recurring object).
+     */
+    private suspend fun syncCalDav(
+        source: CalendarSource,
+        windowStartMs: Long,
+        windowEndMs: Long
+    ) {
+        val (username, password) = credentialsFor(source.id)
+        val objects = calDavClient.fetchEvents(
+            source.url, username, password, windowStartMs, windowEndMs
+        )
+        val now = System.currentTimeMillis()
+        val rows = objects.flatMap { obj ->
+            val parsed = IcsParser.parse(obj.icsData, windowStartMs, windowEndMs)
+            val editable = parsed.size == 1
+            parsed.map { p ->
+                CalendarEventEntity(
+                    accountId = null,
+                    sourceId = source.id,
+                    calendarId = "source:${source.id}",
+                    eventId = obj.url.takeIf { editable },
+                    iCalUID = p.uid,
+                    title = p.title,
+                    description = p.description,
+                    location = p.location,
+                    startEpochMs = p.startEpochMs,
+                    endEpochMs = p.endEpochMs,
+                    allDay = p.allDay,
+                    timezone = p.timezone,
+                    status = p.status,
+                    organizer = p.organizer,
+                    etag = obj.etag.takeIf { editable },
+                    syncedAt = now
+                )
+            }
+        }
+        eventDao.replaceForSource(source.id, rows)
+    }
+
+    /* ---------- CalDAV write-back ---------- */
+
+    /** Creates a new single event in the CalDAV collection behind [sourceId]. */
+    suspend fun createCalDavEvent(sourceId: Long, draft: CalendarEvent): CalendarEvent {
+        val source = sourceDao.getById(sourceId)?.toDomain()
+            ?: throw IllegalStateException("Calendar source $sourceId not found")
+        val (username, password) = credentialsFor(sourceId)
+        val uid = UUID.randomUUID().toString()
+        val objectUrl = source.url.trimEnd('/') + "/" + uid + ".ics"
+        val etag = calDavClient.putEvent(
+            objectUrl, username, password,
+            IcsWriter.writeEvent(draft, uid),
+            etag = null
+        )
+        val entity = draft.copy(
+            sourceId = sourceId,
+            calendarId = "source:$sourceId",
+            eventId = objectUrl,
+            iCalUID = uid,
+            etag = etag,
+            syncedAt = System.currentTimeMillis()
+        ).toEntity()
+        val id = eventDao.insert(entity)
+        return entity.copy(id = id).toDomain()
+    }
+
+    /** Updates the CalDAV object behind [event] (requires its href in `eventId`). */
+    suspend fun updateCalDavEvent(event: CalendarEvent): CalendarEvent {
+        val sourceId = event.sourceId
+            ?: throw IllegalArgumentException("Not a calendar-source event")
+        val href = event.eventId
+            ?: throw IllegalArgumentException("Event has no server object to update")
+        val (username, password) = credentialsFor(sourceId)
+        val uid = event.iCalUID ?: href.substringAfterLast('/').removeSuffix(".ics")
+        val newEtag = calDavClient.putEvent(
+            href, username, password,
+            IcsWriter.writeEvent(event, uid),
+            etag = event.etag
+        )
+        val entity = event.copy(
+            iCalUID = uid,
+            etag = newEtag,
+            syncedAt = System.currentTimeMillis()
+        ).toEntity()
+        eventDao.update(entity)
+        return entity.toDomain()
+    }
+
+    /** Deletes the CalDAV object behind [event] remotely, then locally. */
+    suspend fun deleteCalDavEvent(event: CalendarEvent) {
+        val sourceId = event.sourceId
+            ?: throw IllegalArgumentException("Not a calendar-source event")
+        val href = event.eventId
+            ?: throw IllegalArgumentException("Event has no server object to delete")
+        val (username, password) = credentialsFor(sourceId)
+        calDavClient.deleteEvent(href, username, password, event.etag)
+        eventDao.deleteById(event.id)
+    }
+
+    private suspend fun credentialsFor(sourceId: Long): Pair<String, String> {
+        val entity = sourceDao.getById(sourceId)
+            ?: throw IllegalStateException("Calendar source $sourceId not found")
+        val username = entity.username
+            ?: throw IllegalStateException("No username stored for this calendar")
+        return username to (entity.password ?: "")
     }
 
     /** Refreshes every sync-enabled source over the default window. */
