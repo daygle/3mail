@@ -104,8 +104,8 @@ class CalendarEventViewModel @Inject constructor(
             val span = current.endMs - current.startMs
             current.copy(startMs = sMs, endMs = sMs + span)
         } else {
-            val time = LocalTime.ofInstant(java.time.Instant.ofEpochMilli(current.startMs), zone)
-            val eTime = LocalTime.ofInstant(java.time.Instant.ofEpochMilli(current.endMs), zone)
+            val time = java.time.Instant.ofEpochMilli(current.startMs).atZone(zone).toLocalTime()
+            val eTime = java.time.Instant.ofEpochMilli(current.endMs).atZone(zone).toLocalTime()
             current.copy(
                 startMs = date.atTime(time).atZone(zone).toInstant().toEpochMilli(),
                 endMs = date.atTime(eTime).atZone(zone).toInstant().toEpochMilli()
@@ -116,7 +116,7 @@ class CalendarEventViewModel @Inject constructor(
     fun setStartTime(time: LocalTime) = _state.update { current ->
         if (current.allDay) current
         else {
-            val date = LocalDate.ofInstant(java.time.Instant.ofEpochMilli(current.startMs), zone)
+            val date = java.time.Instant.ofEpochMilli(current.startMs).atZone(zone).toLocalDate()
             current.copy(startMs = date.atTime(time).atZone(zone).toInstant().toEpochMilli())
         }
     }
@@ -132,7 +132,7 @@ class CalendarEventViewModel @Inject constructor(
             val eMs = date.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
             current.copy(endMs = eMs)
         } else {
-            val time = LocalTime.ofInstant(java.time.Instant.ofEpochMilli(current.endMs), zone)
+            val time = java.time.Instant.ofEpochMilli(current.endMs).atZone(zone).toLocalTime()
             val newEnd = date.atTime(time).atZone(zone).toInstant().toEpochMilli()
             // Keep duration.
             val duration = current.endMs - current.startMs
@@ -143,7 +143,7 @@ class CalendarEventViewModel @Inject constructor(
     fun setEndTime(time: LocalTime) = _state.update { current ->
         if (current.allDay) current
         else {
-            val date = LocalDate.ofInstant(java.time.Instant.ofEpochMilli(current.endMs), zone)
+            val date = java.time.Instant.ofEpochMilli(current.endMs).atZone(zone).toLocalDate()
             current.copy(endMs = date.atTime(time).atZone(zone).toInstant().toEpochMilli())
         }
     }

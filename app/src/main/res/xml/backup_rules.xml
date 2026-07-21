@@ -11,6 +11,10 @@
         and force the user to re-enter every IMAP password.
     -->
     <exclude domain="sharedpref" path="threemail_credentials.xml"/>
-    <exclude domain="database" path="."/>
-    <exclude domain="file" path="."/>
+    <!--
+        Only the sharedpref domain is included above, so the local mail cache
+        (database + files domains) is already excluded from backups by default -
+        an explicit <exclude> on a non-included domain is redundant and rejected
+        by lint's FullBackupContent check.
+    -->
 </full-backup-content>

@@ -41,12 +41,10 @@ jobs:
       - name: Assemble debug APK
         run: ./gradlew assembleDebug --stacktrace
 
-      # Runs Android lint but does not gate the build yet: the project has no
-      # baseline, so pre-existing findings shouldn't turn CI red on the first
-      # run. Flip continue-on-error off (or add a lint baseline) once the
-      # report is clean.
+      # Android lint gates the build: the report is clean (0 errors), so any
+      # newly introduced lint error should turn CI red. lintDebug aborts on
+      # errors by default; warnings/hints do not fail the build.
       - name: Android lint
-        continue-on-error: true
         run: ./gradlew lintDebug --stacktrace
 
       # Lint's console output only details the first failure; dump the full

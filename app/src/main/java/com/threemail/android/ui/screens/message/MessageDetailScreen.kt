@@ -120,6 +120,9 @@ fun MessageDetailScreen(
     val state by viewModel.uiState.collectAsState()
     val message = state.message
     val context = LocalContext.current
+    // Resolved here because stringResource is @Composable and can't be called
+    // from inside the file-open LaunchedEffect coroutine below.
+    val openWithLabel = stringResource(R.string.open_with)
     // Top-bar customisation: read the hidden set once per recomposition and
     // pass it into the inline actions block. The Hilt-scoped SettingsViewModel
     // shares the singleton DataStore with the one in Settings, so adding a
@@ -172,7 +175,7 @@ fun MessageDetailScreen(
                 setDataAndType(uri, context.contentResolver.getType(uri) ?: "*/*")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            runCatching { context.startActivity(Intent.createChooser(intent, context.getString(R.string.open_with))) }
+            runCatching { context.startActivity(Intent.createChooser(intent, openWithLabel)) }
             viewModel.onFileOpened()
         }
     }

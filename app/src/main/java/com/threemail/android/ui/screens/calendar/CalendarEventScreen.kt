@@ -48,7 +48,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.threemail.android.ui.theme.appTopBarColors
@@ -83,7 +82,13 @@ fun CalendarEventScreen(
 
     val showDeleteDialog = remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
-    val context = LocalContext.current
+
+    // Resolved at composable scope (stringResource is @Composable and can't be
+    // called from inside the LaunchedEffect coroutine below). The save-failed
+    // string carries a %1$s placeholder we fill in with the runtime error.
+    val savedMessage = stringResource(R.string.calendar_event_saved)
+    val deletedMessage = stringResource(R.string.calendar_event_deleted)
+    val saveFailedTemplate = stringResource(R.string.calendar_event_save_failed)
 
     /**
      * Bridges the VM's one-shot save events to the M3 Snackbar so the user actually
@@ -94,7 +99,7 @@ fun CalendarEventScreen(
         when (val current = saveResult) {
             is CalendarSaveResult.Success -> {
                 snackbarHostState.showSnackbar(
-                    message = context.getString(R.string.calendar_event_saved),
+                    message = savedMessage,
                     duration = SnackbarDuration.Short
                 )
                 viewModel.consumeResult()
@@ -102,7 +107,7 @@ fun CalendarEventScreen(
             }
             is CalendarSaveResult.Deleted -> {
                 snackbarHostState.showSnackbar(
-                    message = context.getString(R.string.calendar_event_deleted),
+                    message = deletedMessage,
                     duration = SnackbarDuration.Short
                 )
                 viewModel.consumeResult()
@@ -110,7 +115,7 @@ fun CalendarEventScreen(
             }
             is CalendarSaveResult.Error -> {
                 snackbarHostState.showSnackbar(
-                    message = context.getString(R.string.calendar_event_save_failed, current.message),
+                    message = saveFailedTemplate.format(current.message),
                     duration = SnackbarDuration.Long
                 )
                 viewModel.consumeResult()
