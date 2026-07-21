@@ -139,6 +139,11 @@
     <string name="new_mail_notification_channel_description">Notifies you when new mail arrives</string>
     <string name="notification_unknown_sender">Unknown sender</string>
     <string name="notification_no_subject">(No subject)</string>
+
+    <!-- Message headers viewer -->
+    <string name="headers_show">Show headers</string>
+    <string name="headers_title">Message headers</string>
+    <string name="headers_close">Close</string>
     <string name="default_web_client_id" translatable="false">YOUR_WEB_CLIENT_ID</string>
 
     <!-- Trash policy settings -->
