@@ -143,6 +143,7 @@ dependencies {
     // Image loading
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
+    implementation(libs.okhttp3)
 
     // Encrypted credential storage uses the platform Android Keystore directly
     // (see CredentialStore.kt); no androidx.security:security-crypto needed.

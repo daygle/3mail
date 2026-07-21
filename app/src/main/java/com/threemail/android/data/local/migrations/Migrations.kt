@@ -511,6 +511,106 @@ val MIGRATION_21_22: Migration = object : Migration(21, 22) {
 }
 
 /**
+ * Standalone calendar sources (ICS / CalDAV subscriptions not backed by a
+ * signed-in mail account).
+ *
+ * Two pieces:
+ *  1. Creates the `calendar_sources` table backing
+ *     [com.threemail.android.data.local.entity.CalendarSourceEntity].
+ *  2. Rebuilds `calendar_events` so `accountId` becomes nullable and a
+ *     nullable `sourceId` FK onto `calendar_sources` is added — a cached
+ *     event now belongs to either a Google account or a standalone source.
+ *     SQLite can't relax NOT NULL or add an FK via ALTER, so this is the
+ *     standard create-copy-drop-rename dance; the four indices are
+ *     recreated with Room's canonical `index_<table>_<cols>` names so the
+ *     post-migration schema check passes.
+ */
+val MIGRATION_22_23: Migration = object : Migration(22, 23) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `calendar_sources` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`type` TEXT NOT NULL, " +
+                "`url` TEXT NOT NULL, " +
+                "`displayName` TEXT NOT NULL, " +
+                "`color` TEXT, " +
+                "`username` TEXT, " +
+                "`password` TEXT, " +
+                "`isVisible` INTEGER NOT NULL, " +
+                "`syncEnabled` INTEGER NOT NULL, " +
+                "`lastSyncedAt` INTEGER, " +
+                "`lastError` TEXT)"
+        )
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `calendar_events_new` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`accountId` INTEGER, " +
+                "`sourceId` INTEGER, " +
+                "`calendarId` TEXT NOT NULL, " +
+                "`eventId` TEXT, " +
+                "`iCalUID` TEXT, " +
+                "`title` TEXT NOT NULL, " +
+                "`description` TEXT, " +
+                "`location` TEXT, " +
+                "`startEpochMs` INTEGER NOT NULL, " +
+                "`endEpochMs` INTEGER NOT NULL, " +
+                "`allDay` INTEGER NOT NULL, " +
+                "`timezone` TEXT NOT NULL, " +
+                "`status` TEXT NOT NULL, " +
+                "`organizer` TEXT, " +
+                "`attendeesJson` TEXT NOT NULL, " +
+                "`htmlLink` TEXT, " +
+                "`syncedAt` INTEGER NOT NULL, " +
+                "FOREIGN KEY(`accountId`) REFERENCES `accounts`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE, " +
+                "FOREIGN KEY(`sourceId`) REFERENCES `calendar_sources`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE)"
+        )
+        db.execSQL(
+            "INSERT INTO `calendar_events_new` (" +
+                "`id`, `accountId`, `sourceId`, `calendarId`, `eventId`, `iCalUID`, " +
+                "`title`, `description`, `location`, `startEpochMs`, `endEpochMs`, " +
+                "`allDay`, `timezone`, `status`, `organizer`, `attendeesJson`, " +
+                "`htmlLink`, `syncedAt`) " +
+                "SELECT `id`, `accountId`, NULL, `calendarId`, `eventId`, `iCalUID`, " +
+                "`title`, `description`, `location`, `startEpochMs`, `endEpochMs`, " +
+                "`allDay`, `timezone`, `status`, `organizer`, `attendeesJson`, " +
+                "`htmlLink`, `syncedAt` FROM `calendar_events`"
+        )
+        db.execSQL("DROP TABLE `calendar_events`")
+        db.execSQL("ALTER TABLE `calendar_events_new` RENAME TO `calendar_events`")
+        db.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS " +
+                "`index_calendar_events_accountId_calendarId_eventId` " +
+                "ON `calendar_events` (`accountId`, `calendarId`, `eventId`)"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_calendar_events_accountId_startEpochMs` " +
+                "ON `calendar_events` (`accountId`, `startEpochMs`)"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_calendar_events_accountId_endEpochMs` " +
+                "ON `calendar_events` (`accountId`, `endEpochMs`)"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_calendar_events_sourceId` " +
+                "ON `calendar_events` (`sourceId`)"
+        )
+    }
+}
+
+/**
+ * CalDAV write-back: cached events gain an `etag` (the server's concurrency
+ * token for the backing calendar object) so edits can use `If-Match` and
+ * detect concurrent modification instead of silently overwriting.
+ */
+val MIGRATION_23_24: Migration = object : Migration(23, 24) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE calendar_events ADD COLUMN etag TEXT")
+    }
+}
+
+/**
  * Idempotently creates the FTS4 virtual table, the keep-in-sync triggers and an
  * initial backfill.  All statements use IF NOT EXISTS so a partial state can be
  * resumed without crashing; the backfill is a no-op on empty `messages`.

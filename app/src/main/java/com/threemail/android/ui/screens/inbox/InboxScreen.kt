@@ -214,12 +214,15 @@ fun InboxScreen(
 
     ModalNavigationDrawer(
         drawerState = drawerState,
-        // Open the drawer only via the hamburger button - never by swipe. The
-        // edge/diagonal swipe-to-open competes with the message list's
-        // pull-to-refresh and swipe-to-triage gestures, so a downward pull to
-        // refresh could instead yank the drawer open. Disabling the drawer's
-        // own gesture lets pull-to-refresh own the vertical drag cleanly.
-        gesturesEnabled = false,
+        // Enable drawer gestures only while it's already open. Closed, gestures
+        // are off so the edge/diagonal swipe-to-open can't compete with the
+        // message list's pull-to-refresh / swipe-to-triage (a downward pull
+        // would otherwise yank the drawer open). Open, gestures are on so the
+        // scrim tap and swipe both close it - Material 3 gates BOTH the swipe
+        // and the scrim-tap-to-close on `gesturesEnabled`, so a flat `false`
+        // left the drawer impossible to dismiss when the content behind it had
+        // nothing tappable (e.g. the empty "no accounts" state).
+        gesturesEnabled = drawerState.isOpen,
         drawerContent = {
             FolderDrawerContent(
                 account = state.selectedAccount,

@@ -301,7 +301,8 @@ private fun Event.toEntity(accountId: Long, calendarId: String, existingId: Long
 
 internal fun CalendarEvent.toEntity(): CalendarEventEntity = CalendarEventEntity(
     id = id,
-    accountId = accountId,
+    accountId = accountId.takeIf { it != CalendarEvent.NO_ACCOUNT },
+    sourceId = sourceId,
     calendarId = calendarId,
     eventId = eventId,
     iCalUID = iCalUID,
@@ -316,14 +317,16 @@ internal fun CalendarEvent.toEntity(): CalendarEventEntity = CalendarEventEntity
     organizer = organizer,
     attendeesJson = serializeAttendeeEmailsRaw(attendees),
     htmlLink = htmlLink,
+    etag = etag,
     syncedAt = syncedAt
 )
 
 /* ---------- Entity -> Domain mapping ---------- */
 
-private fun CalendarEventEntity.toDomain(): CalendarEvent = CalendarEvent(
+internal fun CalendarEventEntity.toDomain(): CalendarEvent = CalendarEvent(
     id = id,
-    accountId = accountId,
+    accountId = accountId ?: CalendarEvent.NO_ACCOUNT,
+    sourceId = sourceId,
     calendarId = calendarId,
     eventId = eventId,
     iCalUID = iCalUID,
@@ -338,6 +341,7 @@ private fun CalendarEventEntity.toDomain(): CalendarEvent = CalendarEvent(
     organizer = organizer,
     attendees = parseAttendees(attendeesJson),
     htmlLink = htmlLink,
+    etag = etag,
     syncedAt = syncedAt
 )
 

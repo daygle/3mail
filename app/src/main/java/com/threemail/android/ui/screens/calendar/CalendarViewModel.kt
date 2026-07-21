@@ -4,13 +4,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.repository.CalendarRepository
+import com.threemail.android.data.repository.CalendarSourceRepository
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.AccountType
 import com.threemail.android.domain.model.CalendarEvent
+import com.threemail.android.domain.model.CalendarSource
 import com.threemail.android.sync.SyncScheduler
 import com.threemail.android.domain.model.occursOn
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -19,7 +22,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -35,16 +37,21 @@ private const val OVERFLOW_DAYS = 7
 /**
  * State holder for the Calendar screen.
  *
- * Observes every active Gmail account that has `calendarSyncEnabled`, then projects the
- * combined flow onto a 6-week grid window. The UI is intentionally a single VM rather than
- * a Compose state object so the data layer can fan-in multiple Google Calendar accounts
- * for users with multiple Google identities.
+ * Aggregates two event feeds onto one 6-week grid window:
+ *  - every active Gmail account with `calendarSyncEnabled` (via
+ *    [CalendarRepository]), and
+ *  - every visible standalone subscription — ICS feeds — (via
+ *    [CalendarSourceRepository]).
+ *
+ * The optional filter narrows to a single account or a single source;
+ * `null`/`null` aggregates everything.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class CalendarViewModel @Inject constructor(
     private val accountRepository: AccountRepository,
     private val calendarRepository: CalendarRepository,
+    private val calendarSourceRepository: CalendarSourceRepository,
     private val syncScheduler: SyncScheduler
 ) : ViewModel() {
 
@@ -58,18 +65,27 @@ class CalendarViewModel @Inject constructor(
     val selectedDay: StateFlow<LocalDate> = _selectedDay.asStateFlow()
 
     /**
-     * Optional account filter. `null` means "aggregate every active Gmail account"; a
-     * non-null value narrows both the grid and the day agenda to events from that
-     * account. Persists across month changes within the same ViewModel lifetime.
+     * Optional account filter. `null` means "aggregate everything"; a
+     * non-null value narrows both the grid and the day agenda to events from
+     * that account. Mutually exclusive with [selectedSourceId].
      */
     private val _selectedAccountId = MutableStateFlow<Long?>(null)
     val selectedAccountId: StateFlow<Long?> = _selectedAccountId.asStateFlow()
+
+    /** Optional standalone-source filter; mutually exclusive with [selectedAccountId]. */
+    private val _selectedSourceId = MutableStateFlow<Long?>(null)
+    val selectedSourceId: StateFlow<Long?> = _selectedSourceId.asStateFlow()
 
     val activeAccounts: StateFlow<List<Account>> = accountRepository
         .getAccounts()
         .map { all ->
             all.filter { it.isActive && it.calendarSyncEnabled && it.accountType == AccountType.GMAIL }
         }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Every standalone subscription, for the filter chips and empty-state check. */
+    val sources: StateFlow<List<CalendarSource>> = calendarSourceRepository
+        .observeSources()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /** The first day of the visible 6-week grid, plus one week of overflow on each side. */
@@ -82,22 +98,48 @@ class CalendarViewModel @Inject constructor(
             return gridStart to gridEnd
         }
 
+    private data class FilterState(
+        val accounts: List<Account>,
+        val month: YearMonth,
+        val accountFilter: Long?,
+        val sourceFilter: Long?
+    )
+
     val eventsByDay: StateFlow<Map<LocalDate, List<CalendarEvent>>> = combine(
         activeAccounts,
         selectedMonth,
-        selectedAccountId
-    ) { accounts, month, filter -> Triple(accounts, month, filter) }
-        .flatMapLatest { (accounts, _, filter) ->
+        selectedAccountId,
+        selectedSourceId
+    ) { accounts, month, accountFilter, sourceFilter ->
+        FilterState(accounts, month, accountFilter, sourceFilter)
+    }
+        .flatMapLatest { state ->
             val (windowStart, windowEnd) = visibleWindowLocalDates
             val startMs = windowStart.atStartOfDay(zone).toInstant().toEpochMilli()
             val endMsExclusive = windowEnd.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-            val filtered = if (filter == null) accounts else accounts.filter { it.id == filter }
-            if (filtered.isEmpty()) {
+
+            val accountFlows: List<Flow<List<CalendarEvent>>> = when {
+                state.sourceFilter != null -> emptyList()
+                state.accountFilter != null -> state.accounts.filter { it.id == state.accountFilter }
+                else -> state.accounts
+            }.map { acc -> calendarRepository.getEventsInRange(acc.id, startMs, endMsExclusive) }
+
+            val sourceFlow: Flow<List<CalendarEvent>>? = when {
+                state.accountFilter != null -> null
+                state.sourceFilter != null -> calendarSourceRepository
+                    .getEventsInRangeForSource(state.sourceFilter, startMs, endMsExclusive)
+                else -> calendarSourceRepository.getEventsInRange(startMs, endMsExclusive)
+            }
+
+            val flows = accountFlows + listOfNotNull(sourceFlow)
+            if (flows.isEmpty()) {
                 flowOf(emptyMap())
             } else {
-                filtered.map { acc -> calendarRepository.getEventsInRange(acc.id, startMs, endMsExclusive) }
-                    .merge()
-                    .map { all -> projectAllToVisibleGrid(all, windowStart, windowEnd) }
+                // combine (not merge): every feed contributes to each emission,
+                // so one account's update can't wipe the others off the grid.
+                combine(flows) { lists ->
+                    projectAllToVisibleGrid(lists.flatMap { it }, windowStart, windowEnd)
+                }
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
@@ -129,15 +171,27 @@ class CalendarViewModel @Inject constructor(
         if (ym != _selectedMonth.value) _selectedMonth.value = ym
     }
 
-    /** Pass `null` to clear the filter and aggregate every active Gmail account. */
+    /** Pass `null` to clear the filter and aggregate everything. */
     fun selectAccount(accountId: Long?) {
         if (accountId == null || activeAccounts.value.any { it.id == accountId }) {
             _selectedAccountId.value = accountId
+            _selectedSourceId.value = null
+        }
+    }
+
+    /** Narrows the grid and agenda to one standalone subscription. */
+    fun selectSource(sourceId: Long?) {
+        if (sourceId == null || sources.value.any { it.id == sourceId }) {
+            _selectedSourceId.value = sourceId
+            _selectedAccountId.value = null
         }
     }
 
     fun refresh() {
         viewModelScope.launch { syncScheduler.schedulePeriodicCalendarSync(replace = true) }
+        // Standalone feeds refresh inline: they're cheap single fetches and
+        // the user pressed the button expecting the grid to move now.
+        viewModelScope.launch { calendarSourceRepository.syncAll() }
     }
 
     private fun projectAllToVisibleGrid(

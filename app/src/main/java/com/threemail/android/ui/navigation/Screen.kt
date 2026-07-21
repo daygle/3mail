@@ -24,6 +24,32 @@ sealed class Screen(val route: String) {
         fun createRoute(accountId: Long): String = "account_settings/$accountId"
     }
 
+    /**
+     * Drilled-out sub-pages of [AccountSettings]. Each carries the same
+     * accountId and hosts one focused section (identities, server settings,
+     * folder roles, IDLE push, OpenPGP keys) so the main settings screen stays
+     * a short scroll of drill-in rows.
+     */
+    data object AccountIdentities : Screen("account_settings/{accountId}/identities") {
+        fun createRoute(accountId: Long): String = "account_settings/$accountId/identities"
+    }
+
+    data object AccountServer : Screen("account_settings/{accountId}/server") {
+        fun createRoute(accountId: Long): String = "account_settings/$accountId/server"
+    }
+
+    data object AccountFolderRoles : Screen("account_settings/{accountId}/folder_roles") {
+        fun createRoute(accountId: Long): String = "account_settings/$accountId/folder_roles"
+    }
+
+    data object AccountPush : Screen("account_settings/{accountId}/push") {
+        fun createRoute(accountId: Long): String = "account_settings/$accountId/push"
+    }
+
+    data object AccountPgp : Screen("account_settings/{accountId}/pgp") {
+        fun createRoute(accountId: Long): String = "account_settings/$accountId/pgp"
+    }
+
     data object ManageFolders : Screen("manage_folders")
 
     data object Settings : Screen("settings")
@@ -37,10 +63,15 @@ sealed class Screen(val route: String) {
 
     data object Calendar : Screen("calendar")
 
-    data object CalendarEvent : Screen("calendar_event/{accountId}/{eventId}") {
-        /** eventId = -1 means "create a new event"; any other value means "edit existing". */
-        fun createRoute(accountId: Long, eventId: Long = -1L): String =
-            "calendar_event/$accountId/$eventId"
+    data object CalendarEvent : Screen("calendar_event/{accountId}/{eventId}?sourceId={sourceId}") {
+        /**
+         * eventId = -1 means "create a new event"; any other value means
+         * "edit existing". A positive [sourceId] targets a CalDAV
+         * subscription instead of a Google account (create mode only —
+         * edits carry their source on the loaded event).
+         */
+        fun createRoute(accountId: Long, eventId: Long = -1L, sourceId: Long = -1L): String =
+            "calendar_event/$accountId/$eventId?sourceId=$sourceId"
     }
 
     /**

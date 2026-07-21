@@ -7,6 +7,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.threemail.android.R
 import com.threemail.android.data.remote.MailRemoteFactory
+import com.threemail.android.data.remote.autoconfig.AutoconfigClient
+import com.threemail.android.data.remote.autoconfig.ProviderPreset
 import com.threemail.android.data.remote.gmail.GoogleAuthHelper
 import com.threemail.android.data.remote.gmail.RecoverableAuthException
 import com.threemail.android.data.repository.AccountRepository
@@ -27,6 +29,7 @@ class AddAccountViewModel @Inject constructor(
     private val accountRepository: AccountRepository,
     private val googleAuthHelper: GoogleAuthHelper,
     private val mailRemoteFactory: MailRemoteFactory,
+    private val autoconfigClient: AutoconfigClient,
     private val syncScheduler: SyncScheduler
 ) : ViewModel() {
 
@@ -63,7 +66,11 @@ class AddAccountViewModel @Inject constructor(
          * Cleared by [updateSecurity] so the banner doesn't outlive the
          * user's choice to manually pick a different chip.
          */
-        val upgradeBanner: String? = null
+        val upgradeBanner: String? = null,
+        /** True while an autoconfig lookup is in flight (Other-provider path). */
+        val isDiscovering: Boolean = false,
+        /** Result banner after an autoconfig lookup ("found" / "not found"). */
+        val discoveryMessage: String? = null
     )
 
     private val _uiState = MutableStateFlow(UiState())
@@ -130,6 +137,57 @@ class AddAccountViewModel @Inject constructor(
         Security.NONE -> 25
     }
     fun updateError(message: String?) { _uiState.value = _uiState.value.copy(error = message) }
+
+    /**
+     * Pre-fill the incoming/outgoing server fields from a built-in provider
+     * [preset] (the password-auth path). Gmail is handled separately via
+     * [signInWithGoogle], so this is only reached for IMAP presets.
+     */
+    fun applyProvider(preset: ProviderPreset) {
+        _uiState.value = _uiState.value.copy(
+            accountType = AccountType.IMAP,
+            server = preset.imapHost,
+            port = preset.imapPort.toString(),
+            outgoingServer = preset.smtpHost,
+            outgoingPort = preset.smtpPort.toString(),
+            security = preset.imapSecurity,
+            upgradeBanner = null,
+            discoveryMessage = null,
+            error = null
+        )
+    }
+
+    /**
+     * Autoconfig discovery for an arbitrary domain (the "Other" path). Looks the
+     * email's domain up via [AutoconfigClient] and pre-fills the server fields
+     * on success, or surfaces a "not found" hint so the user enters them by hand.
+     */
+    fun discoverAutoconfig() {
+        val email = _uiState.value.email.trim()
+        if (!email.contains('@')) return
+        _uiState.value = _uiState.value.copy(isDiscovering = true, discoveryMessage = null)
+        viewModelScope.launch {
+            val cfg = autoconfigClient.discover(email)
+            _uiState.value = if (cfg != null) {
+                _uiState.value.copy(
+                    isDiscovering = false,
+                    accountType = AccountType.IMAP,
+                    server = cfg.imapHost,
+                    port = cfg.imapPort.toString(),
+                    outgoingServer = cfg.smtpHost,
+                    outgoingPort = cfg.smtpPort.toString(),
+                    security = cfg.imapSecurity,
+                    displayName = _uiState.value.displayName.ifBlank { cfg.displayName.orEmpty() },
+                    discoveryMessage = context.getString(R.string.autoconfig_found)
+                )
+            } else {
+                _uiState.value.copy(
+                    isDiscovering = false,
+                    discoveryMessage = context.getString(R.string.autoconfig_not_found)
+                )
+            }
+        }
+    }
 
     fun onRecoverableAuthHandled() {
         _uiState.value = _uiState.value.copy(recoverableAuthIntent = null)

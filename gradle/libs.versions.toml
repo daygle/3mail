@@ -21,6 +21,7 @@ googleApiClient = "2.9.0"
 gmailApi = "v1-rev20260525-2.0.0"
 calendarApi = "v3-rev20260708-2.0.0"
 coil = "3.5.0"
+okhttp = "4.12.0"
 credentials = "1.6.0"
 googleid = "1.2.0"
 splashscreen = "1.2.0"
@@ -107,6 +108,9 @@ google-api-services-calendar = { group = "com.google.apis", name = "google-api-s
 # Coil
 coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
 coil-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil" }
+
+# OkHttp (CalDAV needs WebDAV verbs - PROPFIND/REPORT - that HttpURLConnection rejects)
+okhttp3 = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 
 # Credential storage uses Android Keystore directly (see CredentialStore.kt).
 # androidx.credentials lives here for the Google Credential Manager sign-in flow.

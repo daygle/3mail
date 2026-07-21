@@ -6,6 +6,7 @@ import androidx.work.WorkerParameters
 import com.threemail.android.data.remote.calendar.CalendarApiClient
 import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.repository.CalendarRepository
+import com.threemail.android.data.repository.CalendarSourceRepository
 import com.threemail.android.domain.model.AccountType
 import kotlinx.coroutines.flow.first
 import java.time.LocalDate
@@ -20,7 +21,8 @@ class CalendarSyncWorker(
     context: Context,
     params: WorkerParameters,
     private val accountRepository: AccountRepository,
-    private val calendarRepository: CalendarRepository
+    private val calendarRepository: CalendarRepository,
+    private val calendarSourceRepository: CalendarSourceRepository
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
@@ -58,6 +60,14 @@ class CalendarSyncWorker(
                     }
                 }
             }
+
+            // Standalone subscriptions (ICS feeds). Each feed records its own
+            // failure on the source row, so one broken URL can't fail the run.
+            calendarSourceRepository.getSources()
+                .filter { it.syncEnabled }
+                .forEach { source ->
+                    calendarSourceRepository.syncSource(source, windowStart, windowEnd)
+                }
 
             Result.success()
         } catch (e: Exception) {

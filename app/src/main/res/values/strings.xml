@@ -8,6 +8,18 @@
     <string name="accounts">Accounts</string>
     <string name="add_account">Add account</string>
     <string name="sign_in_with_google">Sign in with Google</string>
+    <string name="autoconfig_found">Found settings for your provider. Just add your password below.</string>
+    <string name="autoconfig_not_found">Couldn\'t detect settings automatically. Enter your server details below.</string>
+    <string name="add_account_details_title">Account Details</string>
+    <string name="add_account_choose_provider">Choose your email provider</string>
+    <string name="add_account_other">Other (IMAP/POP3)</string>
+    <string name="add_account_setup_title">Set up %1$s</string>
+    <string name="add_account_app_password_hint">This provider needs an app-specific password, not your normal login password.</string>
+    <string name="add_account_credentials">Account</string>
+    <string name="add_account_server_section">Server</string>
+    <string name="add_account_detect">Detect settings automatically</string>
+    <string name="add_account_advanced">Advanced server settings</string>
+    <string name="add_account_hide_advanced">Hide advanced settings</string>
     <string name="to">To</string>
     <string name="cc">Cc</string>
     <string name="bcc">Bcc</string>
@@ -36,7 +48,7 @@
     </plurals>
     <string name="clear_selection">Clear selection</string>
     <string name="pull_to_refresh_hint">Pull down to refresh</string>
-    <string name="display_section">Message list</string>
+    <string name="display_section">Message List</string>
     <string name="swipe_right_label">Swipe Right Action</string>
     <string name="swipe_left_label">Swipe Left Action</string>
     <string name="density_label">List Density</string>
@@ -68,14 +80,14 @@
     <!-- Remote-image loading: global default in Settings, per-message banner
          shown above HTML bodies when the global toggle is off. -->
     <string name="images_section_title">Privacy</string>
-    <string name="images_setting_label">Always load remote images</string>
+    <string name="images_setting_label">Always Load Remote Images</string>
     <string name="images_setting_subtitle">Reveals pixel trackers and your IP to senders. Off by default.</string>
     <string name="images_blocked_banner_title">Remote images are hidden</string>
     <string name="images_blocked_banner_subtitle">Blocked to protect your privacy and avoid email tracking.</string>
     <string name="images_blocked_banner_action">Show images</string>
     <string name="from_label">From</string>
     <string name="request_read_receipt">Request read receipt</string>
-    <string name="identities_section">Send-as identities</string>
+    <string name="identities_section">Send-as Identities</string>
     <string name="identities_description">Extra addresses you can send from. Pick one in the composer\'s From selector.</string>
     <string name="identity_add">Add identity</string>
     <string name="identity_remove">Remove</string>
@@ -169,7 +181,7 @@
          that changes for the user. -->
     <string name="reading_after_delete_section">After Action</string>
     <string name="reading_after_delete_subtitle">What happens after you delete, archive, move, or mark-as-spam a message you\'re reading.</string>
-    <string name="reading_after_delete_row_title">After delete or archive</string>
+    <string name="reading_after_delete_row_title">After Delete or Archive</string>
     <string name="reading_after_delete_return_to_list">Return to inbox</string>
     <string name="reading_after_delete_next_message">Open next message</string>
     <string name="trash_cleanup_notification_channel_description">Reports persistent failures clearing the trash.</string>
@@ -200,7 +212,6 @@
     <string name="loading_message">Loading message…</string>
 
     <!-- Account management -->
-    <string name="add_account_imap_label">Or add an IMAP account manually</string>
     <string name="display_name">Display Name</string>
     <string name="remove_account">Remove account</string>
     <string name="remove_account_title">Remove account?</string>
@@ -208,7 +219,7 @@
     <string name="remove">Remove</string>
     <string name="account_push_label">Push for New Mail</string>
     <string name="account_push_subtitle">Get notified the moment a new message arrives on this account.</string>
-    <string name="account_push_folders_title">Also push these folders</string>
+    <string name="account_push_folders_title">Also Push These Folders</string>
     <string name="account_push_folders_subtitle">The inbox is always watched. Add extra folders to get pushed here too - each keeps its own always-on connection, so add only what you need: more folders use more battery and may hit your server\'s connection limit.</string>
     <string name="account_push_folders_empty">This account has no other folders to watch.</string>
 
@@ -220,7 +231,7 @@
     <string name="account_settings_signature_label">Signature for This Account</string>
     <string name="account_settings_signature_placeholder">e.g. Sent from my phone</string>
     <string name="account_settings_signature_hint">Appended to new mail from this account. Leave blank to omit a signature.</string>
-    <string name="account_settings_sync_section">Mail checking</string>
+    <string name="account_settings_sync_section">Mail Checking</string>
     <string name="account_settings_sync_enabled_title">Sync This Account</string>
     <string name="account_settings_sync_enabled_subtitle">Fetch new mail for this account in the background.</string>
     <string name="account_settings_frequency_title">Check Frequency</string>
@@ -241,6 +252,10 @@
     <string name="account_settings_calendar_section">Calendar</string>
     <string name="account_settings_calendar_title">Sync Google Calendar</string>
     <string name="account_settings_calendar_subtitle">Show this account\'s events in the Calendar tab.</string>
+
+    <!-- Drill-in "Manage" group linking to the heavier sub-pages -->
+    <string name="account_settings_manage_section">Manage</string>
+    <string name="account_settings_server_section">Server Settings</string>
 
     <!-- Per-account folder-role overrides -->
     <string name="account_folder_roles_section">Folder Roles</string>
@@ -337,6 +352,27 @@
     <string name="manage_calendars_create_subtitle">Create a calendar owned by this account. You can share it later from Google Calendar.</string>
     <string name="manage_calendars_create_tz_label">Time Zone</string>
     <string name="manage_calendars_create_action">Create</string>
+    <string name="manage_calendars_other_section">Other Calendars</string>
+    <string name="manage_calendars_remove_source">Remove calendar</string>
+    <string name="manage_calendars_add_choice_ics">Subscribe to Internet Calendar (ICS)</string>
+    <string name="manage_calendars_add_choice_google_subscribe">Add URL to Google Account</string>
+    <string name="manage_calendars_add_choice_google_create">Create New Google Calendar</string>
+    <string name="manage_calendars_add_google_hint">Sign in with a Google account to create or subscribe to Google calendars.</string>
+    <string name="manage_calendars_add_ics_title">Subscribe to Internet Calendar</string>
+    <string name="manage_calendars_add_ics_subtitle">Paste an iCal (.ics) or webcal link — holiday feeds, sports fixtures, or a shared calendar\'s public link. Subscribed calendars are read-only.</string>
+    <string name="manage_calendars_add_ics_name_label">Name (Optional)</string>
+    <string name="calendar_source_event_from">From %1$s (read-only)</string>
+    <string name="calendar_source_event_readonly">From a read-only subscribed calendar.</string>
+    <string name="close">Close</string>
+    <string name="manage_calendars_add_choice_caldav">Connect CalDAV Calendar</string>
+    <string name="manage_calendars_caldav_title">Connect CalDAV Calendar</string>
+    <string name="manage_calendars_caldav_subtitle">Works with Nextcloud, Fastmail, iCloud and other CalDAV servers. Enter your server address and sign-in details — use an app password if your provider issues them.</string>
+    <string name="manage_calendars_caldav_url_label">Server URL</string>
+    <string name="manage_calendars_caldav_username_label">Username</string>
+    <string name="manage_calendars_caldav_find">Find Calendars</string>
+    <string name="manage_calendars_caldav_finding">Finding…</string>
+    <string name="manage_calendars_caldav_pick_title">Choose Calendars</string>
+    <string name="manage_calendars_caldav_add">Add</string>
     <string name="calendar_sync_all">Sync Calendars</string>
 
     <!-- Composer: inline images & contact autocomplete -->
@@ -406,7 +442,7 @@
          specific screen's TopAppBar; the action moves into the bar's
          "MoreVert" overflow so it stays reachable. -->
     <string name="top_bar_settings_section">Top Bar</string>
-    <string name="top_bar_settings_title">Customise top bar</string>
+    <string name="top_bar_settings_title">Customise Top Bar</string>
     <string name="top_bar_settings_subtitle">Choose which actions appear in each screen\'s top bar. Hidden actions still appear in the overflow menu, so nothing disappears.</string>
     <string name="top_bar_settings_inbox_header">Inbox</string>
     <string name="top_bar_settings_detail_header">Message Detail</string>

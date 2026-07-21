@@ -7,7 +7,10 @@ import java.time.ZoneOffset
 
 data class CalendarEvent(
     val id: Long = 0,
+    /** Owning Google account, or [NO_ACCOUNT] for standalone-source events. */
     val accountId: Long,
+    /** Owning standalone subscription ([CalendarSource]), if any. */
+    val sourceId: Long? = null,
     val calendarId: String = DEFAULT_CALENDAR_ID,
     val eventId: String? = null,
     val iCalUID: String? = null,
@@ -24,12 +27,24 @@ data class CalendarEvent(
     val organizer: String? = null,
     val attendees: List<String> = emptyList(),
     val htmlLink: String? = null,
+    /** CalDAV concurrency token; see the entity field of the same name. */
+    val etag: String? = null,
     val syncedAt: Long = 0
 ) {
-    val isEditable: Boolean get() = eventId != null || id > 0
+    /**
+     * Google events are editable; standalone-source events only when the
+     * source protocol can write back (CalDAV single-instance objects, which
+     * carry their href in [eventId] — ICS feeds and recurring CalDAV
+     * expansions leave it null and stay read-only).
+     */
+    val isEditable: Boolean
+        get() = if (sourceId == null) (eventId != null || id > 0) else eventId != null
 
     companion object {
         const val DEFAULT_CALENDAR_ID = "primary"
+
+        /** Sentinel [accountId] for events owned by a [CalendarSource]. */
+        const val NO_ACCOUNT = 0L
     }
 }
 
