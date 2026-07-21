@@ -18,13 +18,29 @@ import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.compose.rememberNavController
+import com.threemail.android.push.PushController
 import com.threemail.android.ui.navigation.ThreeMailNavHost
 import com.threemail.android.ui.theme.ThemeViewModel
 import com.threemail.android.ui.theme.ThreeMailTheme
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    /**
+     * Drives the IMAP IDLE push foreground service. Push is (re)started from
+     * [onResume] rather than from [ThreeMailApplication.onCreate] on purpose:
+     * the service runs as a `dataSync` foreground service, and starting a
+     * foreground service is only permitted from a foreground app state on
+     * API 31+. Kicking it off from the Application's cold-start path races the
+     * launch/permission window and can trip
+     * `ForegroundServiceStartNotAllowedException`, which the platform escalates
+     * to an uncatchable crash. Starting it here keeps the FGS start safely
+     * inside the app's foreground lifetime.
+     */
+    @Inject
+    lateinit var pushController: PushController
 
     /**
      * Runtime POST_NOTIFICATIONS prompt (required on API 33+). The result is
@@ -57,6 +73,14 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Start/refresh IMAP IDLE push from a guaranteed-foreground state so the
+        // dataSync foreground service is never started from a restricted context.
+        // Guarded so a rejected start can never take the app down with it.
+        runCatching { pushController.refresh() }
     }
 
     private fun maybeRequestNotificationPermission() {

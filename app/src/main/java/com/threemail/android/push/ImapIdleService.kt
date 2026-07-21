@@ -118,6 +118,13 @@ class ImapIdleService : Service() {
                 maybeStop()
                 return@launch
             }
+            if (candidates.isEmpty()) {
+                // Nothing to push (e.g. fresh install with no accounts yet).
+                // Stand down instead of holding an empty foreground service.
+                Log.d(TAG, "No push-eligible accounts - standing down")
+                maybeStop()
+                return@launch
+            }
             promoteToForeground(candidates.size)
             candidates.forEach { ensureAccountPush(it.id) }
         }
