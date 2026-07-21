@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!--
+        targetSdk is intentionally pinned at 35 (see app/build.gradle.kts).
+        Bumping it opts the app into new runtime behaviours that need deliberate
+        device testing, so it is out of scope for a lint clean-up and is not
+        something to change implicitly.
+    -->
+    <issue id="OldTargetApi" severity="ignore" />
+
+    <!--
+        TrustAllX509TrustManager fires on the bundled google-http-client jar
+        (a third-party dependency we cannot modify). Our own networking stack
+        (JavaMail IMAP/SMTP) does not install a trust-all manager, so this is a
+        finding in library code rather than app code.
+    -->
+    <issue id="TrustAllX509TrustManager" severity="ignore" />
+</lint>

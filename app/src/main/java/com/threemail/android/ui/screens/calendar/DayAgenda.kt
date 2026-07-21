@@ -40,11 +40,14 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-private val DayHeaderFormatter: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.getDefault())
+// Computed getters (not stored vals) so the formatter uses the current
+// Locale.getDefault() rather than caching the load-time locale - see lint's
+// ConstantLocale check.
+private val DayHeaderFormatter: DateTimeFormatter
+    get() = DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.getDefault())
 
-private val TimeFormatter: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
+private val TimeFormatter: DateTimeFormatter
+    get() = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
 
 /**
  * Vertical scrollable list of events for the selected day. All-day events render as

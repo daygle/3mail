@@ -8,7 +8,6 @@
     <string name="accounts">Accounts</string>
     <string name="add_account">Add account</string>
     <string name="sign_in_with_google">Sign in with Google</string>
-    <string name="sign_in">Sign in</string>
     <string name="to">To</string>
     <string name="cc">Cc</string>
     <string name="bcc">Bcc</string>
@@ -31,7 +30,10 @@
     <string name="mark_read">Mark Read</string>
     <string name="mark_unread">Mark Unread</string>
     <string name="select_all">Select All</string>
-    <string name="selected_count">%1$d selected</string>
+    <plurals name="selected_count">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
+    </plurals>
     <string name="clear_selection">Clear selection</string>
     <string name="pull_to_refresh_hint">Pull down to refresh</string>
     <string name="display_section">Message list</string>
@@ -80,7 +82,6 @@
     <string name="identity_display_name">Display Name</string>
     <string name="identity_email">Email Address</string>
     <string name="identity_signature">Signature (Optional)</string>
-    <string name="identity_save">Save</string>
     <string name="identity_email_required">An email address is required</string>
     <string name="protocol_label">Protocol</string>
     <string name="protocol_imap">IMAP</string>
@@ -96,13 +97,19 @@
     <string name="snackbar_moved">Message moved</string>
     <string name="snackbar_spam">Marked as spam</string>
     <string name="move_to_folder">Move to Folder</string>
-    <string name="move_dialog_title">Move %1$d message(s) to…</string>
+    <plurals name="move_dialog_title">
+        <item quantity="one">Move %1$d message to…</item>
+        <item quantity="other">Move %1$d messages to…</item>
+    </plurals>
     <string name="move_no_targets">No folders available</string>
     <string name="move_unified_unavailable">Move is unavailable in the unified inbox. Switch to a single account to move messages between its folders.</string>
     <string name="move_unavailable">Move disabled - no other folders in this account</string>
     <string name="mark_as_spam">Mark as Spam</string>
     <string name="confirm_mark_spam_title">Mark as spam?</string>
-    <string name="confirm_mark_spam_body">%1$d messages will be moved to Spam. The server may use them to train its spam filter, so this is hard to undo.</string>
+    <plurals name="confirm_mark_spam_body">
+        <item quantity="one">%1$d message will be moved to Spam. The server may use it to train its spam filter, so this is hard to undo.</item>
+        <item quantity="other">%1$d messages will be moved to Spam. The server may use them to train its spam filter, so this is hard to undo.</item>
+    </plurals>
     <string name="more_options">More options</string>
     <string name="encrypt">Encrypt</string>
     <string name="decrypt">Decrypt</string>
@@ -115,17 +122,12 @@
     <string name="no_accounts">No accounts added</string>
     <string name="add_account_prompt">Add an email account to get started</string>
     <string name="empty_state_add_account">Add Account</string>
-    <string name="generic_error">Something went wrong</string>
-    <string name="retry">Retry</string>
-    <string name="new_message">New message</string>
-    <string name="from_colon">From:</string>
     <string name="imap_server">IMAP server</string>
     <string name="outgoing_server">SMTP server (outgoing)</string>
     <string name="outgoing_port">SMTP port</string>
     <string name="email_address">Email address</string>
     <string name="password">Password</string>
     <string name="port">Port</string>
-    <string name="use_encryption">Use encryption (SSL/TLS)</string>
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
     <string name="new_mail_notification_title">New mail</string>
@@ -160,7 +162,10 @@
     <string name="reading_after_delete_next_message">Open next message</string>
     <string name="trash_cleanup_notification_channel_description">Reports persistent failures clearing the trash.</string>
     <string name="trash_cleanup_failure_title">Trash cleanup failed</string>
-    <string name="trash_cleanup_failure_body">%1$d account(s) could not be emptied. Check connectivity and try again.</string>
+    <plurals name="trash_cleanup_failure_body">
+        <item quantity="one">%1$d account could not be emptied. Check connectivity and try again.</item>
+        <item quantity="other">%1$d accounts could not be emptied. Check connectivity and try again.</item>
+    </plurals>
 
     <!-- Compose toolbar / dialogs -->
     <string name="format_bold">Bold</string>
@@ -181,10 +186,6 @@
     <!-- Message detail -->
     <string name="open_with">Open with</string>
     <string name="loading_message">Loading message…</string>
-    <string name="loading_attachment">Loading</string>
-    <string name="error_no_account_selected">No account selected</string>
-    <string name="error_no_drafts_folder">No drafts folder available</string>
-    <string name="error_generic">Something went wrong</string>
 
     <!-- Account management -->
     <string name="add_account_imap_label">Or add an IMAP account manually</string>
@@ -233,11 +234,17 @@
     <string name="push_channel_name">Mail sync</string>
     <string name="push_channel_description">Background notifications while 3mail watches for new mail.</string>
     <string name="idle_service_title">Watching for new mail</string>
-    <string name="idle_service_subtitle">Watching %1$d account(s) for new mail.</string>
+    <plurals name="idle_service_subtitle">
+        <item quantity="one">Watching %1$d account for new mail.</item>
+        <item quantity="other">Watching %1$d accounts for new mail.</item>
+    </plurals>
     <string name="unread_badge_channel_name">Unread count badge</string>
     <string name="unread_badge_channel_description">Surfaces your unread inbox count on the launcher icon.</string>
     <string name="unread_badge_title">Unread inbox</string>
-    <string name="unread_badge_subtitle">%1$d unread message(s)</string>
+    <plurals name="unread_badge_subtitle">
+        <item quantity="one">%1$d unread message</item>
+        <item quantity="other">%1$d unread messages</item>
+    </plurals>
 
     <!-- Calendar -->
 
@@ -254,8 +261,6 @@
     <string name="calendar_all_day">All day</string>
     <string name="calendar_start">Starts</string>
     <string name="calendar_end">Ends</string>
-    <string name="calendar_pick_date">Date</string>
-    <string name="calendar_pick_time">Time</string>
     <string name="calendar_location">Location</string>
     <string name="calendar_attendees">Guests (comma-separated)</string>
     <string name="calendar_description">Notes</string>
@@ -342,7 +347,10 @@
     <string name="empty_trash_action">Empty Trash</string>
     <string name="empty_trash_confirm_title">Empty Trash?</string>
     <string name="empty_trash_confirm_body">All messages in the Trash folder will be permanently deleted from the server. This cannot be undone.</string>
-    <string name="empty_trash_success">Trash emptied (%1$d messages)</string>
+    <plurals name="empty_trash_success">
+        <item quantity="one">Trash emptied (%1$d message)</item>
+        <item quantity="other">Trash emptied (%1$d messages)</item>
+    </plurals>
     <string name="empty_trash_failure">Failed to empty trash</string>
 
     <!-- Top-bar customisation: a Settings sub-screen reachable from

@@ -60,11 +60,14 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-private val DateFieldFormatter: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("EEE, MMM d, yyyy", Locale.getDefault())
+// Computed getters (not stored vals) so the formatter picks up the current
+// Locale.getDefault() rather than caching whatever locale was active at class
+// load time - see lint's ConstantLocale check.
+private val DateFieldFormatter: DateTimeFormatter
+    get() = DateTimeFormatter.ofPattern("EEE, MMM d, yyyy", Locale.getDefault())
 
-private val TimeFieldFormatter: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
+private val TimeFieldFormatter: DateTimeFormatter
+    get() = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

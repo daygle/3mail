@@ -72,7 +72,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -453,6 +454,10 @@ fun MessageDetailScreen(
  * Extends [WebView] directly (rather than wrapping one) so it slots into
  * [AndroidView]'s `reified T : View` factory without losing the [loadHtml] helper.
  */
+// Only ever instantiated programmatically via AndroidView's factory - it is
+// never inflated from XML, so the (Context, AttributeSet) constructors lint
+// asks for would be dead code.
+@Suppress("ViewConstructor")
 class SafeWebView(
     context: android.content.Context,
     private val launchExternal: (Uri) -> Unit = { uri ->
@@ -544,8 +549,11 @@ private fun HtmlEmailContent(
     loadImages: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val configuration = LocalConfiguration.current
-    val bodyHeightCap = configuration.screenHeightDp.dp -
+    // Cap the WebView height to the window's container height (rather than the
+    // whole screen) so it behaves in split-screen/multi-window - see lint's
+    // ConfigurationScreenWidthHeight check.
+    val containerHeightPx = LocalWindowInfo.current.containerSize.height
+    val bodyHeightCap = with(LocalDensity.current) { containerHeightPx.toDp() } -
         TopBarHeight - BottomBarHeight - BodyPaddingHeight
     var webView: SafeWebView? by remember { mutableStateOf(null) }
     AndroidView(

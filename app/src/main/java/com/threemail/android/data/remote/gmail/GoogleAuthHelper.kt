@@ -2,9 +2,11 @@ package com.threemail.android.data.remote.gmail
 
 import android.content.Context
 import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.GetCredentialResponse
 import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.NoCredentialException
 import com.google.android.gms.auth.GoogleAuthUtil
 import com.google.android.gms.auth.UserRecoverableAuthException
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
@@ -40,6 +42,9 @@ class GoogleAuthHelper @Inject constructor(
         try {
             val result = credentialManager.getCredential(activityContext, request)
             Result.success(handleCredentialResponse(result))
+        } catch (e: NoCredentialException) {
+            // No Google account available / user dismissed the picker.
+            Result.failure(e)
         } catch (e: GetCredentialException) {
             Result.failure(e)
         } catch (e: Exception) {
@@ -49,11 +54,17 @@ class GoogleAuthHelper @Inject constructor(
 
     private fun handleCredentialResponse(response: GetCredentialResponse): GoogleUserInfo {
         val credential = response.credential
-        if (credential is GoogleIdTokenCredential) {
+        if (credential is CustomCredential &&
+            credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+        ) {
+            // Parse via the official factory rather than casting the credential
+            // directly - the raw response carries the token in credential.data
+            // (see lint's CredentialManagerSignInWithGoogle).
+            val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
             return GoogleUserInfo(
-                email = credential.id,
-                displayName = credential.displayName,
-                idToken = credential.idToken
+                email = googleIdTokenCredential.id,
+                displayName = googleIdTokenCredential.displayName,
+                idToken = googleIdTokenCredential.idToken
             )
         } else {
             throw Exception("Unexpected credential type: ${credential.type}")

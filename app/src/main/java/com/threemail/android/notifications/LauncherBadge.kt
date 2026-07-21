@@ -35,7 +35,11 @@ class LauncherBadge @Inject constructor(
         val notification = NotificationCompat.Builder(context, NotificationHelper.BADGE_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.unread_badge_title))
-            .setContentText(context.getString(R.string.unread_badge_subtitle, count))
+            .setContentText(
+                context.resources.getQuantityString(
+                    R.plurals.unread_badge_subtitle, count, count
+                )
+            )
             .setNumber(count)
             .setOnlyAlertOnce(true)
             .setSilent(true)

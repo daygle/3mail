@@ -50,6 +50,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.derivedStateOf
@@ -447,7 +448,7 @@ fun FolderDrawerContent(
                         // the same serverId, e.g. a shared INBOX).
                         key = { _, f -> "fav-${account.id}-${f.serverId}" }
                     ) { index, folder ->
-                        var rowHeightPx by remember { mutableStateOf(0f) }
+                        var rowHeightPx by remember { mutableFloatStateOf(0f) }
                         val haptics = LocalHapticFeedback.current
                         val dragInfo = remember { mutableStateOf<DragInfo?>(null) }
                         val isDragging by remember {

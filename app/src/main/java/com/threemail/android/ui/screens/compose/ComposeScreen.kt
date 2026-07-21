@@ -627,7 +627,11 @@ private fun copyBytes(context: Context, uri: Uri, subdir: String): CopiedFile? {
             }
         }
         val outDir = File(context.cacheDir, subdir).apply { mkdirs() }
-        val outFile = File(outDir, name)
+        // Sanitize the ContentProvider-supplied display name: keep only the last
+        // path segment so a malicious provider can't use "../" to escape the
+        // cache subdir (see lint's UnsanitizedFilenameFromContentProvider).
+        val safeName = File(name).name.ifBlank { "file" }
+        val outFile = File(outDir, safeName)
         resolver.openInputStream(uri)?.use { input ->
             outFile.outputStream().use { output -> input.copyTo(output) }
         } ?: return null

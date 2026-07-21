@@ -1,23 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <color name="purple_200">#FFBB86FC</color>
-    <color name="purple_500">#FF6200EE</color>
-    <color name="purple_700">#FF3700B3</color>
-    <color name="teal_200">#FF03DAC5</color>
-    <color name="teal_700">#FF018786</color>
-    <color name="black">#FF000000</color>
-    <color name="white">#FFFFFFFF</color>
-
-    <!-- 3mail brand palette -->
-    <color name="primary">#FF4F46E5</color>
-    <color name="primary_container">#FFE0E7FF</color>
-    <color name="on_primary_container">#FF312E81</color>
-    <color name="secondary">#FF0EA5E9</color>
-    <color name="background_light">#FFF8FAFC</color>
-    <color name="background_dark">#FF0F172A</color>
-    <color name="surface_light">#FFFFFFFF</color>
-    <color name="surface_dark">#FF1E293B</color>
-    <color name="error">#FFEF4444</color>
-    <color name="success">#FF22C55E</color>
-    <color name="warning">#FFEAB308</color>
-</resources>
+<!--
+    Colors for 3mail live in the Compose theme (androidx.compose.ui.graphics.Color)
+    rather than as XML color resources, so this file intentionally defines none.
+    The launcher background/foreground drawables carry their own colors.
+-->
+<resources />
