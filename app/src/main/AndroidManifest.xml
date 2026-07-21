@@ -47,6 +47,16 @@
             android:authorities="${applicationId}.androidx-startup"
             android:exported="false"
             tools:node="merge">
+            <!--
+                ThreeMailApplication implements Configuration.Provider for
+                on-demand WorkManager initialization, so the default
+                WorkManagerInitializer (auto-init via androidx.startup) must be
+                removed from the merged manifest to avoid double initialization.
+            -->
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
         </provider>
 
         <service
