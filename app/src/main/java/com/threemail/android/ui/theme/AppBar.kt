@@ -30,5 +30,8 @@ val AppBarGreyDark = Color(0xFF2B2D31)
 fun appTopBarColors(): TopAppBarColors {
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val barColor = if (dark) AppBarGreyDark else AppBarGreyLight
-    return appTopBarColors()
+    return TopAppBarDefaults.topAppBarColors(
+        containerColor = barColor,
+        scrolledContainerColor = barColor
+    )
 }
