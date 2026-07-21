@@ -174,6 +174,16 @@ class Pop3Client(private val account: Account) {
             Result.failure(e)
         }
 
+    suspend fun fetchRawHeaders(number: Long): Result<String> =
+        try {
+            withInbox(Folder.READ_ONLY) { inbox ->
+                val msg = messageByNumber(inbox, number) ?: return@withInbox ""
+                MimeParsing.buildHeaderText(msg)
+            }.let { Result.success(it) }
+        } catch (e: MessagingException) {
+            Result.failure(e)
+        }
+
     suspend fun downloadAttachment(number: Long, fileName: String, destFile: File): Result<File> =
         try {
             withInbox(Folder.READ_ONLY) { inbox ->

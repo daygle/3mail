@@ -1,10 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Monochrome status-bar notification icon. Android tints the alpha silhouette,
+  so this must stay white-on-transparent. The glyph is the same envelope mark
+  as ic_launcher_foreground (translated + framed into a square 56x56 viewport)
+  so the notification icon reads as 3mail rather than a generic envelope.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
+    android:viewportWidth="56"
+    android:viewportHeight="56">
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M20,4H4C2.9,4 2,4.9 2,6v12c0,1.1 0.9,2 2,2h16c1.1,0 2,-0.9 2,-2V6C22,4.9 21.1,4 20,4zM20,8l-8,5l-8,-5V6l8,5l8,-5V8z" />
+        android:pathData="M28,10 L4,24 L4,46 L52,46 L52,24 L28,10 Z M28,20 L44,30 L44,40 L28,30 L12,40 L12,30 L28,20 Z" />
 </vector>

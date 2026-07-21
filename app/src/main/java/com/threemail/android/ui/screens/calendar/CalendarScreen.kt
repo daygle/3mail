@@ -63,6 +63,7 @@ fun CalendarScreen(
     onCreateEvent: (accountId: Long) -> Unit,
     onEditEvent: (accountId: Long, eventId: Long) -> Unit,
     onNavigateToManageCalendars: () -> Unit = {},
+    onAddAccount: () -> Unit = {},
     bottomBar: @Composable () -> Unit = {}
 ) {
     val selectedMonth by viewModel.selectedMonth.collectAsState()
@@ -139,7 +140,9 @@ fun CalendarScreen(
             Box(modifier = Modifier.fillMaxSize().padding(padding)) {
                 EmptyState(
                     title = stringResource(R.string.calendar_no_account_title),
-                    subtitle = stringResource(R.string.calendar_no_account_subtitle)
+                    subtitle = stringResource(R.string.calendar_no_account_subtitle),
+                    actionLabel = stringResource(R.string.sign_in_with_google),
+                    onAction = onAddAccount
                 )
             }
             return@Scaffold

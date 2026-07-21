@@ -221,9 +221,20 @@ class AddAccountViewModelTest {
         override suspend fun setSignature(id: Long, signature: String) {}
         override suspend fun setSyncIntervalMinutes(id: Long, minutes: Long) {}
         override suspend fun setSyncEnabled(id: Long, enabled: Boolean) {}
+        override suspend fun setCalendarSyncEnabled(id: Long, enabled: Boolean) {}
         override suspend fun setNotificationsEnabled(id: Long, enabled: Boolean) {}
         override suspend fun setIdentitiesJson(id: Long, identitiesJson: String) {}
         override suspend fun setFolderRolesJson(id: Long, folderRolesJson: String) {}
+        override suspend fun setPushFoldersJson(id: Long, pushFoldersJson: String) {}
+        override suspend fun setConnectionSettings(
+            id: Long,
+            incomingServer: String?,
+            incomingPort: Int,
+            outgoingServer: String?,
+            outgoingPort: Int,
+            useEncryption: Boolean,
+            useStartTls: Boolean
+        ) {}
         override suspend fun setAutocryptKeysJson(id: Long, autocryptKeysJson: String) {}
         override suspend fun getAutocryptKeysJson(id: Long): String? = null
         override suspend fun update(account: AccountEntity) { rows[account.email] = account }

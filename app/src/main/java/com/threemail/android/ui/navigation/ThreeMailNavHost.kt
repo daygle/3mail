@@ -63,6 +63,9 @@ fun ThreeMailNavHost(navController: NavHostController) {
                 },
                 onNavigateToAddAccount = { navController.navigate(Screen.AddAccount.route) },
                 onNavigateToManageFolders = { navController.navigate(Screen.ManageFolders.route) },
+                onNavigateToAccountSettings = { accountId ->
+                    navController.navigate(Screen.AccountSettings.createRoute(accountId))
+                },
                 bottomBar = bottomBar
             )
         }
@@ -158,6 +161,7 @@ fun ThreeMailNavHost(navController: NavHostController) {
                     navController.navigate(Screen.CalendarEvent.createRoute(accountId, eventId))
                 },
                 onNavigateToManageCalendars = { navController.navigate(Screen.ManageCalendars.route) },
+                onAddAccount = { navController.navigate(Screen.AddAccount.route) },
                 bottomBar = bottomBar
             )
         }

@@ -36,6 +36,14 @@ interface MailRemote {
 
     suspend fun fetchBody(folder: MailFolder, message: MailMessage): Result<MessageBody>
 
+    /**
+     * Fetch the message's full raw RFC 5322 header block as text (one
+     * "Name: value" line per header). Default returns an empty string for any
+     * transport that can't supply it, so callers can invoke it uniformly.
+     */
+    suspend fun fetchRawHeaders(folder: MailFolder, message: MailMessage): Result<String> =
+        Result.success("")
+
     suspend fun setSeen(folder: MailFolder, message: MailMessage, seen: Boolean): Result<Unit>
 
     suspend fun setFlagged(folder: MailFolder, message: MailMessage, flagged: Boolean): Result<Unit>

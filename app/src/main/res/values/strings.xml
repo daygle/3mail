@@ -131,8 +131,20 @@
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
     <string name="new_mail_notification_title">New mail</string>
+    <plurals name="new_mail_notification_body">
+        <item quantity="one">%1$d new message</item>
+        <item quantity="other">%1$d new messages</item>
+    </plurals>
     <string name="new_mail_notification_channel_name">New mail notifications</string>
     <string name="new_mail_notification_channel_description">Notifies you when new mail arrives</string>
+    <string name="notification_unknown_sender">Unknown sender</string>
+    <string name="notification_no_subject">(No subject)</string>
+
+    <!-- Message headers viewer -->
+    <string name="headers_show">Show headers</string>
+    <string name="headers_title">Message headers</string>
+    <string name="headers_close">Close</string>
+    <string name="headers_loading">Fetching headers…</string>
     <string name="default_web_client_id" translatable="false">YOUR_WEB_CLIENT_ID</string>
 
     <!-- Trash policy settings -->
@@ -196,6 +208,9 @@
     <string name="remove">Remove</string>
     <string name="account_push_label">Push for New Mail</string>
     <string name="account_push_subtitle">Get notified the moment a new message arrives on this account.</string>
+    <string name="account_push_folders_title">Also push these folders</string>
+    <string name="account_push_folders_subtitle">The inbox is always watched. Add extra folders to get pushed here too - each keeps its own always-on connection, so add only what you need: more folders use more battery and may hit your server\'s connection limit.</string>
+    <string name="account_push_folders_empty">This account has no other folders to watch.</string>
 
     <!-- Per-account settings -->
     <string name="account_settings_title">Account Settings</string>
@@ -213,13 +228,26 @@
     <string name="account_settings_notifications_section">Notifications</string>
     <string name="account_settings_notifications_title">New Mail Notifications</string>
     <string name="account_settings_notifications_subtitle">Notify me about new mail on this account.</string>
+
+    <!-- Per-account incoming/outgoing server settings -->
+    <string name="account_fetching_section">Fetching Mail</string>
+    <string name="account_sending_section">Sending Mail</string>
+    <string name="account_connection_security_hint">Connection security applies to both fetching and sending mail.</string>
+    <string name="account_connection_test_and_save">Test &amp; Save</string>
+    <string name="account_connection_testing">Testing connection…</string>
+    <string name="account_connection_saved">Connection verified and saved.</string>
+    <string name="account_connection_failed">Couldn\'t connect: %1$s</string>
     <string name="account_settings_open">Open Settings</string>
+    <string name="account_settings_calendar_section">Calendar</string>
+    <string name="account_settings_calendar_title">Sync Google Calendar</string>
+    <string name="account_settings_calendar_subtitle">Show this account\'s events in the Calendar tab.</string>
 
     <!-- Per-account folder-role overrides -->
     <string name="account_folder_roles_section">Folder Roles</string>
-    <string name="account_folder_roles_description">Pick which server folders hold incoming mail, sent mail, drafts, trash, spam, and archives. Auto-detected uses the folder\'s name.</string>
+    <string name="account_folder_roles_description">Pick which server folders hold incoming mail, sent mail, drafts, trash, spam, and archives. Automatic detects the folder by its name; it is set automatically when the account is added.</string>
     <string name="account_folder_role_auto_detected">Auto-detected</string>
-    <string name="account_folder_role_unset">Unset</string>
+    <string name="account_folder_role_automatic">Automatic</string>
+    <string name="account_folder_role_automatic_named">Automatic (%1$s)</string>
     <string name="account_folder_role_inbox">Inbox</string>
     <string name="account_folder_role_sent">Sent</string>
     <string name="account_folder_role_drafts">Drafts</string>

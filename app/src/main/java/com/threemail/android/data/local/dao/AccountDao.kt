@@ -39,6 +39,9 @@ interface AccountDao {
     @Query("UPDATE accounts SET syncEnabled = :enabled WHERE id = :id")
     suspend fun setSyncEnabled(id: Long, enabled: Boolean)
 
+    @Query("UPDATE accounts SET calendarSyncEnabled = :enabled WHERE id = :id")
+    suspend fun setCalendarSyncEnabled(id: Long, enabled: Boolean)
+
     @Query("UPDATE accounts SET notificationsEnabled = :enabled WHERE id = :id")
     suspend fun setNotificationsEnabled(id: Long, enabled: Boolean)
 
@@ -47,6 +50,29 @@ interface AccountDao {
 
     @Query("UPDATE accounts SET folderRolesJson = :folderRolesJson WHERE id = :id")
     suspend fun setFolderRolesJson(id: Long, folderRolesJson: String)
+
+    @Query("UPDATE accounts SET pushFoldersJson = :pushFoldersJson WHERE id = :id")
+    suspend fun setPushFoldersJson(id: Long, pushFoldersJson: String)
+
+    /**
+     * Updates the incoming/outgoing server connection settings in one write.
+     * Security is stored as the legacy (useEncryption, useStartTls) pair, so
+     * callers pass the already-mapped booleans.
+     */
+    @Query(
+        "UPDATE accounts SET incomingServer = :incomingServer, incomingPort = :incomingPort, " +
+            "outgoingServer = :outgoingServer, outgoingPort = :outgoingPort, " +
+            "useEncryption = :useEncryption, useStartTls = :useStartTls WHERE id = :id"
+    )
+    suspend fun setConnectionSettings(
+        id: Long,
+        incomingServer: String?,
+        incomingPort: Int,
+        outgoingServer: String?,
+        outgoingPort: Int,
+        useEncryption: Boolean,
+        useStartTls: Boolean
+    )
 
     @Query("UPDATE accounts SET autocryptKeysJson = :autocryptKeysJson WHERE id = :id")
     suspend fun setAutocryptKeysJson(id: Long, autocryptKeysJson: String)

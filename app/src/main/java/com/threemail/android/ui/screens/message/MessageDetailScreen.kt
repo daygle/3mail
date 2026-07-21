@@ -58,6 +58,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -139,6 +141,7 @@ fun MessageDetailScreen(
     val showImages = state.loadImagesSetting || state.imagesShownForThisMessage
     var menuOpen by remember { mutableStateOf(false) }
     var showMoveDialog by remember { mutableStateOf(false) }
+    var showHeaders by remember { mutableStateOf(false) }
 
     // Post-delete navigation honours the user's "After delete" preference:
     //   - RETURN_TO_LIST (default): pop back to whatever opened detail.
@@ -211,6 +214,66 @@ fun MessageDetailScreen(
         )
     }
 
+    if (showHeaders && message != null) {
+        // Parsed-field fallback shown while the raw headers load, or if the
+        // server fetch fails / returns nothing. Field names are the literal
+        // RFC 5322 names, so they are intentionally not localized.
+        val parsedFallback = buildList {
+            add("From" to message.from.joinToString(", ") { it.toString() })
+            if (message.to.isNotEmpty()) add("To" to message.to.joinToString(", ") { it.toString() })
+            if (message.cc.isNotEmpty()) add("Cc" to message.cc.joinToString(", ") { it.toString() })
+            if (message.bcc.isNotEmpty()) add("Bcc" to message.bcc.joinToString(", ") { it.toString() })
+            add("Date" to formatHeaderDate(message.date))
+            add("Subject" to message.subject)
+            if (message.messageId.isNotBlank()) add("Message-ID" to message.messageId)
+        }
+        AlertDialog(
+            onDismissRequest = { showHeaders = false },
+            title = { Text(stringResource(R.string.headers_title)) },
+            text = {
+                when {
+                    state.isLoadingHeaders -> {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.size(12.dp))
+                            Text(stringResource(R.string.headers_loading))
+                        }
+                    }
+                    !state.rawHeaders.isNullOrBlank() -> {
+                        Text(
+                            text = state.rawHeaders!!,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.verticalScroll(rememberScrollState())
+                        )
+                    }
+                    else -> {
+                        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                            parsedFallback.forEach { (label, value) ->
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = value,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                                Spacer(Modifier.height(8.dp))
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showHeaders = false }) {
+                    Text(stringResource(R.string.headers_close))
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -262,6 +325,16 @@ fun MessageDetailScreen(
                                 }
                             )
                         }
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.headers_show)) },
+                            leadingIcon = { Icon(Icons.Outlined.Info, contentDescription = null) },
+                            enabled = message != null,
+                            onClick = {
+                                menuOpen = false
+                                viewModel.loadHeaders()
+                                showHeaders = true
+                            }
+                        )
                         // Items the user has hidden from the bar. Surfaced here
                         // so the actions remain reachable; the row labels and
                         // icons match the inline variant for parity.
@@ -419,10 +492,18 @@ fun MessageDetailScreen(
                                 }
                             }
                         }
-                        !message.bodyHtml.isNullOrBlank() && !showImages -> {
-                            ImagesBlockedBanner(onShowOnce = viewModel::showImagesForThisMessage)
-                        }
                         !message.bodyHtml.isNullOrBlank() -> {
+                            // Blocking remote images must NOT hide the message
+                            // body. When images are blocked we show the banner
+                            // ABOVE the body and still render the HTML - the
+                            // WebView blocks only the remote image loads
+                            // (blockNetworkImage), so text and layout come
+                            // through and just the images are withheld until the
+                            // user taps "Show images".
+                            if (!showImages) {
+                                ImagesBlockedBanner(onShowOnce = viewModel::showImagesForThisMessage)
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
                             HtmlEmailContent(
                                 html = message.bodyHtml!!,
                                 loadImages = showImages,
@@ -440,6 +521,14 @@ fun MessageDetailScreen(
         }
     }
 }
+
+/**
+ * Format an epoch-millis timestamp as an RFC 5322-style Date header value
+ * (e.g. "Mon, 21 Jul 2026 14:05:32 +0100") for the message-headers dialog.
+ */
+private fun formatHeaderDate(epochMillis: Long): String =
+    java.text.SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss Z", java.util.Locale.getDefault())
+        .format(java.util.Date(epochMillis))
 
 /**
  * A WebView locked down to render HTML mail bodies safely.

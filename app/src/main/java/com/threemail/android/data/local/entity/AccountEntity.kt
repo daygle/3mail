@@ -82,5 +82,13 @@ data class AccountEntity(
      * recipient-key lookup falling back to WKD / encrypt-to-self.
      */
     val autocryptKeysJson: String = "{}",
+    /**
+     * JSON-encoded list of extra IMAP folder `serverId`s to watch for push
+     * (IMAP IDLE) in addition to the always-watched INBOX. Each entry opens
+     * its own IDLE connection, so this is an opt-in power-user knob - most
+     * accounts leave it empty. Default `"[]"` keeps the v21 -> v22 migration a
+     * single additive `ALTER TABLE`.
+     */
+    val pushFoldersJson: String = "[]",
     val createdAt: Long = System.currentTimeMillis()
 )

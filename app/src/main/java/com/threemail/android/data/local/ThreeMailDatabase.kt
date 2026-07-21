@@ -40,6 +40,7 @@ import com.threemail.android.data.local.migrations.MIGRATION_17_18
 import com.threemail.android.data.local.migrations.MIGRATION_18_19
 import com.threemail.android.data.local.migrations.MIGRATION_19_20
 import com.threemail.android.data.local.migrations.MIGRATION_20_21
+import com.threemail.android.data.local.migrations.MIGRATION_21_22
 
 @Database(
     entities = [
@@ -53,7 +54,7 @@ import com.threemail.android.data.local.migrations.MIGRATION_20_21
         OutboxMessageEntity::class,
         MessageFlagEntity::class
     ],
-    version = 21,
+    version = 22,
     // exportSchema intentionally OFF: Room 2.8.4 ships pre-generated
     // SchemaBundle/FieldBundle/EntityBundle/DatabaseBundle serializer classes
     // whose compiled ABI is incompatible with the serialization-core version
@@ -103,7 +104,7 @@ abstract class ThreeMailDatabase : RoomDatabase() {
                     ThreeMailDatabase::class.java,
                     "threemail_database"
                 )
-                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21)
+                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22)
                     .addCallback(freshInstallCallback)
                     // No destructive fallback is configured. The v11 -> v12 ->
                     // v13 path is fully covered by MIGRATION_11_12 and

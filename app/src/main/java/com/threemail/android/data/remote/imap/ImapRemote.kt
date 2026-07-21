@@ -25,6 +25,9 @@ class ImapRemote(private val client: ImapClient) : MailRemote {
     override suspend fun fetchBody(folder: MailFolder, message: MailMessage): Result<MessageBody> =
         client.fetchBody(folder.serverId, uid(message))
 
+    override suspend fun fetchRawHeaders(folder: MailFolder, message: MailMessage): Result<String> =
+        client.fetchRawHeaders(folder.serverId, uid(message))
+
     override suspend fun setSeen(folder: MailFolder, message: MailMessage, seen: Boolean): Result<Unit> =
         client.setSeen(folder.serverId, uid(message), seen)
 

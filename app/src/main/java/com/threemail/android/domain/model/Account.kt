@@ -94,5 +94,12 @@ data class Account(
      * in the original Autocrypt header / WKD response. We never re-format
      * here so the importer can cache the exact wire form for fidelity.
      */
-    val peerKeys: Map<String, String> = emptyMap()
+    val peerKeys: Map<String, String> = emptyMap(),
+    /**
+     * Extra IMAP folder `serverId`s to watch for push (IMAP IDLE) in addition
+     * to the always-watched INBOX. Opt-in and normally empty: each entry costs
+     * a dedicated persistent IDLE connection. IMAP-only - ignored for Gmail
+     * (Google push) and POP3 (no push at all).
+     */
+    val pushFolders: List<String> = emptyList()
 )

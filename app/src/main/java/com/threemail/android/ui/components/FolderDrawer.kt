@@ -41,6 +41,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.NavigationDrawerItem
@@ -98,7 +99,7 @@ private data class DragInfo(
  * output list encodes the pre-order traversal so [LazyColumn] receives
  * one stable item per node.
  */
-private data class FolderNode(
+internal data class FolderNode(
     val folder: MailFolder,
     val depth: Int,
     val hasChildren: Boolean,
@@ -113,7 +114,7 @@ private data class FolderNode(
  * `expandedServerIds` controls which parent nodes show their children;
  * collapsed parents are emitted as a single node.
  */
-private fun buildFolderTree(
+internal fun buildFolderTree(
     folders: List<MailFolder>,
     expandedServerIds: Set<String>
 ): List<FolderNode> {
@@ -175,7 +176,7 @@ private fun buildFolderTree(
  * between `serverId` (full path) and `name` (leaf). Falls back to `.`
  * when nothing can be inferred.
  */
-private fun detectSeparator(folders: List<MailFolder>): Char {
+internal fun detectSeparator(folders: List<MailFolder>): Char {
     for (folder in folders) {
         if (folder.serverId != folder.name && folder.serverId.endsWith(folder.name)) {
             val sep = folder.serverId[folder.serverId.length - folder.name.length - 1]
@@ -227,7 +228,11 @@ fun FolderDrawerContent(
     onManageAccounts: () -> Unit,
     onManageFolders: () -> Unit = {},
     onSettings: () -> Unit,
-    onSync: () -> Unit
+    onSync: () -> Unit,
+    /** Opens the per-account settings screen for the given account. */
+    onOpenAccountSettings: (Account) -> Unit = {},
+    /** Permanently empties the given Trash folder (guarded by a confirmation upstream). */
+    onEmptyTrash: (MailFolder) -> Unit = {}
 ) {
     // Two columns of the same source data:
     //  - `favoriteFolders`: the user's pinned shortcuts, in the order
@@ -382,7 +387,8 @@ fun FolderDrawerContent(
                             onClick = {
                                 if (acct.id != account?.id) onSelectAccount(acct)
                                 showAccounts = false
-                            }
+                            },
+                            onOpenSettings = { onOpenAccountSettings(acct) }
                         )
                     }
                 }
@@ -680,6 +686,31 @@ fun FolderDrawerContent(
                                     onToggleFavorite(node.folder)
                                 }
                             )
+                            // Empty-trash affordance on the Trash folder row, so
+                            // the destructive purge is reachable straight from the
+                            // drawer without first opening the folder.
+                            if (node.folder.type == FolderType.TRASH) {
+                                HorizontalDivider()
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            stringResource(R.string.empty_trash_action),
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                    },
+                                    onClick = {
+                                        showMenu = false
+                                        onEmptyTrash(node.folder)
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -912,7 +943,8 @@ private fun FolderTreeRow(
 private fun AccountRow(
     account: Account,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onOpenSettings: () -> Unit = {}
 ) {
     val contentColor = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
     val subColor = if (isSelected) {
@@ -935,7 +967,7 @@ private fun AccountRow(
                 }
             )
             .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(start = 12.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
@@ -973,6 +1005,16 @@ private fun AccountRow(
                 overflow = TextOverflow.Ellipsis
             )
         }
+        // Per-account settings entry point. Each account row carries its own
+        // gear so "settings for THIS account" is reachable directly from the
+        // switcher instead of being buried behind the accounts-management list.
+        IconButton(onClick = onOpenSettings) {
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = stringResource(R.string.account_settings_open),
+                tint = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 
@@ -988,7 +1030,10 @@ private fun FooterItem(
 ) {
     NavigationDrawerItem(
         icon = { Icon(icon, contentDescription = null) },
-        label = { Text(label) },
+        // Match the folder-row text size (bodyMedium); NavigationDrawerItem's
+        // default label style (labelLarge) renders noticeably larger and made
+        // the footer actions look out of scale next to the folder list.
+        label = { Text(label, style = MaterialTheme.typography.bodyMedium) },
         selected = false,
         onClick = onClick,
         colors = NavigationDrawerItemDefaults.colors(

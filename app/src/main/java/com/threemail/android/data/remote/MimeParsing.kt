@@ -4,6 +4,7 @@ import com.threemail.android.domain.model.Attachment
 import com.threemail.android.domain.model.EmailAddress
 import com.threemail.android.util.MailText
 import javax.mail.Address
+import javax.mail.Header
 import javax.mail.Message
 import javax.mail.Multipart
 import javax.mail.Part
@@ -137,6 +138,22 @@ object MimeParsing {
         } catch (_: Exception) {
             // Skip parts we cannot decode rather than failing the whole message.
         }
+    }
+
+    /**
+     * Reconstruct a message's header block as "Name: value" lines (one per
+     * header, in server order). Uses [Part.getAllHeaders], so it works on any
+     * javax.mail Part without a MimeMessage-specific cast (getAllHeaderLines is
+     * not declared on the base Part/Message types).
+     */
+    fun buildHeaderText(part: Part): String {
+        val builder = StringBuilder()
+        val headers = part.allHeaders
+        while (headers.hasMoreElements()) {
+            val header = headers.nextElement() as Header
+            builder.append(header.name).append(": ").append(header.value).append("\r\n")
+        }
+        return builder.toString()
     }
 
     /** Finds the first attachment part whose file name matches [targetName]. */

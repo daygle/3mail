@@ -11,6 +11,7 @@ import com.threemail.android.data.repository.MailRepository
 import com.threemail.android.data.settings.SettingsRepository
 import com.threemail.android.domain.model.AccountType
 import com.threemail.android.domain.model.FolderType
+import com.threemail.android.domain.model.MailMessage
 import com.threemail.android.notifications.NotificationHelper
 import kotlinx.coroutines.flow.first
 
@@ -41,7 +42,7 @@ class MailSyncWorker(
             }
             Log.d(TAG, "Starting sync for ${accounts.size} accounts")
             val notificationsEnabled = settingsRepository.settings.first().notificationsEnabled
-            var newMessages = 0
+            val newMessagesToNotify = mutableListOf<MailMessage>()
 
             accounts.forEach { account ->
                 if (!account.syncEnabled) {
@@ -64,19 +65,20 @@ class MailSyncWorker(
                 val savedFolders = mailRepository.saveFolders(remoteFolders)
 
                 savedFolders.forEach { folder ->
-                    // Only deep-sync the folders users care about most.
-                    if (folder.type !in SYNCED_FOLDERS) return@forEach
+                    // Deep-sync the core folders, plus any folder the user opted
+                    // into IMAP push for (so an IDLE hit on it actually fetches
+                    // and can notify).
+                    if (folder.type !in SYNCED_FOLDERS &&
+                        folder.serverId !in account.pushFolders
+                    ) return@forEach
 
                     Log.d(TAG, "Syncing folder: ${folder.name} (${folder.serverId}) [Type: ${folder.type}]")
                     // Fetch from the stored cursor normally, but from the start
                     // when the folder's local cache is empty, so a stale cursor
                     // can't leave an empty folder stuck (it would only ask for
                     // messages newer than itself and get nothing back).
-                    val cursor = if (mailRepository.getFolderMessageCount(folder.id) == 0) {
-                        0L
-                    } else {
-                        folder.syncVersion
-                    }
+                    val countBefore = mailRepository.getFolderMessageCount(folder.id)
+                    val cursor = if (countBefore == 0) 0L else folder.syncVersion
                     val fetch = remote.fetchMessages(folder, cursor, limit = 100).getOrElse {
                         Log.e(TAG, "Failed to fetch messages for folder ${folder.name}", it)
                         return@forEach
@@ -85,11 +87,27 @@ class MailSyncWorker(
                     if (fetch.messages.isNotEmpty()) {
                         Log.d(TAG, "Fetched ${fetch.messages.size} new messages for folder ${folder.name}")
                         val toSave = fetch.messages.map { it.copy(folderId = folder.id) }
+                        // Notify for genuinely-new unread mail only, and never for
+                        // the initial backfill of an empty inbox (adding an account
+                        // or a cache clear fetches up to 100 existing messages at
+                        // once). We snapshot the folder's known server-ids before
+                        // the upsert; the messages whose messageId wasn't present
+                        // and that arrive unread are the ones worth a notification.
+                        val isNotifyFolder = folder.type == FolderType.Inbox ||
+                            folder.serverId in account.pushFolders
+                        val shouldNotify = isNotifyFolder &&
+                            account.notificationsEnabled &&
+                            countBefore > 0
+                        val existingIds: Set<String> = if (shouldNotify) {
+                            mailRepository.getMessagesOnce(folder.id).mapTo(HashSet<String>()) { it.messageId }
+                        } else {
+                            emptySet()
+                        }
                         mailRepository.saveMessages(toSave)
-                        // Only feed the aggregate new-mail notification when this
-                        // account opts in; the global switch is applied once below.
-                        if (folder.type == FolderType.Inbox && account.notificationsEnabled) {
-                            newMessages += toSave.count { !it.isRead }
+                        if (shouldNotify) {
+                            val fresh = mailRepository.getMessagesOnce(folder.id)
+                                .filter { it.messageId !in existingIds && !it.isRead }
+                            newMessagesToNotify += fresh
                         }
                         // Autocrypt-key learner (RFC 8180). After the new
                         // messages are persisted to Room we ask the IMAP
@@ -130,8 +148,8 @@ class MailSyncWorker(
                 }
             }
 
-            if (newMessages > 0 && notificationsEnabled) {
-                notificationHelper.showNewMailNotification(newMessages)
+            if (newMessagesToNotify.isNotEmpty() && notificationsEnabled) {
+                notificationHelper.showNewMailNotifications(newMessagesToNotify)
             }
 
             Result.success()

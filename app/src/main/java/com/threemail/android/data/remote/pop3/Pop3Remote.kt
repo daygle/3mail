@@ -35,6 +35,9 @@ class Pop3Remote(private val client: Pop3Client) : MailRemote {
     override suspend fun fetchBody(folder: MailFolder, message: MailMessage): Result<MessageBody> =
         client.fetchBody(number(message))
 
+    override suspend fun fetchRawHeaders(folder: MailFolder, message: MailMessage): Result<String> =
+        client.fetchRawHeaders(number(message))
+
     // POP3 has no server-side flags; the local Room write in MailActions is the
     // source of truth, so report success without a server round-trip.
     override suspend fun setSeen(folder: MailFolder, message: MailMessage, seen: Boolean): Result<Unit> =

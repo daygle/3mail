@@ -73,6 +73,13 @@
             </intent-filter>
         </receiver>
 
+        <!-- Handles Mark read / Delete buttons on new-mail notifications.
+             Triggered only by our own explicit-component PendingIntents, so it
+             needs no intent-filter and stays unexported. -->
+        <receiver
+            android:name=".notifications.NotificationActionReceiver"
+            android:exported="false" />
+
     </application>
 
 </manifest>
