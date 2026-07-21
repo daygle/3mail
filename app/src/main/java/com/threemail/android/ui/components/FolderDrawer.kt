@@ -1030,7 +1030,10 @@ private fun FooterItem(
 ) {
     NavigationDrawerItem(
         icon = { Icon(icon, contentDescription = null) },
-        label = { Text(label) },
+        // Match the folder-row text size (bodyMedium); NavigationDrawerItem's
+        // default label style (labelLarge) renders noticeably larger and made
+        // the footer actions look out of scale next to the folder list.
+        label = { Text(label, style = MaterialTheme.typography.bodyMedium) },
         selected = false,
         onClick = onClick,
         colors = NavigationDrawerItemDefaults.colors(

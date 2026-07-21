@@ -419,10 +419,18 @@ fun MessageDetailScreen(
                                 }
                             }
                         }
-                        !message.bodyHtml.isNullOrBlank() && !showImages -> {
-                            ImagesBlockedBanner(onShowOnce = viewModel::showImagesForThisMessage)
-                        }
                         !message.bodyHtml.isNullOrBlank() -> {
+                            // Blocking remote images must NOT hide the message
+                            // body. When images are blocked we show the banner
+                            // ABOVE the body and still render the HTML - the
+                            // WebView blocks only the remote image loads
+                            // (blockNetworkImage), so text and layout come
+                            // through and just the images are withheld until the
+                            // user taps "Show images".
+                            if (!showImages) {
+                                ImagesBlockedBanner(onShowOnce = viewModel::showImagesForThisMessage)
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
                             HtmlEmailContent(
                                 html = message.bodyHtml!!,
                                 loadImages = showImages,
