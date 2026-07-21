@@ -80,12 +80,58 @@ class PgpEngineRoundTripTest {
         assertArrayEquals(plaintext, senderOutcome.plain)
         assertEquals(SignatureStatus.VALID, senderOutcome.signature)
 
-        // Recipient side: decrypts via its own entry; the signer's public
-        // key isn't on this ring, so the verdict is KEY_MISSING (shown as
-        // "signed, key unavailable" - not a decryption failure).
+        // Recipient side without the sender's key: decrypts via its own
+        // entry; the signer is unknown, so the verdict is KEY_MISSING
+        // (shown as "signed, key unavailable" - not a decryption failure).
         val recipientOutcome = PgpEngine.decryptAndVerify(recipientRing, passphrase, cipher)
         assertArrayEquals(plaintext, recipientOutcome.plain)
         assertEquals(SignatureStatus.KEY_MISSING, recipientOutcome.signature)
+    }
+
+    @Test
+    fun peer_signature_verifies_against_cached_sender_key() {
+        val senderRing = PgpEngine.generateSecretKeyRing("alice@example.org", passphrase)
+        val recipientRing = PgpEngine.generateSecretKeyRing("bob@example.net", passphrase)
+        val recipientKey = PgpEngine.encryptionKeyOf(recipientRing)!!
+        val plaintext = "Signed by a peer, verified via the Autocrypt cache".toByteArray(Charsets.UTF_8)
+
+        val cipher = PgpEngine.signAndEncrypt(senderRing, passphrase, plaintext, listOf(recipientKey))
+
+        // Recipient holds the sender's PUBLIC ring (as the Autocrypt
+        // learner would have cached it) - the signature now verifies
+        // instead of reporting KEY_MISSING.
+        val senderPublicRing = PgpEngine.publicKeyRingOf(senderRing)
+        val outcome = PgpEngine.decryptAndVerify(
+            recipientRing,
+            passphrase,
+            cipher,
+            peerKeys = listOf(senderPublicRing)
+        )
+        assertArrayEquals(plaintext, outcome.plain)
+        assertEquals(SignatureStatus.VALID, outcome.signature)
+        assertEquals("alice@example.org", outcome.signerUserId)
+
+        // A WRONG peer key must not verify: an unrelated ring in the cache
+        // still leaves the signer unknown.
+        val strangerRing = PgpEngine.generateSecretKeyRing("mallory@example.com", passphrase)
+        val wrongPeer = PgpEngine.decryptAndVerify(
+            recipientRing,
+            passphrase,
+            cipher,
+            peerKeys = listOf(PgpEngine.publicKeyRingOf(strangerRing))
+        )
+        assertEquals(SignatureStatus.KEY_MISSING, wrongPeer.signature)
+    }
+
+    @Test
+    fun fingerprint_is_stable_across_secret_and_public_forms() {
+        val ring = PgpEngine.generateSecretKeyRing("erin@example.org", passphrase)
+        val fromSecret = PgpEngine.fingerprintOf(ring)
+        val fromPublic = PgpEngine.fingerprintOf(PgpEngine.publicKeyRingOf(ring))
+        assertEquals(fromSecret, fromPublic)
+        // v4 fingerprint = 20 bytes = 40 hex chars in 10 groups of 4.
+        assertEquals(10, fromSecret.split(" ").size)
+        assertTrue(fromSecret.matches(Regex("([0-9A-F]{4} ){9}[0-9A-F]{4}")))
     }
 
     @Test

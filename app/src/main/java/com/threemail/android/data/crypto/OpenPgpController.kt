@@ -108,12 +108,17 @@ class OpenPgpController @Inject constructor(
      * Decrypt an armoured PGP MESSAGE with the active account's keys and
      * verify any embedded signature. Multi-recipient aware - the engine
      * walks the wire body's encrypted-data list until an entry we hold a
-     * key for is found.
+     * key for is found. The account's Autocrypt peer-key cache rides
+     * along so peer-signed mail verifies against the signer's cached key
+     * instead of reporting "key missing".
      */
     suspend fun decryptAndVerify(cipher: ByteArray): PgpResult = runCatching {
         val account = activeAccount()
         val secretRing = ensureSecretKeyRing(account.id, account.email)
-        decryptAndVerifyWithKey(secretRing, cipher)
+        val peerRings = accountRepository.loadAutocryptPeerKeys(account.id)
+            .values
+            .mapNotNull(PgpEngine::parsePublicKeyRing)
+        decryptAndVerifyWithKey(secretRing, cipher, peerRings)
     }.getOrElse { e ->
         Log.e(TAG, "decryptAndVerify failed", e)
         PgpResult.Error(e.exceptionMessage())
@@ -157,10 +162,92 @@ class OpenPgpController @Inject constructor(
     @VisibleForTesting
     internal fun decryptAndVerifyWithKey(
         secretRing: PGPSecretKeyRing,
-        cipher: ByteArray
+        cipher: ByteArray,
+        peerRings: List<org.bouncycastle.openpgp.PGPPublicKeyRing> = emptyList()
     ): PgpResult {
-        val outcome = PgpEngine.decryptAndVerify(secretRing, WRAPPING_ONLY.toCharArray(), cipher)
+        val outcome = PgpEngine.decryptAndVerify(secretRing, WRAPPING_ONLY.toCharArray(), cipher, peerRings)
         return PgpResult.Success(outcome.plain, outcome.signature, outcome.signerUserId)
+    }
+
+    // ── Key management (account-settings UI surface) ──────────────────
+
+    /** Formatted fingerprint of the account's own master key (generating
+     *  the keyring on first call if the account doesn't have one yet). */
+    suspend fun ownKeyFingerprint(accountId: Long, email: String): String? = runCatching {
+        PgpEngine.fingerprintOf(ensureSecretKeyRing(accountId, email))
+    }.getOrElse { e ->
+        Log.w(TAG, "ownKeyFingerprint unavailable: ${e.message}")
+        null
+    }
+
+    /**
+     * The cached peer keys for [accountId] as `email -> formatted
+     * fingerprint` (null fingerprint = cached keydata failed to decode,
+     * shown as unparseable so the user knows to re-import).
+     */
+    suspend fun peerKeyFingerprints(accountId: Long): Map<String, String?> =
+        accountRepository.loadAutocryptPeerKeys(accountId).mapValues { (_, keyData) ->
+            PgpEngine.parsePublicKeyRing(keyData)?.let(PgpEngine::fingerprintOf)
+        }
+
+    /**
+     * Manually import a peer public key (ASCII-armoured or raw base64)
+     * for [email]. Validates that the keydata decodes and carries an
+     * encryption-capable key, then stores it - REPLACING any cached
+     * Autocrypt entry: a manual import is the highest-trust source, and
+     * [AutocryptLearner] never overwrites existing entries, so the
+     * imported key stays authoritative. Returns the formatted
+     * fingerprint for the confirmation UI.
+     */
+    suspend fun importPeerKey(accountId: Long, email: String, keyData: String): Result<String> =
+        runCatching {
+            val ring = PgpEngine.parsePublicKeyRing(keyData)
+                ?: error("Key data did not decode into an OpenPGP public key")
+            PgpEngine.encryptionKeyOf(ring)
+                ?: error("Key has no encryption-capable (sub)key")
+            val cache = accountRepository.loadAutocryptPeerKeys(accountId)
+            val merged = LinkedHashMap(cache).apply {
+                put(email.trim().lowercase(), keyData.trim())
+            }
+            accountRepository.replaceAutocryptPeerKeys(accountId, merged)
+            PgpEngine.fingerprintOf(ring)
+        }
+
+    /** Remove the cached key for [email] from [accountId]'s peer cache. */
+    suspend fun removePeerKey(accountId: Long, email: String): Result<Unit> = runCatching {
+        val cache = accountRepository.loadAutocryptPeerKeys(accountId)
+        val merged = LinkedHashMap(cache).apply { remove(email.trim().lowercase()) }
+        accountRepository.replaceAutocryptPeerKeys(accountId, merged)
+    }
+
+    /**
+     * WKD export of the account's own public key: the binary (non-armoured)
+     * transferable public key plus the zbase32 `hu/` filename the WKD spec
+     * derives from the lowercased local-part. The caller writes the bytes
+     * to a file named [WkdExport.fileName] and uploads it to
+     * `https://<domain>/.well-known/openpgpkey/hu/<fileName>` (direct
+     * method) - that's all a client can do without controlling the domain.
+     */
+    data class WkdExport(val fileName: String, val wellKnownPath: String, val keyBytes: ByteArray)
+
+    suspend fun wkdExport(accountId: Long, email: String): WkdExport? = runCatching {
+        val at = email.lastIndexOf('@')
+        require(at > 0 && at < email.length - 1) { "Not an email address: $email" }
+        val local = email.substring(0, at).lowercase()
+        val domain = email.substring(at + 1).lowercase()
+        val hash = ZBase32.encode(
+            java.security.MessageDigest.getInstance("SHA-1")
+                .digest(local.toByteArray(Charsets.UTF_8))
+        )
+        val ring = ensureSecretKeyRing(accountId, email)
+        WkdExport(
+            fileName = hash,
+            wellKnownPath = "https://$domain/.well-known/openpgpkey/hu/$hash",
+            keyBytes = PgpEngine.publicKeyRingOf(ring).encoded
+        )
+    }.getOrElse { e ->
+        Log.w(TAG, "wkdExport unavailable: ${e.message}")
+        null
     }
 
     /**
