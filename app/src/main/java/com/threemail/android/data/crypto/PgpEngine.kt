@@ -203,7 +203,9 @@ internal object PgpEngine {
     fun armor(encoded: ByteArray): String {
         val out = ByteArrayOutputStream()
         ArmoredOutputStream(out).use { it.write(encoded) }
-        return out.toString(Charsets.UTF_8)
+        // Not ByteArrayOutputStream.toString(Charset): that overload is
+        // API 33+ on Android (minSdk is 31).
+        return String(out.toByteArray(), Charsets.UTF_8)
     }
 
     /**
