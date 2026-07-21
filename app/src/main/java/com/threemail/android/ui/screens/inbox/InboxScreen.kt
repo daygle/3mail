@@ -109,6 +109,18 @@ fun InboxScreen(
     val scope = rememberCoroutineScope()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
+    // Re-expand the collapsing top bar whenever the list becomes empty (e.g.
+    // after deleting every message in a folder) or the folder/view changes.
+    // An exit-until-collapsed bar that was scrolled away has no scrollable
+    // content left to pull it back, so it would otherwise stay stuck off-screen
+    // - the "title bar drops off" an emptied folder.
+    LaunchedEffect(state.messages.isEmpty(), state.selectedFolder?.id, state.unifiedInbox) {
+        if (state.messages.isEmpty()) {
+            scrollBehavior.state.heightOffset = 0f
+            scrollBehavior.state.contentOffset = 0f
+        }
+    }
+
     // Per-screen top-bar customisation. SettingsViewModel is Hilt-scoped to this
     // nav entry alongside InboxViewModel and reads from the same singleton
     // DataStore, so collecting here is cheap. The hidden set is forwarded into
