@@ -68,7 +68,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -172,7 +172,7 @@ fun InboxScreen(
     // Snackbar messages for empty-trash result feedback. The success line is a
     // plural resolved from the app resources inside the collector (the count is
     // only known there); the failure line is read at composition time.
-    val context = LocalContext.current
+    val resources = LocalResources.current
     val emptyTrashFailureMessage = stringResource(R.string.empty_trash_failure)
 
     // Collect empty-trash events and show a snackbar with the result.
@@ -181,7 +181,7 @@ fun InboxScreen(
         viewModel.emptyTrashEvents.collect { event ->
             when (event) {
                 is InboxViewModel.EmptyTrashEvent.Success -> {
-                    val msg = context.resources.getQuantityString(
+                    val msg = resources.getQuantityString(
                         R.plurals.empty_trash_success,
                         event.expungedCount,
                         event.expungedCount
