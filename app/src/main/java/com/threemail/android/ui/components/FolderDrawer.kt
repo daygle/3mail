@@ -99,7 +99,7 @@ private data class DragInfo(
  * output list encodes the pre-order traversal so [LazyColumn] receives
  * one stable item per node.
  */
-private data class FolderNode(
+internal data class FolderNode(
     val folder: MailFolder,
     val depth: Int,
     val hasChildren: Boolean,
@@ -114,7 +114,7 @@ private data class FolderNode(
  * `expandedServerIds` controls which parent nodes show their children;
  * collapsed parents are emitted as a single node.
  */
-private fun buildFolderTree(
+internal fun buildFolderTree(
     folders: List<MailFolder>,
     expandedServerIds: Set<String>
 ): List<FolderNode> {
@@ -176,7 +176,7 @@ private fun buildFolderTree(
  * between `serverId` (full path) and `name` (leaf). Falls back to `.`
  * when nothing can be inferred.
  */
-private fun detectSeparator(folders: List<MailFolder>): Char {
+internal fun detectSeparator(folders: List<MailFolder>): Char {
     for (folder in folders) {
         if (folder.serverId != folder.name && folder.serverId.endsWith(folder.name)) {
             val sep = folder.serverId[folder.serverId.length - folder.name.length - 1]

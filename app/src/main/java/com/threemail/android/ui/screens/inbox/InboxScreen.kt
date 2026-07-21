@@ -38,7 +38,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalNavigationDrawer
@@ -85,8 +84,8 @@ import com.threemail.android.domain.model.MailMessage
 import com.threemail.android.ui.components.EmptyState
 import com.threemail.android.ui.components.FolderDrawerContent
 import com.threemail.android.ui.components.LoadingIndicator
+import com.threemail.android.ui.components.FolderTreePicker
 import com.threemail.android.ui.components.MailListItem
-import com.threemail.android.ui.components.iconFor
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
@@ -439,7 +438,9 @@ fun InboxScreen(
     // height that adds information. Hit-the-edge dismiss returns to the
     // selection bar without firing `onMove`.
     if (showMovePicker) {
-        val targetFolders = viewModel.getMoveTargetFolders()
+        // Read the target folders once when the sheet opens so mid-sheet folder
+        // refreshes don't shift the tree under the user's finger.
+        val targetFolders = remember { viewModel.getMoveTargetFolders() }
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
             onDismissRequest = { showMovePicker = false },
@@ -456,31 +457,17 @@ fun InboxScreen(
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
                 )
             } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        // Cap the sheet's scrollable region so a deep IMAP
-                        // tree doesn't push the system back-gesture region
-                        // off-screen; the picker is intentionally compact.
-                        .heightIn(max = 480.dp)
-                ) {
-                    items(targetFolders, key = { it.id }) { folder ->
-                        ListItem(
-                            headlineContent = { Text(folder.name) },
-                            // Reuse the drawer's per-type folder icon so the
-                            // picker stays visually consistent with the rest
-                            // of the app - Sent / Trash / Spam rows don't all
-                            // collapse onto the generic folder glyph.
-                            leadingContent = {
-                                Icon(iconFor(folder.type), contentDescription = null)
-                            },
-                            modifier = Modifier.clickable {
-                                showMovePicker = false
-                                viewModel.moveSelected(folder)
-                            }
-                        )
+                // Hierarchical tree instead of a flat list, so deep IMAP folder
+                // layouts stay legible. Cap the height so a large tree doesn't
+                // push the system back-gesture region off-screen.
+                FolderTreePicker(
+                    folders = targetFolders,
+                    modifier = Modifier.heightIn(max = 480.dp),
+                    onSelect = { folder ->
+                        showMovePicker = false
+                        viewModel.moveSelected(folder)
                     }
-                }
+                )
             }
             Spacer(Modifier.padding(8.dp))
         }
