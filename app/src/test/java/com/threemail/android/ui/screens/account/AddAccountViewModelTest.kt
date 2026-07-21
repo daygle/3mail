@@ -221,6 +221,7 @@ class AddAccountViewModelTest {
         override suspend fun setSignature(id: Long, signature: String) {}
         override suspend fun setSyncIntervalMinutes(id: Long, minutes: Long) {}
         override suspend fun setSyncEnabled(id: Long, enabled: Boolean) {}
+        override suspend fun setCalendarSyncEnabled(id: Long, enabled: Boolean) {}
         override suspend fun setNotificationsEnabled(id: Long, enabled: Boolean) {}
         override suspend fun setIdentitiesJson(id: Long, identitiesJson: String) {}
         override suspend fun setFolderRolesJson(id: Long, folderRolesJson: String) {}
