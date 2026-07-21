@@ -277,17 +277,22 @@ internal object PgpEngine {
      * [secretRing]'s keys matches an entry in the wire body's
      * [PGPEncryptedDataList], then verify the embedded signature.
      *
+     * The signer is looked up first among [secretRing]'s own keys
+     * (self-signed round trips, e.g. Sent copies), then across
+     * [peerKeys] - typically the parsed Autocrypt peer-key cache - so
+     * peer-signed mail gets a real verdict.
+     *
      * Signature verdicts: [SignatureStatus.VALID]/[SignatureStatus.INVALID]
-     * when the signer is our own master key (self-signed round trips),
-     * [SignatureStatus.KEY_MISSING] when the one-pass packet names a key we
-     * don't hold (a peer's signature - verifying it needs their public key,
-     * which the decrypt path doesn't carry today), [SignatureStatus.NONE]
-     * for unsigned ciphers. Throws on structural or integrity failures.
+     * when the signer's key was found (own or peer),
+     * [SignatureStatus.KEY_MISSING] when the one-pass packet names a key
+     * that is neither ours nor in [peerKeys], [SignatureStatus.NONE] for
+     * unsigned ciphers. Throws on structural or integrity failures.
      */
     fun decryptAndVerify(
         secretRing: PGPSecretKeyRing,
         passphrase: CharArray,
-        cipher: ByteArray
+        cipher: ByteArray,
+        peerKeys: List<PGPPublicKeyRing> = emptyList()
     ): Decrypted {
         ensureProvider()
         val objectFactory = PGPObjectFactory(
@@ -345,10 +350,10 @@ internal object PgpEngine {
         var signerUserId: String? = null
         val signatureStatus = if (onePassList != null && onePassList.size() > 0 && signatures.isNotEmpty()) {
             val onePass = onePassList[0]
-            val ownMaster = secretRing.publicKey
-            if (onePass.keyID == ownMaster.keyID) {
-                signerUserId = ownMaster.userIDs.asSequence().firstOrNull()
-                onePass.init(JcaPGPContentVerifierBuilderProvider().setProvider(PROVIDER), ownMaster)
+            val signerKey = findSignerKey(secretRing, peerKeys, onePass.keyID)
+            if (signerKey != null) {
+                signerUserId = signerKey.userIDs.asSequence().firstOrNull()
+                onePass.init(JcaPGPContentVerifierBuilderProvider().setProvider(PROVIDER), signerKey)
                 onePass.update(plainBytes)
                 if (onePass.verify(signatures.first())) SignatureStatus.VALID else SignatureStatus.INVALID
             } else {
@@ -359,6 +364,40 @@ internal object PgpEngine {
         }
         return Decrypted(plainBytes, signatureStatus, signerUserId)
     }
+
+    /**
+     * Resolve the public key for a signature's key id: our own ring's keys
+     * first (self round trips), then every peer keyring. Null when nobody
+     * we know signed - the caller maps that to [SignatureStatus.KEY_MISSING].
+     */
+    private fun findSignerKey(
+        secretRing: PGPSecretKeyRing,
+        peerKeys: List<PGPPublicKeyRing>,
+        signerKeyId: Long
+    ): PGPPublicKey? {
+        secretRing.secretKeys.asSequence()
+            .map { it.publicKey }
+            .firstOrNull { it.keyID == signerKeyId }
+            ?.let { return it }
+        for (ring in peerKeys) {
+            ring.getPublicKey(signerKeyId)?.let { return it }
+        }
+        return null
+    }
+
+    /**
+     * OpenPGP v4 fingerprint of the ring's master key, formatted in the
+     * conventional 4-hex-digit groups for display / manual comparison.
+     */
+    fun fingerprintOf(ring: PGPPublicKeyRing): String = formatFingerprint(ring.publicKey.fingerprint)
+
+    /** Fingerprint of a secret ring's master key; see [fingerprintOf]. */
+    fun fingerprintOf(ring: PGPSecretKeyRing): String = formatFingerprint(ring.publicKey.fingerprint)
+
+    private fun formatFingerprint(fingerprint: ByteArray): String =
+        fingerprint.joinToString("") { "%02X".format(it) }
+            .chunked(4)
+            .joinToString(" ")
 
     /** Read forward through [factory] until a packet of [type]; null on miss. */
     private fun <T> firstOfType(factory: PGPObjectFactory, type: Class<T>): T? {

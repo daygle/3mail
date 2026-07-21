@@ -230,6 +230,26 @@
     <string name="frequency_minutes">%1$dm</string>
     <string name="frequency_hours">%1$dh</string>
 
+    <!-- Per-account OpenPGP key management -->
+    <string name="pgp_keys_section">OpenPGP Keys</string>
+    <string name="pgp_keys_description">Mail is encrypted automatically when every recipient\'s key is known. Keys arrive via Autocrypt headers and Web Key Directory lookups, or can be imported below.</string>
+    <string name="pgp_own_key_title">Your Key Fingerprint</string>
+    <string name="pgp_own_key_subtitle">Compare this out-of-band so contacts can verify mail signed by this account.</string>
+    <string name="pgp_export_wkd_button">Export Public Key (WKD)</string>
+    <string name="pgp_export_wkd_hint">Saves the binary key file for uploading to your domain\'s Web Key Directory (.well-known/openpgpkey/hu/).</string>
+    <string name="pgp_peer_keys_title">Contact Keys</string>
+    <string name="pgp_peer_keys_empty">No contact keys cached yet.</string>
+    <string name="pgp_peer_key_unparseable">Key data could not be read - re-import this key.</string>
+    <string name="pgp_peer_key_remove">Remove Key</string>
+    <string name="pgp_import_title">Import Contact Key</string>
+    <string name="pgp_import_email_label">Contact Email</string>
+    <string name="pgp_import_email_required">Contact email is required.</string>
+    <string name="pgp_import_keydata_label">Key Data</string>
+    <string name="pgp_import_keydata_hint">Paste an ASCII-armoured public key or raw base64 keydata.</string>
+    <string name="pgp_import_button">Import Key</string>
+    <string name="pgp_import_success">Imported key with fingerprint %1$s. Verify it with the contact before trusting it.</string>
+    <string name="pgp_import_failure">Import failed: %1$s</string>
+
     <!-- Push / badge -->
     <string name="push_channel_name">Mail sync</string>
     <string name="push_channel_description">Background notifications while 3mail watches for new mail.</string>

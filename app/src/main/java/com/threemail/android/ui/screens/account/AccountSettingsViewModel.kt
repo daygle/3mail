@@ -3,6 +3,7 @@ package com.threemail.android.ui.screens.account
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.threemail.android.data.crypto.OpenPgpController
 import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.repository.MailRepository
 import com.threemail.android.data.settings.SettingsRepository
@@ -13,10 +14,12 @@ import com.threemail.android.domain.model.MailFolder
 import com.threemail.android.push.PushController
 import com.threemail.android.sync.SyncScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
@@ -34,6 +37,7 @@ class AccountSettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val syncScheduler: SyncScheduler,
     private val pushController: PushController,
+    private val openPgpController: OpenPgpController,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -44,8 +48,22 @@ class AccountSettingsViewModel @Inject constructor(
         val isLoading: Boolean = true,
         val notFound: Boolean = false,
         /** Cached once at load so the folder-role picker doesn't churn on sync. */
-        val folders: List<MailFolder> = emptyList()
+        val folders: List<MailFolder> = emptyList(),
+        /** Formatted fingerprint of this account's own OpenPGP master key. */
+        val ownKeyFingerprint: String? = null,
+        /** Cached peer keys: email -> formatted fingerprint (null = unparseable). */
+        val peerKeys: Map<String, String?> = emptyMap(),
+        /** Transient outcome of the last import/remove action, for inline display. */
+        val keyActionMessage: KeyActionMessage? = null,
+        /** Staged WKD export payload; the screen writes it via SAF then clears. */
+        val wkdExport: OpenPgpController.WkdExport? = null
     )
+
+    /** Import/remove outcome routed to a string resource by the screen. */
+    sealed interface KeyActionMessage {
+        data class Imported(val fingerprint: String) : KeyActionMessage
+        data class Failed(val reason: String) : KeyActionMessage
+    }
 
     private val accountId: Long = savedStateHandle.get<Long>("accountId") ?: -1L
 
@@ -66,7 +84,70 @@ class AccountSettingsViewModel @Inject constructor(
                 notFound = account == null,
                 folders = folders
             )
+            if (account != null) refreshPgpState(account)
         }
+    }
+
+    /**
+     * (Re)load the OpenPGP slice of the state: the account's own key
+     * fingerprint (generating the keyring on first visit - deliberate, so
+     * the fingerprint the user shares matches the key mail will use) and
+     * the cached peer keys. Runs on IO because the own-key path reads or
+     * creates the on-disk keyring.
+     */
+    private suspend fun refreshPgpState(account: Account) {
+        val fingerprint = withContext(Dispatchers.IO) {
+            openPgpController.ownKeyFingerprint(account.id, account.email)
+        }
+        val peers = withContext(Dispatchers.IO) {
+            openPgpController.peerKeyFingerprints(account.id)
+        }
+        _uiState.value = _uiState.value.copy(ownKeyFingerprint = fingerprint, peerKeys = peers)
+    }
+
+    /** Validate + store a manually imported peer key, then refresh the list. */
+    fun importPeerKey(email: String, keyData: String) {
+        val account = _uiState.value.account ?: return
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                openPgpController.importPeerKey(account.id, email, keyData)
+            }
+            _uiState.value = _uiState.value.copy(
+                keyActionMessage = result.fold(
+                    onSuccess = { KeyActionMessage.Imported(it) },
+                    onFailure = { KeyActionMessage.Failed(it.message ?: "Invalid key data") }
+                )
+            )
+            refreshPgpState(account)
+        }
+    }
+
+    /** Drop a cached peer key and refresh the list. */
+    fun removePeerKey(email: String) {
+        val account = _uiState.value.account ?: return
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { openPgpController.removePeerKey(account.id, email) }
+            refreshPgpState(account)
+        }
+    }
+
+    fun clearKeyActionMessage() {
+        _uiState.value = _uiState.value.copy(keyActionMessage = null)
+    }
+
+    /** Stage the WKD export payload; the screen reacts by launching SAF. */
+    fun prepareWkdExport() {
+        val account = _uiState.value.account ?: return
+        viewModelScope.launch {
+            val export = withContext(Dispatchers.IO) {
+                openPgpController.wkdExport(account.id, account.email)
+            }
+            _uiState.value = _uiState.value.copy(wkdExport = export)
+        }
+    }
+
+    fun clearWkdExport() {
+        _uiState.value = _uiState.value.copy(wkdExport = null)
     }
 
     private fun updateAccount(transform: (Account) -> Account) {

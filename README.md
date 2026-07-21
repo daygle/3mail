@@ -122,10 +122,7 @@ The fix, [`sync/ThreeMailWorkerFactory.kt`](app/src/main/java/com/threemail/andr
 
 - ~~CI emulator job for Compose UI tests~~ **Done**: Compose UI coverage now runs at two layers - the full Robolectric label-audit suite (`app/src/test/java/com/threemail/android/ui/InboxSettingsTitleCaseTest.kt`) in `testDebugUnitTest` on every PR, plus an on-device smoke suite (`app/src/androidTest/java/com/threemail/android/ui/InboxSettingsTitleCaseDeviceTest.kt`) run by the `android-test` emulator job (`connectedDebugAndroidTest`) on pushes to `main`.
 - ~~Future hardening for the in-app OpenPGP path~~ **Done**: the BC-backed `OpenPgpController`/`PgpEngine` pipeline is live - PGP/MIME `multipart/encrypted` wraps the full inner MIME tree (`protocol="application/pgp-encrypted"`), Autocrypt header exchange (RFC 8180) runs in both directions with the per-peer key cache in the Room `accounts` table (`peerKeysJson` - chosen over DataStore so the cache rides the account row's lifecycle), and WKD recipient-key discovery (advanced + direct methods) feeds `signAndEncrypt` real recipient keys. Round-trip coverage lives in `app/src/test/.../crypto/PgpEngineRoundTripTest.kt`.
-- Remaining OpenPGP niceties (not blocking day-to-day encrypted mail):
-  - Verify peer signatures against cached Autocrypt keys on decrypt (peer-signed mail currently reports "key missing" rather than verifying).
-  - Manual key import / fingerprint verification UI.
-  - WKD publishing of the account's own public key.
+- ~~Remaining OpenPGP niceties~~ **Done**: peer signatures now verify against the cached Autocrypt keys on decrypt (unknown signers still report "key missing"); per-account settings gained an **OpenPGP Keys** section - own-key fingerprint display, cached contact keys with fingerprints + removal, and manual key import (armoured or raw base64, validated before storing, and authoritative over Autocrypt-learned entries); and the account's public key can be **exported in WKD layout** (binary key, zbase32 `hu/` filename) for upload to the domain's `.well-known/openpgpkey/` directory - actual serving requires domain control, which is out of a mail client's hands.
 
 ## License
 
