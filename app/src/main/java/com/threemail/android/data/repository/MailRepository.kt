@@ -79,15 +79,32 @@ class MailRepository @Inject constructor(
         // re-saving the folder list each sync does not reset incremental cursors.
         return folders.map { folder ->
             val existing = folderDao.getByServerId(folder.accountId, folder.serverId)
-            val merged = folder.copy(
-                id = existing?.id ?: 0,
-                syncVersion = existing?.syncVersion ?: folder.syncVersion,
-                unreadCount = existing?.unreadCount ?: folder.unreadCount,
-                // Preserve the user's hide choice across folder re-syncs.
-                isHidden = existing?.isHidden ?: folder.isHidden
-            )
-            val id = folderDao.insert(merged.toEntity())
-            merged.copy(id = id)
+            if (existing != null) {
+                val merged = folder.copy(
+                    id = existing.id,
+                    syncVersion = existing.syncVersion,
+                    unreadCount = existing.unreadCount,
+                    // Preserve the user's hide choice across folder re-syncs.
+                    isHidden = existing.isHidden
+                )
+                // UPDATE the row in place - do NOT re-INSERT it. An
+                // `@Insert(onConflict = REPLACE)` on an existing folder is a
+                // DELETE-then-INSERT under the hood, and `messages.folderId`
+                // carries `ON DELETE CASCADE`, so the REPLACE would silently
+                // wipe every cached message in the folder. The worker only
+                // deep-syncs INBOX/SENT/DRAFTS, so any other folder's messages
+                // would never be re-fetched - and because the sync cursor is
+                // preserved, even re-opening the folder fetches nothing new -
+                // leaving a folder the user knows has mail looking permanently
+                // empty. Updating by primary key leaves the row (and its
+                // cascaded children) intact.
+                folderDao.update(merged.toEntity())
+                merged
+            } else {
+                // Brand-new folder: insert with id = 0 so Room autogenerates one.
+                val id = folderDao.insert(folder.toEntity())
+                folder.copy(id = id)
+            }
         }
     }
 
@@ -236,6 +253,10 @@ class MailRepository @Inject constructor(
 
     suspend fun getMaxUid(folderId: Long): Long =
         messageDao.getMaxUid(folderId) ?: 0L
+
+    /** Number of messages currently cached locally for [folderId]. */
+    suspend fun getFolderMessageCount(folderId: Long): Int =
+        messageDao.countByFolder(folderId)
 
     suspend fun saveMessages(messages: List<MailMessage>) {
         messageDao.insertAll(messages.map { it.toEntity() })

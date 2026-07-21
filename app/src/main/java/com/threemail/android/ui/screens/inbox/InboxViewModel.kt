@@ -302,12 +302,28 @@ class InboxViewModel @Inject constructor(
         val account = _selectedAccount.value ?: return
         val folder = _selectedFolder.value ?: return
         val remote = mailRemoteFactory.create(account)
-        val fetch = remote.fetchMessages(folder, folder.syncVersion, limit = 100).getOrThrow()
+        // Sync from the folder's stored cursor normally, but from the beginning
+        // when the local cache is empty. A stale cursor left on an empty folder
+        // (e.g. after the cache was cleared) would otherwise only ask for
+        // messages newer than it - returning nothing and leaving the folder
+        // looking permanently empty even though the server still has its mail.
+        val cursor = syncCursorFor(folder)
+        val fetch = remote.fetchMessages(folder, cursor, limit = 100).getOrThrow()
         if (fetch.messages.isNotEmpty()) {
             mailRepository.saveMessages(fetch.messages.map { it.copy(folderId = folder.id) })
         }
         mailRepository.updateFolderCursor(folder.id, fetch.nextCursor)
     }
+
+    /**
+     * Cursor to fetch [folder] from: its stored incremental cursor when the
+     * local cache already holds messages, or 0 (fetch the newest window from
+     * scratch) when the folder is locally empty. The empty-folder branch
+     * backfills a folder whose cache is empty instead of trusting a cursor
+     * that would skip every message already on the server.
+     */
+    private suspend fun syncCursorFor(folder: MailFolder): Long =
+        if (mailRepository.getFolderMessageCount(folder.id) == 0) 0L else folder.syncVersion
 
     /**
      * Sync the INBOX of every account for the unified view. One account's
@@ -321,7 +337,7 @@ class InboxViewModel @Inject constructor(
             val inbox = folders.firstOrNull { it.type == FolderType.Inbox } ?: continue
             try {
                 val remote = mailRemoteFactory.create(account)
-                val fetch = remote.fetchMessages(inbox, inbox.syncVersion, limit = 100).getOrThrow()
+                val fetch = remote.fetchMessages(inbox, syncCursorFor(inbox), limit = 100).getOrThrow()
                 if (fetch.messages.isNotEmpty()) {
                     mailRepository.saveMessages(fetch.messages.map { it.copy(folderId = inbox.id) })
                 }

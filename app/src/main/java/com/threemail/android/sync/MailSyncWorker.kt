@@ -68,7 +68,16 @@ class MailSyncWorker(
                     if (folder.type !in SYNCED_FOLDERS) return@forEach
 
                     Log.d(TAG, "Syncing folder: ${folder.name} (${folder.serverId}) [Type: ${folder.type}]")
-                    val fetch = remote.fetchMessages(folder, folder.syncVersion, limit = 100).getOrElse {
+                    // Fetch from the stored cursor normally, but from the start
+                    // when the folder's local cache is empty, so a stale cursor
+                    // can't leave an empty folder stuck (it would only ask for
+                    // messages newer than itself and get nothing back).
+                    val cursor = if (mailRepository.getFolderMessageCount(folder.id) == 0) {
+                        0L
+                    } else {
+                        folder.syncVersion
+                    }
+                    val fetch = remote.fetchMessages(folder, cursor, limit = 100).getOrElse {
                         Log.e(TAG, "Failed to fetch messages for folder ${folder.name}", it)
                         return@forEach
                     }

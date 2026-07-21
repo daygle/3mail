@@ -128,6 +128,9 @@ interface MessageDao {
     @Query("SELECT MAX(uid) FROM messages WHERE folderId = :folderId")
     suspend fun getMaxUid(folderId: Long): Long?
 
+    @Query("SELECT COUNT(*) FROM messages WHERE folderId = :folderId")
+    suspend fun countByFolder(folderId: Long): Int
+
     @Query("SELECT * FROM messages WHERE accountId = :accountId AND threadId = :threadId ORDER BY date ASC")
     suspend fun getThreadOnce(accountId: Long, threadId: String): List<MessageEntity>
 
