@@ -11,6 +11,7 @@ import com.threemail.android.data.repository.MailRepository
 import com.threemail.android.data.settings.SettingsRepository
 import com.threemail.android.domain.model.AccountType
 import com.threemail.android.domain.model.FolderType
+import com.threemail.android.domain.model.MailMessage
 import com.threemail.android.notifications.NotificationHelper
 import kotlinx.coroutines.flow.first
 
@@ -41,7 +42,7 @@ class MailSyncWorker(
             }
             Log.d(TAG, "Starting sync for ${accounts.size} accounts")
             val notificationsEnabled = settingsRepository.settings.first().notificationsEnabled
-            var newMessages = 0
+            val newMessagesToNotify = mutableListOf<MailMessage>()
 
             accounts.forEach { account ->
                 if (!account.syncEnabled) {
@@ -86,28 +87,27 @@ class MailSyncWorker(
                     if (fetch.messages.isNotEmpty()) {
                         Log.d(TAG, "Fetched ${fetch.messages.size} new messages for folder ${folder.name}")
                         val toSave = fetch.messages.map { it.copy(folderId = folder.id) }
-                        mailRepository.saveMessages(toSave)
-                        // Only feed the aggregate new-mail notification when this
-                        // account opts in; the global switch is applied once below.
-                        //
-                        // Count only genuinely-new unread mail, and never notify
-                        // for the initial backfill of an empty inbox: adding an
-                        // account (or a cache clear) fetches up to 100 existing
-                        // messages at once, and the old `count { !isRead }` fired
-                        // a notification for every one of them. `saveMessages`
-                        // upserts on the unique (folder, account, messageId) index,
-                        // so the row-count delta is exactly the number of newly
-                        // inserted messages; cap the unread tally by that delta so
-                        // re-fetched overlap at the cursor boundary isn't recounted.
+                        // Notify for genuinely-new unread mail only, and never for
+                        // the initial backfill of an empty inbox (adding an account
+                        // or a cache clear fetches up to 100 existing messages at
+                        // once). We snapshot the folder's known server-ids before
+                        // the upsert; the messages whose messageId wasn't present
+                        // and that arrive unread are the ones worth a notification.
                         val isNotifyFolder = folder.type == FolderType.Inbox ||
                             folder.serverId in account.pushFolders
-                        if (isNotifyFolder &&
+                        val shouldNotify = isNotifyFolder &&
                             account.notificationsEnabled &&
                             countBefore > 0
-                        ) {
-                            val countAfter = mailRepository.getFolderMessageCount(folder.id)
-                            val newlyInserted = (countAfter - countBefore).coerceAtLeast(0)
-                            newMessages += minOf(toSave.count { !it.isRead }, newlyInserted)
+                        val existingIds: Set<String> = if (shouldNotify) {
+                            mailRepository.getMessagesOnce(folder.id).mapTo(HashSet<String>()) { it.messageId }
+                        } else {
+                            emptySet()
+                        }
+                        mailRepository.saveMessages(toSave)
+                        if (shouldNotify) {
+                            val fresh = mailRepository.getMessagesOnce(folder.id)
+                                .filter { it.messageId !in existingIds && !it.isRead }
+                            newMessagesToNotify += fresh
                         }
                         // Autocrypt-key learner (RFC 8180). After the new
                         // messages are persisted to Room we ask the IMAP
@@ -148,8 +148,8 @@ class MailSyncWorker(
                 }
             }
 
-            if (newMessages > 0 && notificationsEnabled) {
-                notificationHelper.showNewMailNotification(newMessages)
+            if (newMessagesToNotify.isNotEmpty() && notificationsEnabled) {
+                notificationHelper.showNewMailNotifications(newMessagesToNotify)
             }
 
             Result.success()
