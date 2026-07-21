@@ -24,6 +24,32 @@ sealed class Screen(val route: String) {
         fun createRoute(accountId: Long): String = "account_settings/$accountId"
     }
 
+    /**
+     * Drilled-out sub-pages of [AccountSettings]. Each carries the same
+     * accountId and hosts one focused section (identities, server settings,
+     * folder roles, IDLE push, OpenPGP keys) so the main settings screen stays
+     * a short scroll of drill-in rows.
+     */
+    data object AccountIdentities : Screen("account_settings/{accountId}/identities") {
+        fun createRoute(accountId: Long): String = "account_settings/$accountId/identities"
+    }
+
+    data object AccountServer : Screen("account_settings/{accountId}/server") {
+        fun createRoute(accountId: Long): String = "account_settings/$accountId/server"
+    }
+
+    data object AccountFolderRoles : Screen("account_settings/{accountId}/folder_roles") {
+        fun createRoute(accountId: Long): String = "account_settings/$accountId/folder_roles"
+    }
+
+    data object AccountPush : Screen("account_settings/{accountId}/push") {
+        fun createRoute(accountId: Long): String = "account_settings/$accountId/push"
+    }
+
+    data object AccountPgp : Screen("account_settings/{accountId}/pgp") {
+        fun createRoute(accountId: Long): String = "account_settings/$accountId/pgp"
+    }
+
     data object ManageFolders : Screen("manage_folders")
 
     data object Settings : Screen("settings")

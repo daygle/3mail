@@ -253,6 +253,10 @@
     <string name="account_settings_calendar_title">Sync Google Calendar</string>
     <string name="account_settings_calendar_subtitle">Show this account\'s events in the Calendar tab.</string>
 
+    <!-- Drill-in "Manage" group linking to the heavier sub-pages -->
+    <string name="account_settings_manage_section">Manage</string>
+    <string name="account_settings_server_section">Server Settings</string>
+
     <!-- Per-account folder-role overrides -->
     <string name="account_folder_roles_section">Folder Roles</string>
     <string name="account_folder_roles_description">Pick which server folders hold incoming mail, sent mail, drafts, trash, spam, and archives. Automatic detects the folder by its name; it is set automatically when the account is added.</string>

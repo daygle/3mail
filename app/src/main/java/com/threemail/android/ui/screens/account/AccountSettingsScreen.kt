@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.CircularProgressIndicator
@@ -92,14 +93,18 @@ private val FREQUENCY_OPTIONS = listOf(0L, 15L, 30L, 60L, 180L)
 @Composable
 fun AccountSettingsScreen(
     viewModel: AccountSettingsViewModel,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onOpenIdentities: () -> Unit = {},
+    onOpenServer: () -> Unit = {},
+    onOpenFolderRoles: () -> Unit = {},
+    onOpenPush: () -> Unit = {},
+    onOpenPgp: () -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val account = state.account
 
     var showFrequencyDialog by remember { mutableStateOf(false) }
-    var editingRole by remember { mutableStateOf<FolderType?>(null) }
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -192,50 +197,6 @@ fun AccountSettingsScreen(
                     }
 
                     SettingsGroup(
-                        title = stringResource(R.string.identities_section),
-                        icon = Icons.Default.AlternateEmail
-                    ) {
-                        SettingsContentRow {
-                            Text(
-                                text = stringResource(R.string.identities_description),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        account.identities.forEachIndexed { index, identity ->
-                            CardDivider()
-                            SettingsContentRow {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = identity.displayName.ifBlank { identity.email },
-                                            style = MaterialTheme.typography.bodyLarge
-                                        )
-                                        if (identity.displayName.isNotBlank()) {
-                                            Text(
-                                                text = identity.email,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
-                                    IconButton(onClick = { viewModel.removeIdentity(index) }) {
-                                        Icon(
-                                            Icons.Default.Delete,
-                                            contentDescription = stringResource(R.string.identity_remove),
-                                            tint = MaterialTheme.colorScheme.error
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                        CardDivider()
-                        SettingsContentRow {
-                            AddIdentityForm(onAdd = viewModel::addIdentity)
-                        }
-                    }
-
-                    SettingsGroup(
                         title = stringResource(R.string.account_settings_sync_section),
                         icon = Icons.Default.Sync
                     ) {
@@ -269,12 +230,6 @@ fun AccountSettingsScreen(
                         )
                     }
 
-                    // Editable incoming/outgoing server settings. Gmail is OAuth
-                    // with fixed hosts, so it has nothing to configure here.
-                    if (account.accountType != AccountType.GMAIL) {
-                        ConnectionSettingsSections(account = account, viewModel = viewModel)
-                    }
-
                     // Calendar sync is Google-only: the Calendar tab is backed by
                     // the Google Calendar API and reads accounts where this flag is
                     // set, so the toggle is meaningless for IMAP/POP3 accounts.
@@ -292,128 +247,40 @@ fun AccountSettingsScreen(
                         }
                     }
 
-                    PgpKeysSection(state = state, viewModel = viewModel)
-
-                    // IDLE push is IMAP-only; Gmail rides Google's own push
-                    // pipeline, so the toggle is meaningless there.
-                    if (account.accountType == AccountType.IMAP) {
-                        SettingsGroup(
-                            title = stringResource(R.string.account_push_label),
-                            icon = Icons.Default.Bolt
-                        ) {
-                            SettingsSwitchRow(
-                                title = stringResource(R.string.account_push_label),
-                                subtitle = stringResource(R.string.account_push_subtitle),
-                                checked = account.pushEnabled,
-                                onCheckedChange = viewModel::setPushEnabled
+                    // Drill-in rows for the heavier sections; each opens its own
+                    // focused sub-page instead of stacking on this scroll.
+                    SettingsGroup(
+                        title = stringResource(R.string.account_settings_manage_section),
+                        icon = Icons.Default.Tune
+                    ) {
+                        SettingsRow(
+                            title = stringResource(R.string.identities_section),
+                            onClick = onOpenIdentities
+                        )
+                        if (account.accountType != AccountType.GMAIL) {
+                            CardDivider()
+                            SettingsRow(
+                                title = stringResource(R.string.account_settings_server_section),
+                                onClick = onOpenServer
                             )
-                            // Opt-in extra push folders. INBOX is always watched
-                            // and never listed. Only meaningful while push is on.
-                            if (account.pushEnabled) {
-                                CardDivider()
-                                SettingsContentRow {
-                                    Text(
-                                        text = stringResource(R.string.account_push_folders_title),
-                                        style = MaterialTheme.typography.bodyLarge
-                                    )
-                                    Text(
-                                        text = stringResource(R.string.account_push_folders_subtitle),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(top = 4.dp)
-                                    )
-                                }
-                                val extraFolders = state.folders.filter {
-                                    it.type != FolderType.Inbox
-                                }
-                                if (extraFolders.isEmpty()) {
-                                    SettingsContentRow {
-                                        Text(
-                                            text = stringResource(R.string.account_push_folders_empty),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                } else {
-                                    // Same IMAP-hierarchy tree the drawer/move
-                                    // picker use, but each row carries a push
-                                    // toggle. Rendered inline (not Lazy) since
-                                    // the whole settings screen is a scroll.
-                                    var pushExpanded by remember(account.id) {
-                                        mutableStateOf(
-                                            extraFolders.mapTo(HashSet()) { it.serverId } as Set<String>
-                                        )
-                                    }
-                                    val pushNodes = remember(extraFolders, pushExpanded) {
-                                        buildFolderTree(extraFolders, pushExpanded)
-                                    }
-                                    pushNodes.forEach { node ->
-                                        CardDivider()
-                                        PushFolderTreeRow(
-                                            node = node,
-                                            checked = node.folder.serverId in account.pushFolders,
-                                            onToggleExpand = { serverId ->
-                                                pushExpanded = if (serverId in pushExpanded) {
-                                                    pushExpanded - serverId
-                                                } else {
-                                                    pushExpanded + serverId
-                                                }
-                                            },
-                                            onCheckedChange = { on ->
-                                                viewModel.togglePushFolder(node.folder.serverId, on)
-                                            }
-                                        )
-                                    }
-                                }
-                            }
                         }
-
-                        // Folder-role picker is IMAP-only too. Gmail's labels
-                        // are fixed by the REST API (INBOX / SENT / DRAFT /
-                        // TRASH / SPAM have no per-account aliases), so the
-                        // picker would either be a no-op or actively break
-                        // Gmail sync.
-                        SettingsGroup(
-                            title = stringResource(R.string.account_folder_roles_section),
-                            icon = Icons.Default.Folder
-                        ) {
-                            SettingsContentRow {
-                                Text(
-                                    text = stringResource(R.string.account_folder_roles_description),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            FOLDER_ROLES.forEach { role ->
-                                // A user override pins a specific folder; with no
-                                // override the value shows what auto-detection
-                                // resolved to - "Automatic (Junk)" - so the user
-                                // can see the mapping the heuristic picked on add,
-                                // matching the standard-folders UX. The auto
-                                // target is the folder the name heuristic already
-                                // classified with this role's type.
-                                val overrideFolder = state.folders.firstOrNull {
-                                    it.serverId == account.folderRoles[role]
-                                }
-                                val autoFolder = state.folders.firstOrNull {
-                                    it.type == role
-                                }
-                                val valueText = when {
-                                    overrideFolder != null -> overrideFolder.name
-                                    autoFolder != null -> stringResource(
-                                        R.string.account_folder_role_automatic_named,
-                                        autoFolder.name
-                                    )
-                                    else -> stringResource(R.string.account_folder_role_automatic)
-                                }
-                                CardDivider()
-                                SettingsRow(
-                                    title = stringResource(role.displayNameRes()),
-                                    value = valueText,
-                                    onClick = { editingRole = role }
-                                )
-                            }
+                        if (account.accountType == AccountType.IMAP) {
+                            CardDivider()
+                            SettingsRow(
+                                title = stringResource(R.string.account_folder_roles_section),
+                                onClick = onOpenFolderRoles
+                            )
+                            CardDivider()
+                            SettingsRow(
+                                title = stringResource(R.string.account_push_label),
+                                onClick = onOpenPush
+                            )
                         }
+                        CardDivider()
+                        SettingsRow(
+                            title = stringResource(R.string.pgp_keys_section),
+                            onClick = onOpenPgp
+                        )
                     }
                 }
             }
@@ -432,6 +299,158 @@ fun AccountSettingsScreen(
             onDismiss = { showFrequencyDialog = false }
         )
     }
+}
+
+/**
+ * Scaffold shared by the drilled-out account sub-pages: a collapsing top bar
+ * with the given [title] and a back arrow, plus a scrolling content column.
+ * The content lambda supplies one or more [SettingsGroup]s.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun AccountSubPage(
+    title: String,
+    onNavigateBack: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        topBar = {
+            TopAppBar(
+                title = { Text(title) },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.cancel)
+                        )
+                    }
+                },
+                colors = appTopBarColors(),
+                scrollBehavior = scrollBehavior
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            content()
+        }
+    }
+}
+
+/**
+ * Send-as identities: the description, the existing identities with a remove
+ * action, and an inline add form.
+ */
+@Composable
+internal fun IdentitiesSection(
+    account: Account,
+    viewModel: AccountSettingsViewModel
+) {
+    SettingsGroup(
+        title = stringResource(R.string.identities_section),
+        icon = Icons.Default.AlternateEmail
+    ) {
+        SettingsContentRow {
+            Text(
+                text = stringResource(R.string.identities_description),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        account.identities.forEachIndexed { index, identity ->
+            CardDivider()
+            SettingsContentRow {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = identity.displayName.ifBlank { identity.email },
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        if (identity.displayName.isNotBlank()) {
+                            Text(
+                                text = identity.email,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    IconButton(onClick = { viewModel.removeIdentity(index) }) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = stringResource(R.string.identity_remove),
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+        }
+        CardDivider()
+        SettingsContentRow {
+            AddIdentityForm(onAdd = viewModel::addIdentity)
+        }
+    }
+}
+
+/**
+ * IMAP folder-role overrides. Each role shows what it currently resolves to
+ * (a user override, the auto-detected folder, or plain "Automatic") and opens
+ * a picker to pin a specific folder. Owns its own picker state.
+ */
+@Composable
+internal fun FolderRolesSection(
+    account: Account,
+    state: AccountSettingsViewModel.UiState,
+    viewModel: AccountSettingsViewModel
+) {
+    var editingRole by remember { mutableStateOf<FolderType?>(null) }
+
+    SettingsGroup(
+        title = stringResource(R.string.account_folder_roles_section),
+        icon = Icons.Default.Folder
+    ) {
+        SettingsContentRow {
+            Text(
+                text = stringResource(R.string.account_folder_roles_description),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        FOLDER_ROLES.forEach { role ->
+            // A user override pins a specific folder; with no override the value
+            // shows what auto-detection resolved to - "Automatic (Junk)" - so the
+            // user can see the mapping the heuristic picked on add. The auto
+            // target is the folder the name heuristic already classified with
+            // this role's type.
+            val overrideFolder = state.folders.firstOrNull {
+                it.serverId == account.folderRoles[role]
+            }
+            val autoFolder = state.folders.firstOrNull {
+                it.type == role
+            }
+            val valueText = when {
+                overrideFolder != null -> overrideFolder.name
+                autoFolder != null -> stringResource(
+                    R.string.account_folder_role_automatic_named,
+                    autoFolder.name
+                )
+                else -> stringResource(R.string.account_folder_role_automatic)
+            }
+            CardDivider()
+            SettingsRow(
+                title = stringResource(role.displayNameRes()),
+                value = valueText,
+                onClick = { editingRole = role }
+            )
+        }
+    }
 
     editingRole?.let { role ->
         val options = buildList {
@@ -441,11 +460,92 @@ fun AccountSettingsScreen(
         SettingsChoiceDialog(
             title = stringResource(role.displayNameRes()),
             options = options,
-            selected = account?.folderRoles?.get(role),
+            selected = account.folderRoles[role],
             dismissLabel = stringResource(R.string.cancel),
             onSelect = { viewModel.setFolderRole(role, it) },
             onDismiss = { editingRole = null }
         )
+    }
+}
+
+/**
+ * IMAP IDLE push: the enable toggle and, when on, the opt-in extra push-folder
+ * tree. INBOX is always watched and never listed.
+ */
+@Composable
+internal fun PushSection(
+    account: Account,
+    state: AccountSettingsViewModel.UiState,
+    viewModel: AccountSettingsViewModel
+) {
+    SettingsGroup(
+        title = stringResource(R.string.account_push_label),
+        icon = Icons.Default.Bolt
+    ) {
+        SettingsSwitchRow(
+            title = stringResource(R.string.account_push_label),
+            subtitle = stringResource(R.string.account_push_subtitle),
+            checked = account.pushEnabled,
+            onCheckedChange = viewModel::setPushEnabled
+        )
+        // Opt-in extra push folders. INBOX is always watched and never listed.
+        // Only meaningful while push is on.
+        if (account.pushEnabled) {
+            CardDivider()
+            SettingsContentRow {
+                Text(
+                    text = stringResource(R.string.account_push_folders_title),
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                Text(
+                    text = stringResource(R.string.account_push_folders_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+            val extraFolders = state.folders.filter {
+                it.type != FolderType.Inbox
+            }
+            if (extraFolders.isEmpty()) {
+                SettingsContentRow {
+                    Text(
+                        text = stringResource(R.string.account_push_folders_empty),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                // Same IMAP-hierarchy tree the drawer/move picker use, but each
+                // row carries a push toggle. Rendered inline (not Lazy) since the
+                // whole settings screen is a scroll.
+                var pushExpanded by remember(account.id) {
+                    mutableStateOf(
+                        extraFolders.mapTo(HashSet()) { it.serverId } as Set<String>
+                    )
+                }
+                val pushNodes = remember(extraFolders, pushExpanded) {
+                    buildFolderTree(extraFolders, pushExpanded)
+                }
+                pushNodes.forEach { node ->
+                    CardDivider()
+                    PushFolderTreeRow(
+                        node = node,
+                        checked = node.folder.serverId in account.pushFolders,
+                        onToggleExpand = { serverId ->
+                            pushExpanded = if (serverId in pushExpanded) {
+                                pushExpanded - serverId
+                            } else {
+                                pushExpanded + serverId
+                            }
+                        },
+                        onCheckedChange = { on ->
+                            viewModel.togglePushFolder(node.folder.serverId, on)
+                        }
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -459,7 +559,7 @@ fun AccountSettingsScreen(
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ConnectionSettingsSections(
+internal fun ConnectionSettingsSections(
     account: Account,
     viewModel: AccountSettingsViewModel
 ) {
@@ -653,7 +753,7 @@ private fun PushFolderTreeRow(
  * location the user picks.
  */
 @Composable
-private fun PgpKeysSection(
+internal fun PgpKeysSection(
     state: AccountSettingsViewModel.UiState,
     viewModel: AccountSettingsViewModel
 ) {
