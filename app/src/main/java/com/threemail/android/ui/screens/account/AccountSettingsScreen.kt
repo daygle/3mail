@@ -2,6 +2,7 @@ package com.threemail.android.ui.screens.account
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Draw
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Notifications
@@ -42,9 +44,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -71,12 +75,15 @@ import com.threemail.android.domain.model.FolderType
 import com.threemail.android.domain.model.Identity
 import com.threemail.android.domain.model.Security
 import com.threemail.android.ui.components.CardDivider
+import com.threemail.android.ui.components.FolderNode
 import com.threemail.android.ui.components.SettingsChoice
 import com.threemail.android.ui.components.SettingsChoiceDialog
 import com.threemail.android.ui.components.SettingsContentRow
 import com.threemail.android.ui.components.SettingsGroup
 import com.threemail.android.ui.components.SettingsRow
 import com.threemail.android.ui.components.SettingsSwitchRow
+import com.threemail.android.ui.components.buildFolderTree
+import com.threemail.android.ui.components.iconFor
 
 /** Frequency options offered per account; `0` means "follow the global default". */
 private val FREQUENCY_OPTIONS = listOf(0L, 15L, 30L, 60L, 180L)
@@ -328,13 +335,32 @@ fun AccountSettingsScreen(
                                         )
                                     }
                                 } else {
-                                    extraFolders.forEach { folder ->
+                                    // Same IMAP-hierarchy tree the drawer/move
+                                    // picker use, but each row carries a push
+                                    // toggle. Rendered inline (not Lazy) since
+                                    // the whole settings screen is a scroll.
+                                    var pushExpanded by remember(account.id) {
+                                        mutableStateOf(
+                                            extraFolders.mapTo(HashSet()) { it.serverId } as Set<String>
+                                        )
+                                    }
+                                    val pushNodes = remember(extraFolders, pushExpanded) {
+                                        buildFolderTree(extraFolders, pushExpanded)
+                                    }
+                                    pushNodes.forEach { node ->
                                         CardDivider()
-                                        SettingsSwitchRow(
-                                            title = folder.name,
-                                            checked = folder.serverId in account.pushFolders,
+                                        PushFolderTreeRow(
+                                            node = node,
+                                            checked = node.folder.serverId in account.pushFolders,
+                                            onToggleExpand = { serverId ->
+                                                pushExpanded = if (serverId in pushExpanded) {
+                                                    pushExpanded - serverId
+                                                } else {
+                                                    pushExpanded + serverId
+                                                }
+                                            },
                                             onCheckedChange = { on ->
-                                                viewModel.togglePushFolder(folder.serverId, on)
+                                                viewModel.togglePushFolder(node.folder.serverId, on)
                                             }
                                         )
                                     }
@@ -567,6 +593,55 @@ private fun securityLabelRes(mode: Security): Int = when (mode) {
     Security.NONE -> R.string.security_none
     Security.STARTTLS -> R.string.security_starttls
     Security.SSL_TLS -> R.string.security_ssl_tls
+}
+
+/** One folder row in the push-folders tree: indent + chevron + icon + toggle. */
+@Composable
+private fun PushFolderTreeRow(
+    node: FolderNode,
+    checked: Boolean,
+    onToggleExpand: (String) -> Unit,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                start = 16.dp + 20.dp * node.depth,
+                end = 16.dp,
+                top = 8.dp,
+                bottom = 8.dp
+            ),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (node.hasChildren) {
+            Icon(
+                imageVector = Icons.Default.ExpandMore,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .size(20.dp)
+                    .rotate(if (node.isExpanded) 0f else -90f)
+                    .clickable { onToggleExpand(node.folder.serverId) }
+            )
+        } else {
+            Spacer(Modifier.size(20.dp))
+        }
+        Spacer(Modifier.width(8.dp))
+        Icon(
+            imageVector = iconFor(node.folder.type),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = node.folder.name,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f)
+        )
+        Spacer(Modifier.width(12.dp))
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
 }
 
 /**
