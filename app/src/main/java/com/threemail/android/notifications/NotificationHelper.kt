@@ -89,7 +89,11 @@ class NotificationHelper @Inject constructor(
         val notification = NotificationCompat.Builder(context, TRASH_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.trash_cleanup_failure_title))
-            .setContentText(context.getString(R.string.trash_cleanup_failure_body, accountCount))
+            .setContentText(
+                context.resources.getQuantityString(
+                    R.plurals.trash_cleanup_failure_body, accountCount, accountCount
+                )
+            )
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setAutoCancel(true)
             .build()

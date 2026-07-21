@@ -50,8 +50,10 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-private val MonthHeaderFormatter: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
+// Computed getter (not a stored val) so it uses the current Locale.getDefault()
+// rather than caching the load-time locale - see lint's ConstantLocale check.
+private val MonthHeaderFormatter: DateTimeFormatter
+    get() = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

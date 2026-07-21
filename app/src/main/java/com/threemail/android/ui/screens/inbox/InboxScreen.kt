@@ -68,6 +68,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -167,9 +169,10 @@ fun InboxScreen(
     // the picker consistent with whatever folder the user has selected.
     var showMovePicker by remember { mutableStateOf(false) }
 
-    // Snackbar messages for empty-trash result feedback. Read at composition
-    // time so they are available inside the LaunchedEffect collector below.
-    val emptyTrashSuccessTemplate = stringResource(R.string.empty_trash_success)
+    // Snackbar messages for empty-trash result feedback. The success line is a
+    // plural resolved from the app resources inside the collector (the count is
+    // only known there); the failure line is read at composition time.
+    val context = LocalContext.current
     val emptyTrashFailureMessage = stringResource(R.string.empty_trash_failure)
 
     // Collect empty-trash events and show a snackbar with the result.
@@ -178,7 +181,11 @@ fun InboxScreen(
         viewModel.emptyTrashEvents.collect { event ->
             when (event) {
                 is InboxViewModel.EmptyTrashEvent.Success -> {
-                    val msg = java.lang.String.format(emptyTrashSuccessTemplate, event.expungedCount)
+                    val msg = context.resources.getQuantityString(
+                        R.plurals.empty_trash_success,
+                        event.expungedCount,
+                        event.expungedCount
+                    )
                     snackbarHostState.showSnackbar(msg)
                 }
                 InboxViewModel.EmptyTrashEvent.Failure -> {
@@ -360,7 +367,7 @@ fun InboxScreen(
             // The destructive spam move is hard to recover from because the
             // server may train on it; surface the count so the user signs
             // off on the right batch.
-            text = { Text(stringResource(R.string.confirm_mark_spam_body, state.selectedIds.size)) },
+            text = { Text(pluralStringResource(R.plurals.confirm_mark_spam_body, state.selectedIds.size, state.selectedIds.size)) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmSpam = false
@@ -413,7 +420,7 @@ fun InboxScreen(
             sheetState = sheetState
         ) {
             Text(
-                text = stringResource(R.string.move_dialog_title, state.selectedIds.size),
+                text = pluralStringResource(R.plurals.move_dialog_title, state.selectedIds.size, state.selectedIds.size),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
             )
@@ -586,7 +593,7 @@ private fun SelectionTopBar(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     TopAppBar(
-        title = { Text(stringResource(R.string.selected_count, count)) },
+        title = { Text(pluralStringResource(R.plurals.selected_count, count, count)) },
         navigationIcon = {
             IconButton(onClick = onClear) {
                 Icon(Icons.Default.Close, contentDescription = stringResource(R.string.clear_selection))

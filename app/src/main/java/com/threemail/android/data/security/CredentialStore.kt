@@ -6,6 +6,7 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import android.util.Log
+import androidx.core.content.edit
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.security.KeyStore
 import java.security.GeneralSecurityException
@@ -168,15 +169,15 @@ open class CredentialStore @Inject constructor(
     }
 
     private fun dropEntry(email: String) {
-        prefs.edit().remove(key(email)).apply()
+        prefs.edit { remove(key(email)) }
     }
 
     open fun savePassword(email: String, password: String?) {
         val prefKey = key(email)
         if (password.isNullOrEmpty()) {
-            prefs.edit().remove(prefKey).apply()
+            prefs.edit { remove(prefKey) }
         } else {
-            prefs.edit().putString(prefKey, encrypt(email, password)).apply()
+            prefs.edit { putString(prefKey, encrypt(email, password)) }
         }
     }
 

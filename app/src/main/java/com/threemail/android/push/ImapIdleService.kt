@@ -207,7 +207,11 @@ class ImapIdleService : Service() {
         return NotificationCompat.Builder(this, NotificationHelper.PUSH_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(getString(R.string.idle_service_title))
-            .setContentText(getString(R.string.idle_service_subtitle, activeCount))
+            .setContentText(
+                resources.getQuantityString(
+                    R.plurals.idle_service_subtitle, activeCount, activeCount
+                )
+            )
             .setOngoing(true)
             .setSilent(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
