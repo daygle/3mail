@@ -189,6 +189,46 @@ class MessageDaoTest {
         )
     }
 
+    /**
+     * The UI's single-folder feed is served by [MessageDao.observeByFolderWithFlags]
+     * (via MailRepository.observeFolder), NOT the plain [MessageDao.observeByFolder]
+     * exercised above. This test locks that production query: every row in the
+     * folder must survive the LEFT JOIN onto message_flags, whether or not a
+     * flag row exists for it.
+     */
+    @Test
+    fun `observeByFolderWithFlags returns every folder row through the flags join`() = runBlocking {
+        val rows = (1L..ROWS_PAST_LEGACY_CAP.toLong()).map { i ->
+            MessageEntity(
+                id = i,
+                accountId = accountIdOne,
+                folderId = inboxOneId,
+                messageId = "msg-$i",
+                subject = "Subject $i",
+                fromJson = "[]", toJson = "[]", ccJson = "[]", bccJson = "[]",
+                date = 1_700_000_000_000L - i,
+                syncedAt = 1_700_000_000_000L
+            )
+        }
+        db.messageDao().insertAll(rows)
+        // A flag row for exactly one message, so the test covers both the
+        // matched (isEncrypted set) and unmatched (isEncrypted null) join arms.
+        db.messageFlagDao().insertOrIgnore(
+            com.threemail.android.data.local.entity.MessageFlagEntity(
+                accountId = accountIdOne,
+                messageId = "msg-1",
+                isEncrypted = true
+            )
+        )
+
+        val emitted = db.messageDao().observeByFolderWithFlags(inboxOneId).first()
+        assertEquals(
+            "observeByFolderWithFlags dropped rows across the message_flags LEFT JOIN; emitted=${emitted.size}, expected=$ROWS_PAST_LEGACY_CAP",
+            ROWS_PAST_LEGACY_CAP,
+            emitted.size
+        )
+    }
+
     private fun seedFixtures() = runBlocking {
         db.accountDao().insert(
             AccountEntity(
