@@ -39,6 +39,9 @@ interface AccountDao {
     @Query("UPDATE accounts SET syncEnabled = :enabled WHERE id = :id")
     suspend fun setSyncEnabled(id: Long, enabled: Boolean)
 
+    @Query("UPDATE accounts SET calendarSyncEnabled = :enabled WHERE id = :id")
+    suspend fun setCalendarSyncEnabled(id: Long, enabled: Boolean)
+
     @Query("UPDATE accounts SET notificationsEnabled = :enabled WHERE id = :id")
     suspend fun setNotificationsEnabled(id: Long, enabled: Boolean)
 

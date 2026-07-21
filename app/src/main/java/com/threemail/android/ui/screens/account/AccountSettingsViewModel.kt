@@ -186,6 +186,11 @@ class AccountSettingsViewModel @Inject constructor(
         viewModelScope.launch { accountRepository.setNotificationsEnabled(accountId, enabled) }
     }
 
+    fun setCalendarSyncEnabled(enabled: Boolean) {
+        updateAccount { it.copy(calendarSyncEnabled = enabled) }
+        viewModelScope.launch { accountRepository.setCalendarSyncEnabled(accountId, enabled) }
+    }
+
     fun addIdentity(identity: Identity) {
         val current = _uiState.value.account ?: return
         val updated = current.identities + identity

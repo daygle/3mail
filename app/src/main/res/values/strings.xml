@@ -214,6 +214,9 @@
     <string name="account_settings_notifications_title">New Mail Notifications</string>
     <string name="account_settings_notifications_subtitle">Notify me about new mail on this account.</string>
     <string name="account_settings_open">Open Settings</string>
+    <string name="account_settings_calendar_section">Calendar</string>
+    <string name="account_settings_calendar_title">Sync Google Calendar</string>
+    <string name="account_settings_calendar_subtitle">Show this account\'s events in the Calendar tab.</string>
 
     <!-- Per-account folder-role overrides -->
     <string name="account_folder_roles_section">Folder Roles</string>

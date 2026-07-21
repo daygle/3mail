@@ -84,6 +84,9 @@ open class AccountRepository @Inject constructor(
     suspend fun setSyncEnabled(id: Long, enabled: Boolean) =
         accountDao.setSyncEnabled(id, enabled)
 
+    suspend fun setCalendarSyncEnabled(id: Long, enabled: Boolean) =
+        accountDao.setCalendarSyncEnabled(id, enabled)
+
     suspend fun setNotificationsEnabled(id: Long, enabled: Boolean) =
         accountDao.setNotificationsEnabled(id, enabled)
 

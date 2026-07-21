@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AlternateEmail
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Draw
 import androidx.compose.material.icons.filled.Folder
@@ -249,6 +250,23 @@ fun AccountSettingsScreen(
                             checked = account.notificationsEnabled,
                             onCheckedChange = viewModel::setNotificationsEnabled
                         )
+                    }
+
+                    // Calendar sync is Google-only: the Calendar tab is backed by
+                    // the Google Calendar API and reads accounts where this flag is
+                    // set, so the toggle is meaningless for IMAP/POP3 accounts.
+                    if (account.accountType == AccountType.GMAIL) {
+                        SettingsGroup(
+                            title = stringResource(R.string.account_settings_calendar_section),
+                            icon = Icons.Default.CalendarMonth
+                        ) {
+                            SettingsSwitchRow(
+                                title = stringResource(R.string.account_settings_calendar_title),
+                                subtitle = stringResource(R.string.account_settings_calendar_subtitle),
+                                checked = account.calendarSyncEnabled,
+                                onCheckedChange = viewModel::setCalendarSyncEnabled
+                            )
+                        }
                     }
 
                     PgpKeysSection(state = state, viewModel = viewModel)

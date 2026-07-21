@@ -101,6 +101,7 @@ fun InboxScreen(
     onNavigateToMessage: (Long) -> Unit,
     onNavigateToAddAccount: () -> Unit,
     onNavigateToManageFolders: () -> Unit = {},
+    onNavigateToAccountSettings: (Long) -> Unit = {},
     bottomBar: @Composable () -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -202,9 +203,12 @@ fun InboxScreen(
 
     ModalNavigationDrawer(
         drawerState = drawerState,
-        // The contextual selection bar owns the back gesture; keep the drawer
-        // swipe disabled while selecting so a stray edge-swipe doesn't yank it open.
-        gesturesEnabled = !state.selectionMode,
+        // Open the drawer only via the hamburger button - never by swipe. The
+        // edge/diagonal swipe-to-open competes with the message list's
+        // pull-to-refresh and swipe-to-triage gestures, so a downward pull to
+        // refresh could instead yank the drawer open. Disabling the drawer's
+        // own gesture lets pull-to-refresh own the vertical drag cleanly.
+        gesturesEnabled = false,
         drawerContent = {
             FolderDrawerContent(
                 account = state.selectedAccount,
@@ -240,6 +244,14 @@ fun InboxScreen(
                 onSync = {
                     scope.launch { drawerState.close() }
                     viewModel.sync()
+                },
+                onOpenAccountSettings = { account ->
+                    scope.launch { drawerState.close() }
+                    onNavigateToAccountSettings(account.id)
+                },
+                onEmptyTrash = {
+                    scope.launch { drawerState.close() }
+                    confirmEmptyTrash = true
                 }
             )
         }
