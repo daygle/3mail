@@ -237,9 +237,11 @@ class AccountSettingsViewModel @Inject constructor(
                 outgoingPort = outgoingPort,
                 security = security
             )
+            // testConnection() already returns a Result; unwrap with getOrThrow
+            // inside runCatching so we end up with a single flat Result and also
+            // catch anything create() itself might throw.
             val result = withContext(Dispatchers.IO) {
-                runCatching { mailRemoteFactory.create(candidate).testConnection() }
-                    .getOrElse { Result.failure(it) }
+                runCatching { mailRemoteFactory.create(candidate).testConnection().getOrThrow() }
             }
             result.onSuccess {
                 accountRepository.setConnectionSettings(
