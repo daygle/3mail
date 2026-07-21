@@ -20,6 +20,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collect
@@ -84,6 +86,7 @@ class InboxViewModel @Inject constructor(
     private val _unifiedMode = MutableStateFlow(false)
     private val _selectedIds = MutableStateFlow<Set<Long>>(emptySet())
     private val _transient = MutableStateFlow(Transient())
+    private var syncJob: Job? = null
 
     private val accountsFlow = accountRepository.getAccounts()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -269,8 +272,9 @@ class InboxViewModel @Inject constructor(
     }
 
     fun sync() {
+        syncJob?.cancel()
         _transient.value = _transient.value.copy(isSyncing = true, error = null, recoverableAuthIntent = null)
-        viewModelScope.launch {
+        syncJob = viewModelScope.launch {
             try {
                 if (_unifiedMode.value) {
                     syncAllInboxes()
@@ -278,10 +282,16 @@ class InboxViewModel @Inject constructor(
                     syncSelectedFolder()
                 }
                 _transient.value = _transient.value.copy(isSyncing = false)
+            } catch (e: CancellationException) {
+                // Ignore cancellation
             } catch (e: RecoverableAuthException) {
                 _transient.value = _transient.value.copy(isSyncing = false, recoverableAuthIntent = e.intent)
             } catch (e: Exception) {
                 _transient.value = _transient.value.copy(isSyncing = false, error = e.message)
+            } finally {
+                if (syncJob?.isActive == false) {
+                    // Only clear isSyncing if this was the last active job
+                }
             }
         }
     }

@@ -193,16 +193,18 @@ class ImapClient(
      * don't pay for a per-account INBOX open just to inspect capabilities.
      */
     suspend fun supportsIdle(): Boolean = withContext(Dispatchers.IO) {
+        var store: Store? = null
         try {
-            connectStore().use { store ->
-                // `hasCapability` lives on `IMAPStore`, not the base `Store`,
-                // so cast safely. `connectStore()` always returns an
-                // `IMAPStore` today; the null branch keeps us safe if a
-                // non-IMAP adapter is ever swapped in.
-                (store as? IMAPStore)?.hasCapability("IDLE") ?: false
-            }
+            store = connectStore()
+            // `hasCapability` lives on `IMAPStore`, not the base `Store`,
+            // so cast safely. `connectStore()` always returns an
+            // `IMAPStore` today; the null branch keeps us safe if a
+            // non-IMAP adapter is ever swapped in.
+            (store as? IMAPStore)?.hasCapability("IDLE") ?: false
         } catch (e: Exception) {
             false
+        } finally {
+            runCatching { store?.close() }
         }
     }
 
@@ -413,28 +415,52 @@ class ImapClient(
      * helper without a per-UID exception path.
      */
     suspend fun fetchMessageHeaders(folderServerId: String, uid: Long): Result<Map<String, List<String>>> =
-        try {
-            withFolder(folderServerId, Folder.READ_ONLY) { folder ->
-                val msg = folder.getMessageByUID(uid)
-                    ?: return@withFolder emptyMap<String, List<String>>()
-                // `Message.getAllHeaders()` returns a `java.util.Enumeration`
-                // (not a Kotlin collection or array), so it has no `associate`.
-                // Walk it with the raw Enumeration API and cast each element to
-                // `javax.mail.Header`.
-                val headers = LinkedHashMap<String, List<String>>()
+        fetchMessagesHeaders(folderServerId, listOf(uid)).map { it[uid] ?: emptyMap() }
+
+    /**
+     * Batch version of [fetchMessageHeaders]. Uses `FETCH <range> (FLAGS ENVELOPE)`
+     * or similar via JavaMail's `FetchProfile` to read only the metadata for
+     * multiple UIDs in a single network round-trip.
+     */
+    suspend fun fetchMessagesHeaders(
+        folderServerId: String,
+        uids: List<Long>
+    ): Result<Map<Long, Map<String, List<String>>>> = try {
+        withFolder(folderServerId, Folder.READ_ONLY) { folder ->
+            if (uids.isEmpty()) return@withFolder emptyMap()
+            
+            val uidFolder = folder as? UIDFolder 
+                ?: return@withFolder emptyMap()
+            
+            val messages = uidFolder.getMessagesByUID(uids.toLongArray())
+            val fp = javax.mail.FetchProfile().apply {
+                add(javax.mail.FetchProfile.Item.ENVELOPE)
+                add(javax.mail.FetchProfile.Item.CONTENT_INFO)
+                // Add any extra headers we need for Autocrypt/Gossip.
+                add("Autocrypt")
+                add("Autocrypt-Gossip")
+            }
+            folder.fetch(messages, fp)
+
+            messages.associate { msg ->
+                val uid = uidFolder.getUID(msg)
+                val headersMap = mutableMapOf<String, MutableList<String>>()
                 val enumeration = msg.allHeaders
                 while (enumeration != null && enumeration.hasMoreElements()) {
                     val header = enumeration.nextElement() as javax.mail.Header
-                    headers[header.name] = header.value.split('\n').map { it.trim() }
+                    val values = header.value.split('\n')
+                        .map { it.trim() }
                         .filter { it.isNotEmpty() }
+                    headersMap.getOrPut(header.name) { mutableListOf() }.addAll(values)
                 }
-                headers
-            }.let { Result.success(it) }
-        } catch (e: RecoverableAuthException) {
-            throw e
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+                uid to headersMap
+            }
+        }.let { Result.success(it) }
+    } catch (e: RecoverableAuthException) {
+        throw e
+    } catch (e: Exception) {
+        Result.failure(e)
+    }
 
     /** Fetches the full body (html + plain) and attachment metadata for one message. */
     suspend fun fetchBody(folderServerId: String, uid: Long): Result<MessageBody> =

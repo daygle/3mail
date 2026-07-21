@@ -217,11 +217,9 @@ class MailRepository @Inject constructor(
      * consumer handles large lists downstream.
      */
     fun observeFolder(folderId: Long): Flow<List<MailMessage>> =
-        combine(messageDao.observeByFolder(folderId), messageFlagDao.observeAll()) { list, flags ->
-            val indexed = flagsByMessageId(flags)
-            list.map { entity ->
-                val flag = indexed[entity.accountId]?.get(entity.messageId)
-                entity.toDomain(isEncrypted = flag?.isEncrypted ?: false)
+        messageDao.observeByFolderWithFlags(folderId).map { list ->
+            list.map { (entity, isEncrypted) ->
+                entity.toDomain(isEncrypted = isEncrypted ?: false)
             }
         }
 
@@ -230,11 +228,9 @@ class MailRepository @Inject constructor(
      * rationale as [observeFolder].
      */
     fun observeUnifiedInbox(): Flow<List<MailMessage>> =
-        combine(messageDao.observeUnifiedInbox(), messageFlagDao.observeAll()) { list, flags ->
-            val indexed = flagsByMessageId(flags)
-            list.map { entity ->
-                val flag = indexed[entity.accountId]?.get(entity.messageId)
-                entity.toDomain(isEncrypted = flag?.isEncrypted ?: false)
+        messageDao.observeUnifiedInboxWithFlags().map { list ->
+            list.map { (entity, isEncrypted) ->
+                entity.toDomain(isEncrypted = isEncrypted ?: false)
             }
         }
 

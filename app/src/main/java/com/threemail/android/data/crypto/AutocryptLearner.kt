@@ -117,10 +117,12 @@ class AutocryptLearner @Inject constructor(
         val imapClient = imapClientFactory.create(account)
         var uidsInspected = 0
 
-        for (uid in validUids) {
-            runCatching {
-                val headers = imapClient.fetchMessageHeaders(folder.serverId, uid).getOrNull()
-                    ?: return@runCatching
+        runCatching {
+            val allHeaders = imapClient.fetchMessagesHeaders(folder.serverId, validUids).getOrNull()
+                ?: return@runCatching
+            
+            for (uid in validUids) {
+                val headers = allHeaders[uid] ?: continue
                 uidsInspected++
                 // RFC 8180 lets the same wire format appear as
                 // `Autocrypt` (own mail) or `Autocrypt-Gossip` (received
@@ -128,13 +130,13 @@ class AutocryptLearner @Inject constructor(
                 // `Autocrypt-Gossip` variant; we accept either.
                 val autocryptValue = headers["Autocrypt-Gossip"]?.firstOrNull()
                     ?: headers["Autocrypt"]?.firstOrNull()
-                    ?: return@runCatching
-                val parsed = AutocryptHeader.parse(autocryptValue) ?: return@runCatching
+                    ?: continue
+                val parsed = AutocryptHeader.parse(autocryptValue) ?: continue
                 val email = parsed.email
                 // Don't write past the existing-cache boundary or
                 // duplicate within this pass.
                 if (existingKeys.containsKey(email) || passAdditions.containsKey(email)) {
-                    return@runCatching
+                    continue
                 }
                 passAdditions[email] = parsed.keyDataBase64
                 Log.d(
@@ -142,9 +144,9 @@ class AutocryptLearner @Inject constructor(
                     "Learned ${if (parsed.preferEncrypt == "mutual") "mutual " else ""}" +
                         "Autocrypt key for $email (uid=$uid, account=${account.id})"
                 )
-            }.onFailure { e ->
-                Log.w(TAG, "Autocrypt learning failed for uid=$uid on ${account.email}: ${e.message}")
             }
+        }.onFailure { e ->
+            Log.w(TAG, "Autocrypt learning failed on ${account.email}: ${e.message}")
         }
 
         if (passAdditions.isNotEmpty()) {

@@ -62,7 +62,8 @@ fun CalendarScreen(
     onNavigateBack: () -> Unit,
     onCreateEvent: (accountId: Long) -> Unit,
     onEditEvent: (accountId: Long, eventId: Long) -> Unit,
-    onNavigateToManageCalendars: () -> Unit = {}
+    onNavigateToManageCalendars: () -> Unit = {},
+    bottomBar: @Composable () -> Unit = {}
 ) {
     val selectedMonth by viewModel.selectedMonth.collectAsState()
     val selectedDay by viewModel.selectedDay.collectAsState()
@@ -74,6 +75,7 @@ fun CalendarScreen(
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        bottomBar = bottomBar,
         topBar = {
             TopAppBar(
                 title = { Text(selectedMonth.format(MonthHeaderFormatter)) },

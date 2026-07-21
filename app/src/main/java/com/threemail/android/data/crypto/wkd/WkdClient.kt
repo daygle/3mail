@@ -99,8 +99,9 @@ class WkdClient @Inject constructor() {
             val responseCode = conn.responseCode
             when (responseCode) {
                 in 200..299 -> {
-                    val stream = conn.inputStream ?: return WkdResult.Failure("No body")
-                    val ring = parseArmoredRing(stream)
+                    val ring = conn.inputStream?.use { stream ->
+                        parseArmoredRing(stream)
+                    }
                     ring?.let { WkdResult.Success(it) }
                         ?: WkdResult.Failure("Empty body")
                 }

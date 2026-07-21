@@ -100,7 +100,8 @@ fun InboxScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToMessage: (Long) -> Unit,
     onNavigateToAddAccount: () -> Unit,
-    onNavigateToManageFolders: () -> Unit = {}
+    onNavigateToManageFolders: () -> Unit = {},
+    bottomBar: @Composable () -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -246,6 +247,7 @@ fun InboxScreen(
         Scaffold(
             modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
             snackbarHost = { SnackbarHost(snackbarHostState) },
+            bottomBar = bottomBar,
             topBar = {
                 if (state.selectionMode) {
                     // Move is unavailable in the unified inbox (cross-account

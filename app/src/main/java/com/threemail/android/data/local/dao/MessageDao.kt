@@ -2,6 +2,7 @@ package com.threemail.android.data.local.dao
 
 import androidx.room.Dao
 import androidx.room.Delete
+import androidx.room.Embedded
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
@@ -46,6 +47,25 @@ interface MessageDao {
      */
     @Query("SELECT * FROM messages WHERE folderId = :folderId ORDER BY date DESC")
     fun observeByFolder(folderId: Long): Flow<List<MessageEntity>>
+
+    @Query("""
+        SELECT m.*, f.isEncrypted 
+        FROM messages m 
+        LEFT JOIN message_flags f ON m.accountId = f.accountId AND m.messageId = f.messageId
+        WHERE m.folderId = :folderId 
+        ORDER BY m.date DESC
+    """)
+    fun observeByFolderWithFlags(folderId: Long): Flow<List<MessageWithFlags>>
+
+    @Query("""
+        SELECT m.*, f.isEncrypted 
+        FROM messages m 
+        LEFT JOIN message_flags f ON m.accountId = f.accountId AND m.messageId = f.messageId
+        JOIN folders fold ON m.folderId = fold.id
+        WHERE fold.type = 'Inbox'
+        ORDER BY m.date DESC
+    """)
+    fun observeUnifiedInboxWithFlags(): Flow<List<MessageWithFlags>>
 
     /**
      * Reactive, unbounded cross-account unified inbox: every message in a
@@ -138,3 +158,8 @@ interface MessageDao {
     )
     fun observeTotalUnreadAcrossInboxes(): Flow<Int>
 }
+
+data class MessageWithFlags(
+    @Embedded val message: MessageEntity,
+    val isEncrypted: Boolean?
+)
