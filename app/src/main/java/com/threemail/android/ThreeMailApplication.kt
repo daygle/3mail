@@ -11,7 +11,6 @@ import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.settings.SettingsRepository
 import com.threemail.android.notifications.LauncherBadge
 import com.threemail.android.notifications.NotificationHelper
-import com.threemail.android.push.PushController
 import com.threemail.android.sync.SyncScheduler
 import com.threemail.android.sync.ThreeMailWorkerFactory
 import com.threemail.android.sync.TrashCleanupWorker
@@ -68,9 +67,6 @@ class ThreeMailApplication : Application(), Configuration.Provider {
     lateinit var accountRepository: AccountRepository
 
     @Inject
-    lateinit var pushController: PushController
-
-    @Inject
     lateinit var messageDao: MessageDao
 
     @Inject
@@ -91,7 +87,7 @@ class ThreeMailApplication : Application(), Configuration.Provider {
         scheduleMailSyncs()
         syncScheduler.schedulePeriodicCalendarSync()
         registerTrashCleanup()
-        registerPushAndBadge()
+        registerBadgeObserver()
     }
 
     /**
@@ -148,16 +144,19 @@ class ThreeMailApplication : Application(), Configuration.Provider {
     }
 
     /**
-     * Registers IMAP IDLE push for every IMAP account (de-duped by the service)
-     * and starts observing the unread inbox count for the launcher badge.
+     * Starts observing the unread inbox count for the launcher badge.
      *
-     * Both flows survive process death: the push service is `START_STICKY` and
-     * re-derives its subscriptions from the DB on every cold start; the badge
-     * Flow absorbs the most recent count as soon as Room emits.
+     * The Flow survives process death: it absorbs the most recent count as soon
+     * as Room emits.
+     *
+     * IMAP IDLE push is intentionally NOT started here. The push service runs as
+     * a `dataSync` foreground service, and starting a foreground service from
+     * the Application's cold-start path (a non-foreground context) is restricted
+     * on API 31+ and can crash the app during the launch/permission window.
+     * [MainActivity] refreshes push from its foreground lifecycle instead, and
+     * [com.threemail.android.push.BootReceiver] handles the post-boot case.
      */
-    private fun registerPushAndBadge() {
-        runCatching { pushController.refresh() }
-            .onFailure { Log.w(TAG, "Push refresh failed to enqueue", it) }
+    private fun registerBadgeObserver() {
         appScope.launch {
             messageDao.observeTotalUnreadAcrossInboxes()
                 .collectLatest { count -> launcherBadge.setCount(count) }
