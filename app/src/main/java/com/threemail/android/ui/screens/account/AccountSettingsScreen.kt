@@ -65,6 +65,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import com.threemail.android.ui.theme.appTopBarColors
 import com.threemail.android.R
+import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.AccountType
 import com.threemail.android.domain.model.FolderType
 import com.threemail.android.domain.model.Identity
