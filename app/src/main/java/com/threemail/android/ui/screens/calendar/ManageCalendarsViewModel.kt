@@ -4,9 +4,11 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.threemail.android.data.repository.CalendarRepository
+import com.threemail.android.data.repository.CalendarSourceRepository
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.AccountType
 import com.threemail.android.domain.model.CalendarEntry
+import com.threemail.android.domain.model.CalendarSource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -40,9 +42,15 @@ import javax.inject.Inject
 @HiltViewModel
 class ManageCalendarsViewModel @Inject constructor(
     private val calendarRepository: CalendarRepository,
+    private val calendarSourceRepository: CalendarSourceRepository,
     private val accountRepository: com.threemail.android.data.repository.AccountRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
+
+    /** Standalone subscriptions (ICS feeds), independent of any account. */
+    val sources: StateFlow<List<CalendarSource>> = calendarSourceRepository
+        .observeSources()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /** One Shot-style message stream. The screen collects these into a Snackbar. */
     private val _snackbar = MutableStateFlow<SnackbarMessage?>(null)
@@ -80,7 +88,37 @@ class ManageCalendarsViewModel @Inject constructor(
                 runCatching { calendarRepository.syncCalendarList(account) }
                     .onFailure { _snackbar.value = SnackbarMessage.SyncFailed(account.email) }
             }
+            calendarSourceRepository.syncAll()
             _snackbar.value = SnackbarMessage.SyncSucceeded
+        }
+    }
+
+    /* ---------- standalone sources ---------- */
+
+    fun addIcsSource(url: String, displayName: String?) {
+        if (url.isBlank()) {
+            _snackbar.value = SnackbarMessage.InvalidUrl
+            return
+        }
+        viewModelScope.launch {
+            _busy.value = true
+            runCatching { calendarSourceRepository.addIcsSource(url, displayName) }
+                .onSuccess { _snackbar.value = SnackbarMessage.Subscribed(it.displayName) }
+                .onFailure {
+                    _snackbar.value = SnackbarMessage.SubscribeFailed(it.message ?: "Unknown error")
+                }
+            _busy.value = false
+        }
+    }
+
+    fun toggleSourceVisible(id: Long, isVisible: Boolean) {
+        viewModelScope.launch { calendarSourceRepository.setVisible(id, isVisible) }
+    }
+
+    fun deleteSource(source: CalendarSource) {
+        viewModelScope.launch {
+            calendarSourceRepository.delete(source.id)
+            _snackbar.value = SnackbarMessage.SourceRemoved(source.displayName)
         }
     }
 
@@ -133,4 +171,5 @@ sealed interface SnackbarMessage {
     data class CreateFailed(val reason: String) : SnackbarMessage
     data class SyncFailed(val accountEmail: String) : SnackbarMessage
     data object SyncSucceeded : SnackbarMessage
+    data class SourceRemoved(val summary: String) : SnackbarMessage
 }

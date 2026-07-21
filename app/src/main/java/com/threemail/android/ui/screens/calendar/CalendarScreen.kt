@@ -35,7 +35,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -71,8 +73,16 @@ fun CalendarScreen(
     val eventsByDay by viewModel.eventsByDay.collectAsState()
     val selectedDayEvents by viewModel.selectedDayEvents.collectAsState()
     val activeAccounts by viewModel.activeAccounts.collectAsState()
+    val sources by viewModel.sources.collectAsState()
     val selectedAccountId by viewModel.selectedAccountId.collectAsState()
+    val selectedSourceId by viewModel.selectedSourceId.collectAsState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    // Read-only detail for events cached from a standalone subscription
+    // (ICS feeds have no edit surface — there is nothing to write back to).
+    var sourceDetailEvent by remember {
+        mutableStateOf<com.threemail.android.domain.model.CalendarEvent?>(null)
+    }
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -125,18 +135,20 @@ fun CalendarScreen(
             )
         },
         floatingActionButton = {
+            // Creating an event needs a writable (Google) calendar; standalone
+            // ICS subscriptions are read-only, so the FAB hides without one.
             val fabAccountId = activeAccounts.firstOrNull()?.id ?: 0L
-            ExtendedFloatingActionButton(
-                onClick = {
-                    if (fabAccountId > 0L) onCreateEvent(fabAccountId)
-                },
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text(stringResource(R.string.calendar_new_event)) },
-                expanded = true
-            )
+            if (fabAccountId > 0L) {
+                ExtendedFloatingActionButton(
+                    onClick = { onCreateEvent(fabAccountId) },
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text(stringResource(R.string.calendar_new_event)) },
+                    expanded = true
+                )
+            }
         }
     ) { padding ->
-        if (activeAccounts.isEmpty()) {
+        if (activeAccounts.isEmpty() && sources.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize().padding(padding)) {
                 EmptyState(
                     title = stringResource(R.string.calendar_no_account_title),
@@ -153,11 +165,14 @@ fun CalendarScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            if (activeAccounts.size > 1) {
+            if (activeAccounts.size + sources.size > 1) {
                 AccountFilterRow(
                     accounts = activeAccounts,
+                    sources = sources,
                     selectedAccountId = selectedAccountId,
-                    onSelectAccount = viewModel::selectAccount
+                    selectedSourceId = selectedSourceId,
+                    onSelectAccount = viewModel::selectAccount,
+                    onSelectSource = viewModel::selectSource
                 )
                 Spacer(modifier = Modifier.height(4.dp))
             }
@@ -169,7 +184,10 @@ fun CalendarScreen(
                 selectedDayEvents = selectedDayEvents,
                 onSelectDay = viewModel::selectDay,
                 onEventClick = { event ->
-                    if (event.eventId != null) onEditEvent(event.accountId, event.id)
+                    when {
+                        event.sourceId != null -> sourceDetailEvent = event
+                        event.eventId != null -> onEditEvent(event.accountId, event.id)
+                    }
                 },
                 onCreateEvent = {
                     val accountId = selectedAccountId ?: activeAccounts.firstOrNull()?.id ?: 0L
@@ -177,6 +195,96 @@ fun CalendarScreen(
                 },
                 onRefresh = viewModel::refresh
             )
+        }
+    }
+
+    sourceDetailEvent?.let { event ->
+        SourceEventDetailDialog(
+            event = event,
+            sourceName = sources.firstOrNull { it.id == event.sourceId }?.displayName,
+            onDismiss = { sourceDetailEvent = null }
+        )
+    }
+}
+
+/**
+ * Read-only detail card for an event that came from a standalone
+ * subscription. There is deliberately no edit affordance: the cache mirrors
+ * a remote feed the app cannot write to.
+ */
+@Composable
+private fun SourceEventDetailDialog(
+    event: com.threemail.android.domain.model.CalendarEvent,
+    sourceName: String?,
+    onDismiss: () -> Unit
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(event.title) },
+        text = {
+            Column {
+                Text(
+                    text = formatEventTimeRange(event),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                if (!event.location.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = event.location,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (!event.description.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = event.description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 8
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = if (sourceName != null) {
+                        stringResource(R.string.calendar_source_event_from, sourceName)
+                    } else {
+                        stringResource(R.string.calendar_source_event_readonly)
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.close))
+            }
+        }
+    )
+}
+
+/** "Tue, 14 Apr · 9:00 AM – 10:30 AM" for timed events; date span for all-day. */
+private fun formatEventTimeRange(
+    event: com.threemail.android.domain.model.CalendarEvent,
+    zone: ZoneId = ZoneId.systemDefault()
+): String {
+    val dateFmt = DateTimeFormatter.ofPattern("EEE, d MMM", Locale.getDefault())
+    val timeFmt = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
+    return if (event.allDay) {
+        val start = java.time.Instant.ofEpochMilli(event.startEpochMs)
+            .atZone(java.time.ZoneOffset.UTC).toLocalDate()
+        val endInclusive = java.time.Instant.ofEpochMilli(event.endEpochMs - 1)
+            .atZone(java.time.ZoneOffset.UTC).toLocalDate()
+        if (start == endInclusive) start.format(dateFmt)
+        else "${start.format(dateFmt)} – ${endInclusive.format(dateFmt)}"
+    } else {
+        val start = java.time.Instant.ofEpochMilli(event.startEpochMs).atZone(zone)
+        val end = java.time.Instant.ofEpochMilli(event.endEpochMs).atZone(zone)
+        if (start.toLocalDate() == end.toLocalDate()) {
+            "${start.format(dateFmt)} · ${start.format(timeFmt)} – ${end.format(timeFmt)}"
+        } else {
+            "${start.format(dateFmt)} ${start.format(timeFmt)} – ${end.format(dateFmt)} ${end.format(timeFmt)}"
         }
     }
 }
@@ -250,17 +358,20 @@ private fun CalendarBody(
 }
 
 /**
- * Horizontally-scrollable chip row shown above the grid when the user has more than
- * one Gmail account with calendar sync enabled. An "All" chip aggregates; tapping a
- * specific account scopes both the grid and the day agenda to that account.
+ * Horizontally-scrollable chip row shown above the grid when there is more
+ * than one calendar feed (Gmail accounts and/or standalone subscriptions).
+ * An "All" chip aggregates; tapping a specific account or subscription
+ * scopes both the grid and the day agenda to it.
  */
 @Composable
 private fun AccountFilterRow(
     accounts: List<com.threemail.android.domain.model.Account>,
+    sources: List<com.threemail.android.domain.model.CalendarSource>,
     selectedAccountId: Long?,
-    onSelectAccount: (Long?) -> Unit
+    selectedSourceId: Long?,
+    onSelectAccount: (Long?) -> Unit,
+    onSelectSource: (Long?) -> Unit
 ) {
-    val accountLabelFor = remember(accounts) { accounts.associate { it.id to it.email } }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -269,7 +380,7 @@ private fun AccountFilterRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         FilterChip(
-            selected = selectedAccountId == null,
+            selected = selectedAccountId == null && selectedSourceId == null,
             onClick = { onSelectAccount(null) },
             label = { Text(stringResource(R.string.calendar_filter_all)) },
             modifier = Modifier.padding(end = 8.dp)
@@ -278,7 +389,15 @@ private fun AccountFilterRow(
             FilterChip(
                 selected = selectedAccountId == account.id,
                 onClick = { onSelectAccount(account.id) },
-                label = { Text(accountLabelFor[account.id] ?: account.email) },
+                label = { Text(account.email) },
+                modifier = Modifier.padding(end = 8.dp)
+            )
+        }
+        sources.forEach { source ->
+            FilterChip(
+                selected = selectedSourceId == source.id,
+                onClick = { onSelectSource(source.id) },
+                label = { Text(source.displayName) },
                 modifier = Modifier.padding(end = 8.dp)
             )
         }

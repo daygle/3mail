@@ -20,6 +20,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.EditCalendar
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Refresh
@@ -58,6 +59,7 @@ import com.threemail.android.ui.theme.appTopBarColors
 import com.threemail.android.R
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.CalendarEntry
+import com.threemail.android.domain.model.CalendarSource
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,13 +69,16 @@ fun ManageCalendarsScreen(
     onNavigateBack: () -> Unit
 ) {
     val rowsByAccount by viewModel.rowsByAccount.collectAsState()
+    val sources by viewModel.sources.collectAsState()
     val busy by viewModel.busy.collectAsState()
     val snackbarMessage by viewModel.snackbar.collectAsState()
     val snackbarHost = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
+    var showAddChooser by remember { mutableStateOf(false) }
     var showSubscribeDialog by remember { mutableStateOf(false) }
     var showCreateDialog by remember { mutableStateOf(false) }
+    var showAddIcsDialog by remember { mutableStateOf(false) }
 
     // Resolve the Gmail account we'll subscribe / create under. Picking the
     // first signed-in GMAIL keeps behaviour sensible even after the user
@@ -95,6 +100,7 @@ fun ManageCalendarsScreen(
             SnackbarMessage.SyncSucceeded -> "Calendars refreshed"
             SnackbarMessage.InvalidUrl -> "Enter a valid iCal URL"
             SnackbarMessage.InvalidSummary -> "Enter a calendar name"
+            is SnackbarMessage.SourceRemoved -> "Removed ${msg.summary}"
         }
         scope.launch {
             snackbarHost.showSnackbar(text)
@@ -131,7 +137,7 @@ fun ManageCalendarsScreen(
             // resolved ambiguously on the project's Compose version;
             // icon-only is unambiguous and reads the same in the corner.
             FloatingActionButton(
-                onClick = { showSubscribeDialog = true }
+                onClick = { showAddChooser = true }
             ) {
                 Icon(
                     Icons.Default.Add,
@@ -140,7 +146,7 @@ fun ManageCalendarsScreen(
             }
         }
     ) { padding ->
-        if (rowsByAccount.isEmpty()) {
+        if (rowsByAccount.isEmpty() && sources.isEmpty()) {
             EmptyCalendarsState(
                 onRefresh = viewModel::sync,
                 modifier = Modifier.padding(padding)
@@ -149,11 +155,42 @@ fun ManageCalendarsScreen(
         }
         ManageCalendarsList(
             rowsByAccount = rowsByAccount,
+            sources = sources,
             busy = busy,
             onToggle = { account, entry, flag ->
                 viewModel.toggleSelected(account, entry.calendarId, flag)
             },
+            onToggleSource = { source, flag ->
+                viewModel.toggleSourceVisible(source.id, flag)
+            },
+            onDeleteSource = viewModel::deleteSource,
             modifier = Modifier.padding(padding)
+        )
+    }
+
+    if (showAddChooser) {
+        AddCalendarChooserDialog(
+            hasGoogleAccount = activeAccount != null,
+            onDismiss = { showAddChooser = false },
+            onPickGoogleSubscribe = {
+                showAddChooser = false; showSubscribeDialog = true
+            },
+            onPickGoogleCreate = {
+                showAddChooser = false; showCreateDialog = true
+            },
+            onPickIcs = {
+                showAddChooser = false; showAddIcsDialog = true
+            }
+        )
+    }
+
+    if (showAddIcsDialog) {
+        AddIcsDialog(
+            onDismiss = { showAddIcsDialog = false },
+            onAdd = { url, name ->
+                viewModel.addIcsSource(url, name)
+                showAddIcsDialog = false
+            }
         )
     }
 
@@ -185,8 +222,11 @@ fun ManageCalendarsScreen(
 @Composable
 private fun ManageCalendarsList(
     rowsByAccount: Map<Account, List<CalendarEntry>>,
+    sources: List<CalendarSource>,
     busy: Boolean,
     onToggle: (Account, CalendarEntry, Boolean) -> Unit,
+    onToggleSource: (CalendarSource, Boolean) -> Unit,
+    onDeleteSource: (CalendarSource) -> Unit,
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -215,8 +255,84 @@ private fun ManageCalendarsList(
                 )
             }
         }
+        if (sources.isNotEmpty()) {
+            item(key = "header-sources") {
+                Text(
+                    text = stringResource(R.string.manage_calendars_other_section),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(
+                        start = 16.dp, top = 8.dp, bottom = 4.dp, end = 16.dp
+                    )
+                )
+            }
+            items(items = sources, key = { "source-${it.id}" }) { source ->
+                CalendarSourceRow(
+                    source = source,
+                    onToggle = { flag -> onToggleSource(source, flag) },
+                    onDelete = { onDeleteSource(source) }
+                )
+            }
+        }
         // Reserve space for the FAB so the last row doesn't sit underneath it.
         item(key = "bottom-spacer") { Spacer(modifier = Modifier.height(80.dp)) }
+    }
+}
+
+/**
+ * One standalone subscription: colour swatch (stable hash of the source's
+ * event `calendarId` marker so it matches the grid), name, either the last
+ * sync error (in error colour) or the feed URL as the subtitle, a
+ * visibility switch, and delete.
+ */
+@Composable
+private fun CalendarSourceRow(
+    source: CalendarSource,
+    onToggle: (Boolean) -> Unit,
+    onDelete: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(20.dp)
+                .background(getEventColor("source:${source.id}"), CircleShape)
+        )
+        Spacer(Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = source.displayName,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1
+            )
+            Text(
+                text = source.lastError ?: source.url,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (source.lastError != null) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                maxLines = 1
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Switch(
+            checked = source.isVisible,
+            onCheckedChange = onToggle
+        )
+        IconButton(onClick = onDelete) {
+            Icon(
+                Icons.Default.Delete,
+                contentDescription = stringResource(R.string.manage_calendars_remove_source),
+                tint = MaterialTheme.colorScheme.error
+            )
+        }
     }
 }
 
@@ -361,6 +477,113 @@ private fun EmptyCalendarsState(onRefresh: () -> Unit, modifier: Modifier = Modi
         Spacer(Modifier.height(16.dp))
         TextButton(onClick = onRefresh) { Text(stringResource(R.string.calendar_sync_all)) }
     }
+}
+
+/**
+ * First step of the add flow: pick where the new calendar lives. Google
+ * options need a signed-in Google account; an internet (ICS) subscription
+ * is standalone and always available.
+ */
+@Composable
+private fun AddCalendarChooserDialog(
+    hasGoogleAccount: Boolean,
+    onDismiss: () -> Unit,
+    onPickGoogleSubscribe: () -> Unit,
+    onPickGoogleCreate: () -> Unit,
+    onPickIcs: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.manage_calendars_add)) },
+        text = {
+            Column {
+                TextButton(onClick = onPickIcs, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.manage_calendars_add_choice_ics))
+                }
+                if (hasGoogleAccount) {
+                    TextButton(
+                        onClick = onPickGoogleSubscribe,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(stringResource(R.string.manage_calendars_add_choice_google_subscribe))
+                    }
+                    TextButton(
+                        onClick = onPickGoogleCreate,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(stringResource(R.string.manage_calendars_add_choice_google_create))
+                    }
+                } else {
+                    Text(
+                        text = stringResource(R.string.manage_calendars_add_google_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+/** Subscribe to a standalone internet calendar (ICS / webcal URL). */
+@Composable
+private fun AddIcsDialog(
+    onDismiss: () -> Unit,
+    onAdd: (url: String, name: String?) -> Unit
+) {
+    var url by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.manage_calendars_add_ics_title)) },
+        text = {
+            Column {
+                Text(
+                    text = stringResource(R.string.manage_calendars_add_ics_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = url,
+                    onValueChange = { url = it.trim() },
+                    label = { Text(stringResource(R.string.manage_calendars_subscribe_url_label)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                    leadingIcon = {
+                        Icon(Icons.Default.Public, contentDescription = null)
+                    }
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text(stringResource(R.string.manage_calendars_add_ics_name_label)) },
+                    singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onAdd(url, name.trim().ifBlank { null }) },
+                enabled = url.isNotBlank()
+            ) {
+                Text(stringResource(R.string.manage_calendars_subscribe_action))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

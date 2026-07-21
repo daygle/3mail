@@ -7,7 +7,10 @@ import java.time.ZoneOffset
 
 data class CalendarEvent(
     val id: Long = 0,
+    /** Owning Google account, or [NO_ACCOUNT] for standalone-source events. */
     val accountId: Long,
+    /** Owning standalone subscription ([CalendarSource]), if any. */
+    val sourceId: Long? = null,
     val calendarId: String = DEFAULT_CALENDAR_ID,
     val eventId: String? = null,
     val iCalUID: String? = null,
@@ -26,10 +29,14 @@ data class CalendarEvent(
     val htmlLink: String? = null,
     val syncedAt: Long = 0
 ) {
-    val isEditable: Boolean get() = eventId != null || id > 0
+    /** Standalone-source events are read-only caches of a remote feed. */
+    val isEditable: Boolean get() = sourceId == null && (eventId != null || id > 0)
 
     companion object {
         const val DEFAULT_CALENDAR_ID = "primary"
+
+        /** Sentinel [accountId] for events owned by a [CalendarSource]. */
+        const val NO_ACCOUNT = 0L
     }
 }
 

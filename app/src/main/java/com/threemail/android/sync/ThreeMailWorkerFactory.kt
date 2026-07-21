@@ -10,6 +10,7 @@ import com.threemail.android.data.local.dao.MessageFlagDao
 import com.threemail.android.data.remote.MailRemoteFactory
 import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.repository.CalendarRepository
+import com.threemail.android.data.repository.CalendarSourceRepository
 import com.threemail.android.data.repository.MailActions
 import com.threemail.android.data.repository.MailRepository
 import com.threemail.android.data.repository.OutboxRepository
@@ -92,6 +93,7 @@ class ThreeMailWorkerFactory @Inject constructor(
     private val notificationHelper: Provider<NotificationHelper>,
     private val mailRemoteFactory: Provider<MailRemoteFactory>,
     private val calendarRepository: Provider<CalendarRepository>,
+    private val calendarSourceRepository: Provider<CalendarSourceRepository>,
     private val outboxRepository: Provider<OutboxRepository>,
     private val mailActions: Provider<MailActions>,
     private val mailPgpOutbound: Provider<MailPgpOutbound>,
@@ -118,7 +120,8 @@ class ThreeMailWorkerFactory @Inject constructor(
             appContext,
             workerParameters,
             accountRepository.get(),
-            calendarRepository.get()
+            calendarRepository.get(),
+            calendarSourceRepository.get()
         )
         SendMailWorker::class.java.name -> SendMailWorker(
             appContext,

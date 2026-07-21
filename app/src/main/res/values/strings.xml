@@ -352,6 +352,18 @@
     <string name="manage_calendars_create_subtitle">Create a calendar owned by this account. You can share it later from Google Calendar.</string>
     <string name="manage_calendars_create_tz_label">Time Zone</string>
     <string name="manage_calendars_create_action">Create</string>
+    <string name="manage_calendars_other_section">Other Calendars</string>
+    <string name="manage_calendars_remove_source">Remove calendar</string>
+    <string name="manage_calendars_add_choice_ics">Subscribe to Internet Calendar (ICS)</string>
+    <string name="manage_calendars_add_choice_google_subscribe">Add URL to Google Account</string>
+    <string name="manage_calendars_add_choice_google_create">Create New Google Calendar</string>
+    <string name="manage_calendars_add_google_hint">Sign in with a Google account to create or subscribe to Google calendars.</string>
+    <string name="manage_calendars_add_ics_title">Subscribe to Internet Calendar</string>
+    <string name="manage_calendars_add_ics_subtitle">Paste an iCal (.ics) or webcal link — holiday feeds, sports fixtures, or a shared calendar\'s public link. Subscribed calendars are read-only.</string>
+    <string name="manage_calendars_add_ics_name_label">Name (Optional)</string>
+    <string name="calendar_source_event_from">From %1$s (read-only)</string>
+    <string name="calendar_source_event_readonly">From a read-only subscribed calendar.</string>
+    <string name="close">Close</string>
     <string name="calendar_sync_all">Sync Calendars</string>
 
     <!-- Composer: inline images & contact autocomplete -->
