@@ -1,6 +1,5 @@
 package com.threemail.android.ui.screens.compose
 
-import android.app.PendingIntent
 import android.content.Intent
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -464,11 +463,10 @@ class ComposeViewModel @Inject constructor(
                 // here also means a retry after a worker crash just re-runs
                 // the compose stage instead of having to re-derive the
                 // encryption envelope from cached bytes.
-                val outgoing = base
 
                 // Persist to the outbox and let SendMailWorker deliver it, so a
                 // send survives network loss / process death.
-                outboxRepository.enqueue(account.id, outgoing)
+                outboxRepository.enqueue(account.id, base)
                 syncScheduler.enqueueSendMail()
                 _uiState.value = _uiState.value.copy(isSending = false, isSent = true)
             } catch (e: Exception) {

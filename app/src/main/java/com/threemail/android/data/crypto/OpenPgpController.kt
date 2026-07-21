@@ -10,7 +10,6 @@ import java.io.ByteArrayInputStream
 import java.io.File
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import org.bouncycastle.openpgp.PGPException
 import org.bouncycastle.openpgp.PGPPublicKey
 import org.bouncycastle.openpgp.PGPSecretKeyRing
 import org.bouncycastle.openpgp.PGPUtil
@@ -304,11 +303,7 @@ class OpenPgpController @Inject constructor(
         }
     }
 
-    private fun Throwable.exceptionMessage(): String =
-        when (this) {
-            is PGPException -> message ?: javaClass.simpleName
-            else -> message ?: javaClass.simpleName
-        }
+    private fun Throwable.exceptionMessage(): String = message ?: javaClass.simpleName
 
     companion object {
         private const val TAG = "OpenPgpController"

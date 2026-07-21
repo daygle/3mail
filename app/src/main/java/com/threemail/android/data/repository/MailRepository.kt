@@ -13,7 +13,6 @@ import com.threemail.android.domain.model.MailMessage
 import com.threemail.android.util.FtsUtil
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import org.json.JSONArray
@@ -208,29 +207,6 @@ class MailRepository @Inject constructor(
                 entity.toDomain(isEncrypted = flag?.isEncrypted ?: false)
             }
         }
-
-    /**
-     * Bounded paged folder fetch. Emits once on collection - not Room-reactive, so
-     * new mail arriving in the folder won't auto-push to the UI. Re-selecting the
-     * folder via InboxViewModel triggers a fresh snapshot. The inbox cap is
-     * implemented on top of `MessageDao.getByFolderPaged` so the JVM-side query is
-     * bounded; full paging with loadMore() can be layered on top without changing
-     * this method.
-     */
-    fun getMessagesPaged(folderId: Long, limit: Int, offset: Int): Flow<List<MailMessage>> = flow {
-        val list = messageDao.getByFolderPaged(folderId, limit, offset)
-        val flags = messageFlagDao.observeAll()
-        // emit-only-once: this path is page-shot (not subscribe-friendly), so
-        // we read the flag table once synchronously via a one-shot query and
-        // emit a single combined value.
-        val synced = list.map { entity ->
-            entity.toDomain(isEncrypted = isEncryptedFor(entity.accountId, entity.messageId))
-        }
-        // Touch `flags` so the compiler doesn't flag the unused import on
-        // cold paths - the one-shot helper is the actual path here.
-        @Suppress("UNUSED_VARIABLE") val _flagsKept = flags
-        emit(synced)
-    }
 
     /**
      * Reactive feed of a single folder. Room re-emits on every mutation so

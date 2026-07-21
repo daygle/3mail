@@ -155,15 +155,15 @@ class MailPgpOutbound @Inject constructor(
         val resolvedViaWkd = resolved.keys - cacheSnapshot
         val unresolvable = recipients.map { it.lowercase() }.toSet() - resolved.keys
 
-        // Parse every resolved keydata up-front. Entries that fail BC
-        // decode flow into `unparseable` so the strict-mode decision in
-        // the worker accounts for them - otherwise the wire body would
-        // silently omit them (a security-relevant degradation).
-        val parsedKeys: List<PGPPublicKey> = resolved.values.mapNotNull(::keyDataToEncryptionKey)
-        val unparseable = resolved.entries
-            .filter { (_, keyData) -> keyDataToEncryptionKey(keyData) == null }
-            .map { it.key }
-            .toSet()
+        // Parse every resolved keydata up-front, exactly once per entry.
+        // Entries that fail BC decode flow into `unparseable` so the
+        // strict-mode decision in the worker accounts for them - otherwise
+        // the wire body would silently omit them (a security-relevant
+        // degradation).
+        val parsedByEmail: Map<String, PGPPublicKey?> =
+            resolved.mapValues { (_, keyData) -> keyDataToEncryptionKey(keyData) }
+        val parsedKeys: List<PGPPublicKey> = parsedByEmail.values.filterNotNull()
+        val unparseable = parsedByEmail.filterValues { it == null }.keys.toSet()
 
         val pgp = openPgpController.signAndEncrypt(plaintext, parsedKeys)
         val envelopeBytes: ByteArray? = when (pgp) {
