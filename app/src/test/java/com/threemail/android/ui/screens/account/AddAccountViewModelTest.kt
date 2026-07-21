@@ -119,6 +119,7 @@ class AddAccountViewModelTest {
             accountRepository = accountRepository,
             googleAuthHelper = GoogleAuthHelper(context),
             mailRemoteFactory = fakeFactory,
+            autoconfigClient = com.threemail.android.data.remote.autoconfig.AutoconfigClient(),
             syncScheduler = NoOpSyncScheduler(context)
         )
 

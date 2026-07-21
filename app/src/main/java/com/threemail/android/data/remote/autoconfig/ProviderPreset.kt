@@ -93,8 +93,10 @@ object MailProviders {
         imapPort = 993,
         imapSecurity = Security.SSL_TLS,
         smtpHost = "smtp.mail.yahoo.com",
-        smtpPort = 465,
-        smtpSecurity = Security.SSL_TLS,
+        // 587/STARTTLS submission: ImapClient always drives SMTP over STARTTLS
+        // when security != NONE, so the outgoing port must be the STARTTLS one.
+        smtpPort = 587,
+        smtpSecurity = Security.STARTTLS,
         needsAppPassword = true
     )
 
@@ -107,8 +109,8 @@ object MailProviders {
         imapPort = 993,
         imapSecurity = Security.SSL_TLS,
         smtpHost = "smtp.fastmail.com",
-        smtpPort = 465,
-        smtpSecurity = Security.SSL_TLS,
+        smtpPort = 587,
+        smtpSecurity = Security.STARTTLS,
         needsAppPassword = true
     )
 

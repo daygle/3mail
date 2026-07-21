@@ -8,6 +8,8 @@
     <string name="accounts">Accounts</string>
     <string name="add_account">Add account</string>
     <string name="sign_in_with_google">Sign in with Google</string>
+    <string name="autoconfig_found">Found settings for your provider. Just add your password below.</string>
+    <string name="autoconfig_not_found">Couldn\'t detect settings automatically. Enter your server details below.</string>
     <string name="to">To</string>
     <string name="cc">Cc</string>
     <string name="bcc">Bcc</string>
