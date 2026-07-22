@@ -197,11 +197,11 @@
 
     <!-- Trash policy settings -->
     <string name="trash_settings_section">Trash</string>
-    <string name="trash_settings_description">Permanently delete messages in each account\'s Trash folder. Runs server-first, then clears the local cache.</string>
-    <string name="empty_trash_on_launch_title">Empty Trash on App Open</string>
-    <string name="empty_trash_on_launch_subtitle">Permanently delete trash emails when 3mail opens.</string>
-    <string name="empty_trash_on_quit_title">Empty Trash on App Close</string>
-    <string name="empty_trash_on_quit_subtitle">Permanently delete trash emails when 3mail goes to background.</string>
+    <string name="trash_settings_description">Manage how and when messages are permanently deleted from your Trash. Once cleared, messages are removed from the server and this device.</string>
+    <string name="empty_trash_on_launch_title">Empty Trash on Startup</string>
+    <string name="empty_trash_on_launch_subtitle">Permanently delete trash messages when the app starts.</string>
+    <string name="empty_trash_on_quit_title">Empty Trash on Background</string>
+    <string name="empty_trash_on_quit_subtitle">Permanently delete trash messages when the app is backgrounded.</string>
 
     <!-- Trash cleanup failure notification -->
     <string name="trash_cleanup_notification_channel_name">Trash cleanup</string>
