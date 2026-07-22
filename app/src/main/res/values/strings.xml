@@ -38,7 +38,7 @@
     <string name="mark_as_unread">Mark as Unread</string>
     <string name="sync">Sync</string>
     <string name="syncing">Syncing…</string>
-    <string name="no_messages">No messages</string>
+    <string name="no_messages">No Messages</string>
     <string name="unified_inbox">Unified inbox</string>
     <string name="all_inboxes">All inboxes</string>
     <string name="mark_all_read">Mark All as Read</string>
