@@ -65,4 +65,7 @@ class ImapRemote(private val client: ImapClient) : MailRemote {
 
     override suspend fun deleteFolder(serverId: String): Result<Unit> =
         client.deleteFolder(serverId)
+
+    override suspend fun folderSeparator(): Result<Char> =
+        client.folderSeparator()
 }

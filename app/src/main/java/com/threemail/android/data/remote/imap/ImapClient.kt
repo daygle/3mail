@@ -676,6 +676,27 @@ class ImapClient(
         }
 
     /**
+     * The server's folder-hierarchy separator, read from the default (root)
+     * folder. Authoritative for building rename/move target paths, so we don't
+     * have to guess it from folder names.
+     */
+    suspend fun folderSeparator(): Result<Char> =
+        withContext(Dispatchers.IO) {
+            try {
+                val store = connectStore()
+                try {
+                    Result.success(store.defaultFolder.separator)
+                } finally {
+                    runCatching { store.close() }
+                }
+            } catch (e: RecoverableAuthException) {
+                throw e
+            } catch (e: MessagingException) {
+                Result.failure(e)
+            }
+        }
+
+    /**
      * Delete a folder and its subfolders from the server. Treated as a
      * successful no-op when the folder is already gone (idempotent), so a
      * retried delete doesn't surface a spurious error.

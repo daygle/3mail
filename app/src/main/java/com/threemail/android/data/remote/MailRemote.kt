@@ -111,4 +111,13 @@ interface MailRemote {
      */
     suspend fun deleteFolder(serverId: String): Result<Unit> =
         Result.failure(UnsupportedOperationException("This account type does not support folder deletion"))
+
+    /**
+     * The server's folder-hierarchy separator (e.g. '/' or '.'), used to build
+     * the target path for a rename/move. Only IMAP reports an authoritative
+     * separator; the default fails so callers fall back to inferring it from
+     * the folder list.
+     */
+    suspend fun folderSeparator(): Result<Char> =
+        Result.failure(UnsupportedOperationException("This account type has no folder separator"))
 }
