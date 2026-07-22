@@ -89,7 +89,7 @@
     <string name="images_blocked_banner_title">Remote images are hidden</string>
     <string name="images_blocked_banner_subtitle">Blocked to protect your privacy and avoid email tracking.</string>
     <string name="images_blocked_banner_action">Show images</string>
-    <string name="shrink_to_fit_title">Shrink emails to fit</string>
+    <string name="shrink_to_fit_title">Shrink Email Body</string>
     <string name="shrink_to_fit_subtitle">Scale wide HTML emails down so they fit the screen instead of scrolling sideways.</string>
     <!-- Message-detail: tap the sender address to start a new email to them. -->
     <string name="compose_to_sender">New email to this address</string>
@@ -343,7 +343,7 @@
          "a calendar" rather than only Google. The primary action takes the
          user to Manage Calendars with the chooser dialog open so they can
          pick whichever source they have. -->
-    <string name="calendar_no_account_title">No calendars</string>
+    <string name="calendar_no_account_title">No Calendars</string>
     <string name="calendar_no_account_subtitle">Add a calendar to see your events here. 3mail supports Google calendars, CalDAV servers, and public iCal (webcal) feeds.</string>
     <string name="calendar_add_action">Add calendar</string>
     <string name="calendar_no_events_title">Nothing scheduled</string>
