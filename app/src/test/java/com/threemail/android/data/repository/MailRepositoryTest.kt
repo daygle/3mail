@@ -307,6 +307,45 @@ class MailRepositoryTest {
         assertEquals(2, repository.getMessagesOnce(workId).size)
     }
 
+    @Test
+    fun `moving a message clears its uid so the destination reconcile leaves it alone`() = runBlocking {
+        val inboxId = insertFolder("INBOX", FolderType.Inbox)
+        val archiveId = insertFolder("Archive", FolderType.ARCHIVE)
+        insertMessage(inboxId, uid = 100L, messageId = "m")
+        val msgId = repository.getMessagesOnce(inboxId).single().id
+
+        repository.moveMessageToFolder(msgId, archiveId)
+
+        // Folder changed and the (source-folder) uid was cleared.
+        val moved = repository.getMessageById(msgId)!!
+        assertEquals(archiveId, moved.folderId)
+        assertEquals(0L, moved.uid)
+
+        // A reconcile of Archive that finds nothing must NOT delete the moved
+        // message: uid=0 excludes it from the probe, so the optimistic move
+        // survives until Archive is synced and the row re-adopts its real uid.
+        val remote = FakeExistenceRemote { _, _ -> Result.success(emptySet()) }
+        val archiveFolder = repository.getFoldersOnce(accountId).single { it.serverId == "Archive" }
+        val removed = repository.reconcileDeletions(remote, archiveFolder).getOrThrow()
+        assertEquals(0, removed)
+        assertEquals(1, repository.getMessagesOnce(archiveId).size)
+    }
+
+    @Test
+    fun `restoreMessageToFolder puts the message back with its original uid`() = runBlocking {
+        val inboxId = insertFolder("INBOX", FolderType.Inbox)
+        val archiveId = insertFolder("Archive", FolderType.ARCHIVE)
+        insertMessage(inboxId, uid = 100L, messageId = "m")
+        val msgId = repository.getMessagesOnce(inboxId).single().id
+
+        repository.moveMessageToFolder(msgId, archiveId)      // optimistic move clears uid
+        repository.restoreMessageToFolder(msgId, inboxId, 100L) // undo restores it
+
+        val restored = repository.getMessageById(msgId)!!
+        assertEquals(inboxId, restored.folderId)
+        assertEquals(100L, restored.uid)
+    }
+
     private suspend fun insertFolder(serverId: String, type: FolderType): Long =
         db.folderDao().insert(
             com.threemail.android.data.local.entity.FolderEntity(

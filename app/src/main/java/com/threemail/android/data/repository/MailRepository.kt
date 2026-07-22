@@ -326,6 +326,16 @@ class MailRepository @Inject constructor(
         messageDao.updateFolder(id, folderId)
     }
 
+    /**
+     * Undo an optimistic [moveMessageToFolder]: put the message back in
+     * [folderId] and restore its original server [uid] (which is still valid
+     * because the deferred server move was discarded). Keeps the reconcile
+     * sweep and by-uid fetches working after an Undo.
+     */
+    suspend fun restoreMessageToFolder(id: Long, folderId: Long, uid: Long) {
+        messageDao.restoreFolder(id, folderId, uid)
+    }
+
     suspend fun deleteMessageLocal(id: Long) {
         messageDao.deleteById(id)
     }
