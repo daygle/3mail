@@ -455,8 +455,6 @@
          auto-upgrade and explain. Tone is informational, not a warning. -->
     <string name="security_starttls_auto_upgrade">Server supports STARTTLS - upgraded automatically.</string>
 
-    <!-- Favorite folders (drawer's pinned / starred section) -->
-    <string name="favorites">Favorites</string>
     <!-- Pre-uppercased so the section header doesn't depend on locale-specific
          case folding (e.g. Turkish i, German ß). -->
     <string name="favorites_header" translatable="false">FAVORITES</string>

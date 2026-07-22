@@ -51,7 +51,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -74,7 +74,10 @@ fun FolderManagementScreen(
     val state by viewModel.uiState.collectAsState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val snackbarHostState = remember { SnackbarHostState() }
-    val context = LocalContext.current
+    // LocalResources (not LocalContext.getString) so the lookups recompose on
+    // configuration changes - and to satisfy Compose lint's
+    // LocalContextGetResourceValueCall check.
+    val resources = LocalResources.current
 
     // Structural folder edits (rename/move/delete) are IMAP-only; Gmail's
     // labels and POP3's fixed inbox don't map onto the RENAME/DELETE commands.
@@ -91,17 +94,17 @@ fun FolderManagementScreen(
         viewModel.events.collect { event ->
             val message = when (event) {
                 is FolderManagementViewModel.FolderEvent.Renamed ->
-                    context.getString(R.string.folder_renamed, event.name)
+                    resources.getString(R.string.folder_renamed, event.name)
                 is FolderManagementViewModel.FolderEvent.Moved ->
-                    context.getString(R.string.folder_moved, event.name)
+                    resources.getString(R.string.folder_moved, event.name)
                 is FolderManagementViewModel.FolderEvent.Deleted ->
-                    context.getString(R.string.folder_deleted, event.name)
+                    resources.getString(R.string.folder_deleted, event.name)
                 is FolderManagementViewModel.FolderEvent.Failed ->
-                    context.getString(R.string.folder_op_failed, event.name)
+                    resources.getString(R.string.folder_op_failed, event.name)
                 FolderManagementViewModel.FolderEvent.InvalidName ->
-                    context.getString(R.string.folder_name_invalid)
+                    resources.getString(R.string.folder_name_invalid)
                 FolderManagementViewModel.FolderEvent.DuplicateName ->
-                    context.getString(R.string.folder_name_duplicate)
+                    resources.getString(R.string.folder_name_duplicate)
             }
             snackbarHostState.showSnackbar(message)
         }
