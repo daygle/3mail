@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Drafts
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.FolderSpecial
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -846,12 +847,17 @@ private fun FolderTreeRow(
         Spacer(Modifier.width(8.dp))
 
         // ── Folder type icon ──
+        // Favorited folders carry a folder-with-star glyph in place of the
+        // plain type icon, so the "this is a favourite" cue lives on the icon
+        // itself rather than a trailing star chip. Non-favourites keep their
+        // type-specific icon (Inbox, Sent, Trash, …).
         Box(
             modifier = Modifier.size(24.dp),
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = iconFor(node.folder.type),
+                imageVector = if (node.folder.isFavorite) Icons.Default.FolderSpecial
+                else iconFor(node.folder.type),
                 contentDescription = null,
                 tint = iconColor,
                 modifier = Modifier.size(22.dp)
@@ -869,23 +875,10 @@ private fun FolderTreeRow(
             modifier = Modifier.weight(1f)
         )
 
-        // ── "Also in Favorites" cue. Favorited folders render in two places
-        //   (the pinned shortcut section above AND this tree row); a small
-        //   star chip on the tree row makes that relationship legible so
-        //   a user who missed the section header doesn't read the duplicate
-        //   as a bug. The icon uses primary tint so it shares semantics
-        //   with the section's `FAVORITES` header colour. ──
-        if (node.folder.isFavorite) {
-            Icon(
-                imageVector = Icons.Default.Star,
-                contentDescription = stringResource(R.string.favorites),
-                tint = if (isSelected) Color.White.copy(alpha = 0.85f)
-                else MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .padding(start = 6.dp, end = 2.dp)
-                    .size(14.dp)
-            )
-        }
+        // ── "Also in Favorites" cue now lives on the folder icon itself (a
+        //   folder-with-star glyph, set above) rather than a trailing star
+        //   chip, so a favourited tree row reads as a favourite without an
+        //   extra element competing with the unread badge. ──
 
         // ── Unread count badge only. The per-row favourite star toggle
         //   has been removed from the visible chrome; long-press the row
