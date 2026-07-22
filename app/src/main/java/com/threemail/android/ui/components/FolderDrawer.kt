@@ -222,7 +222,13 @@ fun FolderDrawerContent(
     //    top *and* keeps it in the canonical list (the user can still find
     //    it nested under its parent). Hidden folders are omitted from both.
     val visibleFolders = remember(folders) { folders.filterNot { it.isHidden } }
-    val favoriteFolders = remember(visibleFolders) { visibleFolders.filter { it.isFavorite } }
+    // Favorites are drawn in the user's drag-reorder order, not the tree's
+    // type/name order. `favoritePosition` is the persisted rank joined in by
+    // MailRepository.getFolders; sorting by it here is what makes a drag (or a
+    // Move up/down tap) actually stick once it round-trips through the DB.
+    val favoriteFolders = remember(visibleFolders) {
+        visibleFolders.filter { it.isFavorite }.sortedBy { it.favoritePosition }
+    }
     val treeFolders = remember(visibleFolders) { visibleFolders }
     val favoriteFoldersState = rememberUpdatedState(favoriteFolders)
 

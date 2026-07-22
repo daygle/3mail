@@ -107,4 +107,41 @@ class MailRepositoryTest {
             db.messageDao().observeByFolderWithFlags(saved.id).first().size
         )
     }
+
+    /**
+     * Regression coverage for the favourite-folder ordering bug: reordering
+     * the favourites persisted new `position` values, but `getFolders` only
+     * derived a `HashSet` of favourite serverIds and discarded the ordering,
+     * so the drawer kept drawing them in the folder query's type/name order
+     * and the reorder appeared to do nothing. This locks in that a reorder is
+     * reflected in each folder's `favoritePosition`.
+     */
+    @Test
+    fun `getFolders reflects the persisted favourite order`() = runBlocking {
+        // Named so the folder query's ORDER BY name would sort them A, B, C -
+        // distinct from the reorder we apply, so a regression that ignored the
+        // persisted order would produce a different (alphabetical) result.
+        val folders = listOf("Alpha", "Bravo", "Charlie").map { id ->
+            MailFolder(accountId = accountId, serverId = id, name = id, type = FolderType.CUSTOM)
+        }
+        repository.saveFolders(folders)
+        folders.forEach { repository.setFolderFavorite(accountId, it.serverId, isFavorite = true) }
+
+        // Drag Charlie to the top: persisted order becomes Charlie, Alpha, Bravo.
+        repository.reorderFavorites(accountId, listOf("Charlie", "Alpha", "Bravo"))
+
+        val byServerId = repository.getFolders(accountId).first().associateBy { it.serverId }
+        assertEquals(0, byServerId.getValue("Charlie").favoritePosition)
+        assertEquals(1, byServerId.getValue("Alpha").favoritePosition)
+        assertEquals(2, byServerId.getValue("Bravo").favoritePosition)
+
+        // Ranked favourites, sorted the way the drawer sorts them.
+        assertEquals(
+            listOf("Charlie", "Alpha", "Bravo"),
+            byServerId.values
+                .filter { it.isFavorite }
+                .sortedBy { it.favoritePosition }
+                .map { it.serverId }
+        )
+    }
 }
