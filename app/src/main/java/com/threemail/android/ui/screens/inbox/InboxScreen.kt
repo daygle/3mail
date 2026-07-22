@@ -33,7 +33,7 @@ import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -182,6 +182,10 @@ fun InboxScreen(
     // the picker consistent with whatever folder the user has selected.
     var showMovePicker by remember { mutableStateOf(false) }
 
+    // Single-message Move, triggered by the swipe "Move" action. Holds the
+    // message whose folder picker is open; null when no picker is showing.
+    var swipeMoveMessage by remember { mutableStateOf<MailMessage?>(null) }
+
     // Snackbar messages for empty-trash result feedback. The success line is a
     // plural resolved from the app resources inside the collector (the count is
     // only known there); the failure line is read at composition time.
@@ -320,11 +324,14 @@ fun InboxScreen(
             },
             floatingActionButton = {
                 if (!state.selectionMode) {
-                    ExtendedFloatingActionButton(
-                        onClick = onNavigateToCompose,
-                        icon = { Icon(Icons.Default.Edit, contentDescription = null) },
-                        text = { Text(stringResource(R.string.compose)) }
-                    )
+                    // Icon-only FAB: the pencil glyph reads as "compose" on its
+                    // own, so we drop the text label to keep the button compact.
+                    FloatingActionButton(onClick = onNavigateToCompose) {
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = stringResource(R.string.compose)
+                        )
+                    }
                 }
             }
         ) { padding ->
@@ -367,6 +374,7 @@ fun InboxScreen(
                                             onDelete = { viewModel.delete(message) },
                                             onToggleRead = { viewModel.markAsRead(message, !message.isRead) },
                                             onMarkSpam = { viewModel.markSpam(message) },
+                                            onMove = { swipeMoveMessage = message },
                                             onClick = {
                                                 if (state.selectionMode) {
                                                     viewModel.toggleSelection(message)
@@ -469,6 +477,41 @@ fun InboxScreen(
                     onSelect = { folder ->
                         showMovePicker = false
                         viewModel.moveSelected(folder)
+                    }
+                )
+            }
+            Spacer(Modifier.padding(8.dp))
+        }
+    }
+
+    // Folder picker for the swipe "Move" action on a single message. Mirrors
+    // the bulk-move sheet but targets exactly the swiped message; dismissing
+    // without a pick leaves the message where it is (the swiped row has already
+    // sprung back, since Move is a non-removing swipe action).
+    swipeMoveMessage?.let { message ->
+        val targetFolders = remember(message.id) { viewModel.getMoveTargetFolders() }
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { swipeMoveMessage = null },
+            sheetState = sheetState
+        ) {
+            Text(
+                text = stringResource(R.string.move_to_folder),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
+            )
+            if (targetFolders.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.move_no_targets),
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
+                )
+            } else {
+                FolderTreePicker(
+                    folders = targetFolders,
+                    modifier = Modifier.heightIn(max = 480.dp),
+                    onSelect = { folder ->
+                        swipeMoveMessage = null
+                        viewModel.move(message, folder)
                     }
                 )
             }
@@ -684,6 +727,7 @@ private fun SwipeableMailRow(
     onDelete: () -> Unit,
     onToggleRead: () -> Unit,
     onMarkSpam: () -> Unit,
+    onMove: () -> Unit,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
@@ -707,6 +751,7 @@ private fun SwipeableMailRow(
             SwipeAction.DELETE -> onDelete()
             SwipeAction.TOGGLE_READ -> onToggleRead()
             SwipeAction.MARK_SPAM -> onMarkSpam()
+            SwipeAction.MOVE -> onMove()
             SwipeAction.NONE -> Unit
         }
     }
@@ -768,6 +813,7 @@ private fun SwipeBackground(action: SwipeAction, alignEnd: Boolean) {
         SwipeAction.DELETE -> MaterialTheme.colorScheme.error
         SwipeAction.TOGGLE_READ -> MaterialTheme.colorScheme.primary
         SwipeAction.MARK_SPAM -> MaterialTheme.colorScheme.errorContainer
+        SwipeAction.MOVE -> MaterialTheme.colorScheme.secondary
         SwipeAction.NONE -> MaterialTheme.colorScheme.surfaceVariant
     }
     val icon = when (action) {
@@ -775,6 +821,7 @@ private fun SwipeBackground(action: SwipeAction, alignEnd: Boolean) {
         SwipeAction.DELETE -> Icons.Default.Delete
         SwipeAction.TOGGLE_READ -> Icons.Default.MarkEmailRead
         SwipeAction.MARK_SPAM -> Icons.Outlined.Report
+        SwipeAction.MOVE -> Icons.AutoMirrored.Filled.DriveFileMove
         SwipeAction.NONE -> null
     }
     Row(

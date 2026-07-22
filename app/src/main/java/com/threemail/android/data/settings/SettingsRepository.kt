@@ -16,7 +16,7 @@ import javax.inject.Singleton
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 /** Action performed when a message row is swiped. */
-enum class SwipeAction { NONE, ARCHIVE, DELETE, TOGGLE_READ, MARK_SPAM }
+enum class SwipeAction { NONE, ARCHIVE, DELETE, TOGGLE_READ, MARK_SPAM, MOVE }
 
 /**
  * Where to navigate from the message-detail screen after the user deletes
@@ -70,6 +70,15 @@ data class AppSettings(
      */
     val loadImages: Boolean = false,
     /**
+     * Whether to scale wide HTML email bodies down so they fit the screen
+     * width (WebView `useWideViewPort` + `loadWithOverviewMode`) instead of
+     * letting fixed-width newsletter layouts overflow horizontally. Default
+     * true: shrink-to-fit is what most users expect and matches other mail
+     * clients; turning it off renders at the email's native width with
+     * sideways scroll.
+     */
+    val shrinkEmailToFit: Boolean = true,
+    /**
      * Set of [TopBarItemId] values the user has explicitly hidden from the
      * top app bar on the supported screens (Inbox, Message Detail, Compose).
      * Each screen reads only the values that apply to it; others are ignored.
@@ -105,6 +114,7 @@ class SettingsRepository @Inject constructor(
         val MESSAGE_DENSITY = stringPreferencesKey("message_density")
         val PREVIEW_LINES = intPreferencesKey("preview_lines")
         val LOAD_IMAGES = booleanPreferencesKey("load_images")
+        val SHRINK_EMAIL_TO_FIT = booleanPreferencesKey("shrink_email_to_fit")
         val HIDDEN_TOP_BAR_ITEMS = stringSetPreferencesKey("hidden_top_bar_items")
         val AFTER_DELETE_NAVIGATION = stringPreferencesKey("after_delete_navigation")
     }
@@ -129,6 +139,7 @@ class SettingsRepository @Inject constructor(
                     messageDensity = prefs[Keys.MESSAGE_DENSITY]?.let { runCatching { MessageDensity.valueOf(it) }.getOrNull() } ?: MessageDensity.COMFORTABLE,
                     previewLines = (prefs[Keys.PREVIEW_LINES] ?: 2).coerceIn(0, 3),
                     loadImages = prefs[Keys.LOAD_IMAGES] ?: false,
+                    shrinkEmailToFit = prefs[Keys.SHRINK_EMAIL_TO_FIT] ?: true,
                     // Stored as enum names so renaming a value drops the
                     // old key silently; entries that fail to resolve are
                     // skipped so an unknown name never crashes the read.
@@ -158,6 +169,7 @@ class SettingsRepository @Inject constructor(
     suspend fun setMessageDensity(density: MessageDensity) = dataStore.edit { it[Keys.MESSAGE_DENSITY] = density.name }
     suspend fun setPreviewLines(lines: Int) = dataStore.edit { it[Keys.PREVIEW_LINES] = lines.coerceIn(0, 3) }
     suspend fun setLoadImages(enabled: Boolean) = dataStore.edit { it[Keys.LOAD_IMAGES] = enabled }
+    suspend fun setShrinkEmailToFit(enabled: Boolean) = dataStore.edit { it[Keys.SHRINK_EMAIL_TO_FIT] = enabled }
     suspend fun setAfterDeleteNavigation(value: AfterDeleteNavigation) =
         dataStore.edit { it[Keys.AFTER_DELETE_NAVIGATION] = value.name }
 

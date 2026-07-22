@@ -3,13 +3,15 @@ package com.threemail.android.ui.navigation
 sealed class Screen(val route: String) {
     data object Inbox : Screen("inbox")
 
-    data object Compose : Screen("compose?mode={mode}&refId={refId}") {
+    data object Compose : Screen("compose?mode={mode}&refId={refId}&to={to}") {
         /**
          * @param mode one of "new", "reply", "replyAll", "forward"
          * @param refId id of the message being replied to / forwarded, if any
+         * @param to pre-filled To address for a fresh compose (URL-encoded so
+         *   the "@" and other reserved characters survive the nav route)
          */
-        fun createRoute(mode: String = "new", refId: Long? = null): String =
-            "compose?mode=$mode&refId=${refId ?: -1L}"
+        fun createRoute(mode: String = "new", refId: Long? = null, to: String = ""): String =
+            "compose?mode=$mode&refId=${refId ?: -1L}&to=${android.net.Uri.encode(to)}"
     }
 
     data object MessageDetail : Screen("message/{messageId}") {
@@ -34,8 +36,12 @@ sealed class Screen(val route: String) {
         fun createRoute(accountId: Long): String = "account_settings/$accountId/identities"
     }
 
-    data object AccountServer : Screen("account_settings/{accountId}/server") {
-        fun createRoute(accountId: Long): String = "account_settings/$accountId/server"
+    data object AccountIncomingServer : Screen("account_settings/{accountId}/server/incoming") {
+        fun createRoute(accountId: Long): String = "account_settings/$accountId/server/incoming"
+    }
+
+    data object AccountOutgoingServer : Screen("account_settings/{accountId}/server/outgoing") {
+        fun createRoute(accountId: Long): String = "account_settings/$accountId/server/outgoing"
     }
 
     data object AccountFolderRoles : Screen("account_settings/{accountId}/folder_roles") {

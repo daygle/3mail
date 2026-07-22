@@ -61,6 +61,7 @@
     <string name="swipe_action_delete">Delete</string>
     <string name="swipe_action_toggle_read">Read/Unread</string>
     <string name="swipe_action_mark_spam">Mark as spam</string>
+    <string name="swipe_action_move">Move to folder</string>
     <string name="density_comfortable">Comfortable</string>
     <string name="density_compact">Compact</string>
     <string name="density_extra_compact">Extra Compact</string>
@@ -88,11 +89,15 @@
     <string name="images_blocked_banner_title">Remote images are hidden</string>
     <string name="images_blocked_banner_subtitle">Blocked to protect your privacy and avoid email tracking.</string>
     <string name="images_blocked_banner_action">Show images</string>
+    <string name="shrink_to_fit_title">Shrink emails to fit</string>
+    <string name="shrink_to_fit_subtitle">Scale wide HTML emails down so they fit the screen instead of scrolling sideways.</string>
+    <!-- Message-detail: tap the sender address to start a new email to them. -->
+    <string name="compose_to_sender">New email to this address</string>
     <string name="from_label">From</string>
     <string name="request_read_receipt">Request read receipt</string>
     <string name="identities_section">Send-as Identities</string>
     <string name="identities_description">Extra addresses you can send from. Pick one in the composer\'s From selector.</string>
-    <string name="identity_add">Add identity</string>
+    <string name="identity_add">Add Identity</string>
     <string name="identity_remove">Remove</string>
     <string name="identity_display_name">Display Name</string>
     <string name="identity_email">Email Address</string>
@@ -267,10 +272,14 @@
     <!-- Drill-in "Manage" group linking to the heavier sub-pages -->
     <string name="account_settings_manage_section">Manage</string>
     <string name="account_settings_server_section">Server Settings</string>
+    <!-- Split incoming/outgoing server drill-in pages -->
+    <string name="account_incoming_server_section">Incoming Server</string>
+    <string name="account_outgoing_server_section">Outgoing Server</string>
+    <string name="account_manage_incoming_server_subtitle">Host, port, security and login for fetching mail.</string>
+    <string name="account_manage_outgoing_server_subtitle">Host, port, security and login for sending mail.</string>
 
     <!-- One-line subtitles for the per-account drill-in cards -->
     <string name="account_manage_identities_subtitle">Extra addresses you can send from.</string>
-    <string name="account_manage_server_subtitle">Incoming and outgoing server details.</string>
     <string name="account_manage_folder_roles_subtitle">Map Inbox, Sent, Trash and more to server folders.</string>
     <string name="account_manage_push_subtitle">Watch extra folders for instant new-mail push.</string>
     <string name="account_manage_pgp_subtitle">Your encryption key and saved contact keys.</string>
@@ -432,17 +441,14 @@
     <string name="favorites_header" translatable="false">FAVORITES</string>
     <string name="favorites_add">Add to Favorites</string>
     <string name="favorites_remove">Remove from Favorites</string>
-    <!-- Screen-reader label for the leading icon on each favorite row, whose
-         only purpose is the drag-reorder gesture. -->
-    <string name="favorites_drag_handle">Drag to reorder</string>
+    <!-- Screen-reader labels for the reorder buttons revealed on each favorite
+         row while the FAVORITES section is in edit mode. -->
+    <string name="favorites_move_up">Move up</string>
+    <string name="favorites_move_down">Move down</string>
     <!-- Toggle button on the FAVORITES section header. Edit enters reorder
-         mode (each row surfaces ↑ / ↓ buttons in place of the drag handle);
-         Done exits and restores the drag handle. -->
+         mode (each row surfaces ↑ / ↓ buttons); Done exits. -->
     <string name="favorites_edit_action">Edit</string>
     <string name="favorites_done_action">Done</string>
-    <!-- Long-press drag-to-reorder is the single move affordance in
-         edit mode; no separate up/down buttons. The drag handle carries the
-         screen-reader label below. -->
 
     <!-- Sent-folder badge: shown on rows the SendMailWorker dispatched
          through the opportunistic-encryption path (MailPgpOutbound.compose
@@ -470,6 +476,8 @@
     <string name="top_bar_settings_subtitle">Choose which actions appear in each screen\'s top bar. Hidden actions still appear in the overflow menu, so nothing disappears.</string>
     <string name="top_bar_settings_inbox_header">Inbox</string>
     <string name="top_bar_settings_detail_header">Message Detail</string>
+    <string name="top_bar_settings_detail_bottom_header">Open Message Buttons</string>
+    <string name="top_bar_settings_detail_bottom_subtitle">Choose which buttons appear along the bottom when an email is open.</string>
     <string name="top_bar_settings_compose_header">Compose</string>
     <string name="top_bar_settings_reset">Reset</string>
     <!-- Subtitle on the Inbox "Empty Trash" row; clarifying that hiding the

@@ -116,6 +116,13 @@ fun SettingsScreen(
                     checked = settings.loadImages,
                     onCheckedChange = viewModel::setLoadImages
                 )
+                CardDivider()
+                SettingsSwitchRow(
+                    title = stringResource(R.string.shrink_to_fit_title),
+                    subtitle = stringResource(R.string.shrink_to_fit_subtitle),
+                    checked = settings.shrinkEmailToFit,
+                    onCheckedChange = viewModel::setShrinkEmailToFit
+                )
             }
 
             // -- Sync --
@@ -299,6 +306,7 @@ private fun swipeActionLabel(action: SwipeAction): Int = when (action) {
     SwipeAction.DELETE -> R.string.swipe_action_delete
     SwipeAction.TOGGLE_READ -> R.string.swipe_action_toggle_read
     SwipeAction.MARK_SPAM -> R.string.swipe_action_mark_spam
+    SwipeAction.MOVE -> R.string.swipe_action_move
 }
 
 private fun densityLabel(density: MessageDensity): Int = when (density) {

@@ -78,6 +78,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -118,7 +120,9 @@ fun MessageDetailScreen(
     onNavigateToNext: (Long) -> Unit = {},
     onReply: (Long) -> Unit,
     onReplyAll: (Long) -> Unit,
-    onForward: (Long) -> Unit
+    onForward: (Long) -> Unit,
+    /** Start a fresh compose addressed to the given email address. */
+    onComposeTo: (String) -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
     val message = state.message
@@ -126,6 +130,7 @@ fun MessageDetailScreen(
     // Resolved here because stringResource is @Composable and can't be called
     // from inside the file-open LaunchedEffect coroutine below.
     val openWithLabel = stringResource(R.string.open_with)
+    val composeToSenderLabel = stringResource(R.string.compose_to_sender)
     // Top-bar customisation: read the hidden set once per recomposition and
     // pass it into the inline actions block. The Hilt-scoped SettingsViewModel
     // shares the singleton DataStore with the one in Settings, so adding a
@@ -375,13 +380,62 @@ fun MessageDetailScreen(
                                 }
                             )
                         }
+                        // Bottom-bar actions the user has hidden. Surfaced here
+                        // so Reply / Reply all / Forward stay reachable when
+                        // taken off the bottom bar. Gated on message != null
+                        // since they navigate using the message id.
+                        val anyBottomHidden = message != null && (
+                            isHidden(TopBarItemId.DETAIL_REPLY) ||
+                                isHidden(TopBarItemId.DETAIL_REPLY_ALL) ||
+                                isHidden(TopBarItemId.DETAIL_FORWARD)
+                            )
+                        if (anyBottomHidden) {
+                            HorizontalDivider()
+                        }
+                        if (message != null && isHidden(TopBarItemId.DETAIL_REPLY)) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.reply)) },
+                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Reply, contentDescription = null) },
+                                onClick = {
+                                    menuOpen = false
+                                    onReply(message.id)
+                                }
+                            )
+                        }
+                        if (message != null && isHidden(TopBarItemId.DETAIL_REPLY_ALL)) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.reply_all)) },
+                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.ReplyAll, contentDescription = null) },
+                                onClick = {
+                                    menuOpen = false
+                                    onReplyAll(message.id)
+                                }
+                            )
+                        }
+                        if (message != null && isHidden(TopBarItemId.DETAIL_FORWARD)) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.forward)) },
+                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Forward, contentDescription = null) },
+                                onClick = {
+                                    menuOpen = false
+                                    onForward(message.id)
+                                }
+                            )
+                        }
                     }
                 },
                 colors = appTopBarColors()
             )
         },
         bottomBar = {
-            if (message != null) {
+            // Each button is individually show/hideable from Settings -> Top
+            // Bar. A hidden button drops off the bottom bar and appears in the
+            // top bar's overflow menu instead. When all three are hidden the
+            // bar collapses entirely.
+            val showReply = !isHidden(TopBarItemId.DETAIL_REPLY)
+            val showReplyAll = !isHidden(TopBarItemId.DETAIL_REPLY_ALL)
+            val showForward = !isHidden(TopBarItemId.DETAIL_FORWARD)
+            if (message != null && (showReply || showReplyAll || showForward)) {
                 Surface(shadowElevation = 8.dp, color = MaterialTheme.colorScheme.surface) {
                     Row(
                         modifier = Modifier
@@ -389,16 +443,22 @@ fun MessageDetailScreen(
                             .padding(horizontal = 16.dp, vertical = 10.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Button(onClick = { onReply(message.id) }, modifier = Modifier.weight(1f)) {
-                            Icon(Icons.AutoMirrored.Filled.Reply, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.size(6.dp))
-                            Text(stringResource(R.string.reply))
+                        if (showReply) {
+                            Button(onClick = { onReply(message.id) }, modifier = Modifier.weight(1f)) {
+                                Icon(Icons.AutoMirrored.Filled.Reply, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.size(6.dp))
+                                Text(stringResource(R.string.reply))
+                            }
                         }
-                        OutlinedButton(onClick = { onReplyAll(message.id) }, modifier = Modifier.weight(1f)) {
-                            Icon(Icons.AutoMirrored.Filled.ReplyAll, contentDescription = stringResource(R.string.reply_all), modifier = Modifier.size(18.dp))
+                        if (showReplyAll) {
+                            OutlinedButton(onClick = { onReplyAll(message.id) }, modifier = Modifier.weight(1f)) {
+                                Icon(Icons.AutoMirrored.Filled.ReplyAll, contentDescription = stringResource(R.string.reply_all), modifier = Modifier.size(18.dp))
+                            }
                         }
-                        OutlinedButton(onClick = { onForward(message.id) }, modifier = Modifier.weight(1f)) {
-                            Icon(Icons.AutoMirrored.Filled.Forward, contentDescription = stringResource(R.string.forward), modifier = Modifier.size(18.dp))
+                        if (showForward) {
+                            OutlinedButton(onClick = { onForward(message.id) }, modifier = Modifier.weight(1f)) {
+                                Icon(Icons.AutoMirrored.Filled.Forward, contentDescription = stringResource(R.string.forward), modifier = Modifier.size(18.dp))
+                            }
                         }
                     }
                 }
@@ -432,6 +492,22 @@ fun MessageDetailScreen(
                         Spacer(Modifier.size(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            // The sender's raw address, tappable to start a new
+                            // email to them. Shown even when a display name is
+                            // present so the actual address is always visible.
+                            val senderAddress = sender?.address?.takeIf { it.isNotBlank() }
+                            if (senderAddress != null) {
+                                Text(
+                                    text = senderAddress,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier
+                                        .clickable { onComposeTo(senderAddress) }
+                                        .semantics {
+                                            contentDescription = composeToSenderLabel
+                                        }
+                                )
+                            }
                             Text(
                                 text = "to ${message.to.joinToString { it.name.ifBlank { it.address } }}",
                                 style = MaterialTheme.typography.bodySmall,
@@ -507,6 +583,7 @@ fun MessageDetailScreen(
                             HtmlEmailContent(
                                 html = message.bodyHtml!!,
                                 loadImages = showImages,
+                                shrinkToFit = appSettings.shrinkEmailToFit,
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
@@ -567,6 +644,29 @@ class SafeWebView(
             settings.blockNetworkImage = !value
         }
 
+    /**
+     * When true, lay the page out at a wide viewport and zoom the whole
+     * thing out so it fits the screen width (the classic "shrink to fit"
+     * behaviour) instead of letting a fixed-width newsletter overflow
+     * horizontally. When false, render at the content's native width with
+     * sideways scroll.
+     */
+    var shrinkToFit: Boolean = true
+        set(value) {
+            field = value
+            settings.useWideViewPort = value
+            settings.loadWithOverviewMode = value
+            // TEXT_AUTOSIZING boosts font sizes as the page is zoomed out to
+            // fit, so a wide fixed-layout email shrinks to the screen width
+            // without the body text becoming unreadably small; NORMAL renders
+            // at native scale when shrink-to-fit is off.
+            settings.layoutAlgorithm = if (value) {
+                android.webkit.WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING
+            } else {
+                android.webkit.WebSettings.LayoutAlgorithm.NORMAL
+            }
+        }
+
     init {
         settings.javaScriptEnabled = false
         settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
@@ -590,6 +690,9 @@ class SafeWebView(
         // `loadImages = false` here rather than relying on the parent AndroidView
         // to invoke the setter from its factory/update blocks.
         loadImages = false
+        // Same reasoning: route the shrink-to-fit default through its setter so
+        // useWideViewPort/loadWithOverviewMode are applied on first paint.
+        shrinkToFit = true
     }
 
     fun loadHtml(html: String) {
@@ -636,6 +739,7 @@ private val BodyPaddingHeight = 32.dp
 private fun HtmlEmailContent(
     html: String,
     loadImages: Boolean,
+    shrinkToFit: Boolean,
     modifier: Modifier = Modifier
 ) {
     // Cap the WebView height to the window's container height (rather than the
@@ -651,13 +755,16 @@ private fun HtmlEmailContent(
             SafeWebView(ctx).also {
                 webView = it
                 it.loadImages = loadImages
+                it.shrinkToFit = shrinkToFit
                 it.loadHtml(html)
             }
         },
         update = {
-            // Push the toggle into WebSettings and force a fresh load so
-            // images that were blocked on first paint now resolve.
+            // Push the toggles into WebSettings and force a fresh load so
+            // images that were blocked on first paint now resolve and a
+            // shrink-to-fit change re-lays-out the page.
             it.loadImages = loadImages
+            it.shrinkToFit = shrinkToFit
             it.loadHtml(html)
         }
     )
