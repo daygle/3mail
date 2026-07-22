@@ -4,6 +4,7 @@ import org.bouncycastle.bcpg.ArmoredOutputStream
 import org.bouncycastle.bcpg.CompressionAlgorithmTags
 import org.bouncycastle.bcpg.HashAlgorithmTags
 import org.bouncycastle.bcpg.PublicKeyAlgorithmTags
+import org.bouncycastle.bcpg.PublicKeyPacket
 import org.bouncycastle.bcpg.SymmetricKeyAlgorithmTags
 import org.bouncycastle.bcpg.sig.KeyFlags
 import org.bouncycastle.jce.provider.BouncyCastleProvider
@@ -105,11 +106,13 @@ internal object PgpEngine {
         ensureProvider()
         val now = Date()
         val signingPair = JcaPGPKeyPair(
+            PublicKeyPacket.VERSION_4,
             PublicKeyAlgorithmTags.EDDSA_LEGACY,
             KeyPairGenerator.getInstance("Ed25519", PROVIDER).generateKeyPair(),
             now
         )
         val encryptionPair = JcaPGPKeyPair(
+            PublicKeyPacket.VERSION_4,
             PublicKeyAlgorithmTags.ECDH,
             KeyPairGenerator.getInstance("X25519", PROVIDER).generateKeyPair(),
             now
@@ -236,7 +239,8 @@ internal object PgpEngine {
         PGPCompressedDataGenerator(CompressionAlgorithmTags.ZIP).open(inner).use { compressedOut ->
             val sigGen = PGPSignatureGenerator(
                 JcaPGPContentSignerBuilder(signingSecret.publicKey.algorithm, HashAlgorithmTags.SHA512)
-                    .setProvider(PROVIDER)
+                    .setProvider(PROVIDER),
+                signingSecret.publicKey
             )
             sigGen.init(PGPSignature.BINARY_DOCUMENT, signingPrivate)
             sigGen.generateOnePassVersion(false).encode(compressedOut)
@@ -307,7 +311,7 @@ internal object PgpEngine {
         var clearStream: InputStream? = null
         for (entry in encryptedDataList) {
             val publicKeyEntry = entry as? PGPPublicKeyEncryptedData ?: continue
-            val secretKey = secretRing.getSecretKey(publicKeyEntry.keyID) ?: continue
+            val secretKey = secretRing.getSecretKey(publicKeyEntry.keyIdentifier.keyId) ?: continue
             val privateKey = secretKey.extractPrivateKey(
                 JcePBESecretKeyDecryptorBuilder().setProvider(PROVIDER).build(passphrase)
             )

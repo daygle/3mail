@@ -156,7 +156,7 @@ class ImapIdleService : Service() {
                 account.syncEnabled &&
                 account.pushEnabled &&
                 pushEnabled
-            val desired = if (eligible && account != null) {
+            val desired = if (eligible) {
                 watchedFolders(account).map { PushKey(accountId, it) }.toSet()
             } else {
                 emptySet()
