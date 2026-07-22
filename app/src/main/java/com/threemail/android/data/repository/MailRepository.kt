@@ -60,9 +60,22 @@ class MailRepository @Inject constructor(
             folderDao.getByAccount(accountId),
             folderDao.getFavoritesByAccount(accountId)
         ) { folders, favorites ->
-            val favoriteIds = favorites.mapTo(HashSet(folders.size)) { it.serverId }
+            // Map serverId -> user-dragged rank so the domain folder carries
+            // its position through to the drawer. `favorites` arrives already
+            // ordered by position (see FolderDao.getFavoritesByAccount), so the
+            // index is the rank; a folder absent from the map is not a favorite
+            // and keeps the MailFolder default of Int.MAX_VALUE.
+            val positionByServerId = HashMap<String, Int>(favorites.size)
+            favorites.forEachIndexed { index, favorite ->
+                positionByServerId[favorite.serverId] = index
+            }
             folders.map { entity ->
-                entity.toDomain(isFavorite = entity.serverId in favoriteIds, isHidden = entity.isHidden)
+                val position = positionByServerId[entity.serverId]
+                entity.toDomain(
+                    isFavorite = position != null,
+                    favoritePosition = position ?: Int.MAX_VALUE,
+                    isHidden = entity.isHidden
+                )
             }
         }
 
@@ -316,7 +329,11 @@ class MailRepository @Inject constructor(
         return messageDao.search(match).map { list -> list.map { it.toDomain() } }
     }
 
-    private fun FolderEntity.toDomain(isFavorite: Boolean = false, isHidden: Boolean = false): MailFolder = MailFolder(
+    private fun FolderEntity.toDomain(
+        isFavorite: Boolean = false,
+        favoritePosition: Int = Int.MAX_VALUE,
+        isHidden: Boolean = false
+    ): MailFolder = MailFolder(
         id = id,
         accountId = accountId,
         serverId = serverId,
@@ -326,6 +343,7 @@ class MailRepository @Inject constructor(
         unreadCount = unreadCount,
         syncVersion = syncVersion,
         isFavorite = isFavorite,
+        favoritePosition = favoritePosition,
         isHidden = isHidden
     )
 
