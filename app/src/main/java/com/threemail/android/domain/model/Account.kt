@@ -57,8 +57,46 @@ data class Account(
     // for providers whose SMTP host isn't derivable from the IMAP host.
     val outgoingServer: String? = null,
     val outgoingPort: Int = 587,
+    /**
+     * Connection security for the INCOMING (IMAP/POP3) server. The outgoing
+     * (SMTP) server has its own [outgoingSecurity]; historically the two were
+     * a single shared value, so this field kept its plain `security` name to
+     * avoid a wide rename.
+     */
     val security: Security = Security.SSL_TLS,
+    /**
+     * Connection security for the OUTGOING (SMTP submission) server. Split from
+     * [security] so a user whose provider fetches over one mode and submits
+     * over another (e.g. IMAPS/993 in, STARTTLS/587 out) can configure each.
+     */
+    val outgoingSecurity: Security = Security.STARTTLS,
+    /**
+     * Login username for the INCOMING server. `null`/blank means "use the
+     * account [email]" - the historical behaviour, and still the common case.
+     * Split out because some providers (or self-hosted setups) authenticate
+     * IMAP/POP3 with a bare login name rather than the full address.
+     */
+    val incomingUsername: String? = null,
+    /**
+     * Login username for the OUTGOING (SMTP) server. `null`/blank falls back to
+     * the incoming login (see [outgoingLogin]), which in turn falls back to
+     * [email]. Set only when SMTP submission needs different credentials than
+     * fetching.
+     */
+    val outgoingUsername: String? = null,
+    /**
+     * Password for the INCOMING server. Persisted in the encrypted
+     * [com.threemail.android.data.security.CredentialStore], never the DB. For
+     * Gmail this is null (OAuth). Also used as the outgoing password when
+     * [outgoingPassword] is unset.
+     */
     val password: String? = null,
+    /**
+     * Password for the OUTGOING (SMTP) server. `null`/blank falls back to the
+     * incoming [password] (see [outgoingSecret]), matching the common case
+     * where both servers share one credential.
+     */
+    val outgoingPassword: String? = null,
     val isActive: Boolean = true,
     val syncEnabled: Boolean = true,
     val calendarSyncEnabled: Boolean = true,
@@ -102,4 +140,27 @@ data class Account(
      * (Google push) and POP3 (no push at all).
      */
     val pushFolders: List<String> = emptyList()
-)
+) {
+    /**
+     * The username to authenticate the incoming (IMAP/POP3) server with:
+     * the explicit [incomingUsername] if set, otherwise the account [email].
+     */
+    val incomingLogin: String
+        get() = incomingUsername?.takeIf { it.isNotBlank() } ?: email
+
+    /**
+     * The username to authenticate the outgoing (SMTP) server with: the
+     * explicit [outgoingUsername] if set, otherwise the incoming login (which
+     * itself falls back to [email]).
+     */
+    val outgoingLogin: String
+        get() = outgoingUsername?.takeIf { it.isNotBlank() } ?: incomingLogin
+
+    /**
+     * The secret to authenticate the outgoing (SMTP) server with: the explicit
+     * [outgoingPassword] if set, otherwise the incoming [password]. Null only
+     * when neither is configured (e.g. Gmail, which authenticates via OAuth).
+     */
+    val outgoingSecret: String?
+        get() = outgoingPassword?.takeIf { it.isNotBlank() } ?: password
+}

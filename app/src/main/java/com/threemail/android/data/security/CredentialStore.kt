@@ -102,18 +102,38 @@ open class CredentialStore @Inject constructor(
     }
 
     /**
-     * Pref-key derivation. Always lowercased so it's symmetric with the
-     * AAD used by [encrypt]/[decrypt]; otherwise a case-smudge between
-     * save() and get() (e.g. `User@foo` → `user@foo`) would slip into the
-     * AEAD check, throw `AEADBadTagException`, and wipe the entry.
+     * Pref-key derivation for the INCOMING (IMAP/POP3) password. Always
+     * lowercased so it's symmetric with the AAD used by [encrypt]/[decrypt];
+     * otherwise a case-smudge between save() and get() (e.g. `User@foo` →
+     * `user@foo`) would slip into the AEAD check, throw `AEADBadTagException`,
+     * and wipe the entry. Unchanged from the pre-split scheme so passwords
+     * saved by earlier builds keep decrypting.
      */
     private fun key(email: String) = "pwd:${email.lowercase()}"
 
-    private fun encrypt(email: String, plaintext: String): String {
+    /**
+     * Pref-key for the OUTGOING (SMTP) password. A distinct namespace from
+     * [key] so an account can hold two independent secrets; the AAD is likewise
+     * distinct (see [outgoingAad]) so a ciphertext cannot be swapped between the
+     * incoming and outgoing slots of the same account.
+     */
+    private fun outgoingKey(email: String) = "pwd:out:${email.lowercase()}"
+
+    /**
+     * AAD for the INCOMING slot: the lowercased email, kept exactly as the
+     * pre-split scheme used it so passwords written by earlier builds still
+     * authenticate and decrypt.
+     */
+    private fun incomingAad(email: String) = email.lowercase()
+
+    /** AAD for the OUTGOING slot: a distinct string so the two slots never cross-authenticate. */
+    private fun outgoingAad(email: String) = "out:${email.lowercase()}"
+
+    private fun encrypt(aad: String, plaintext: String): String {
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, masterKey())
-        // AAD must be the same byte string used at decrypt time, hence lowercased.
-        cipher.updateAAD(email.lowercase().toByteArray(Charsets.UTF_8))
+        // AAD must be the same byte string used at decrypt time.
+        cipher.updateAAD(aad.toByteArray(Charsets.UTF_8))
         val iv = cipher.iv
         val ciphertext = cipher.doFinal(plaintext.toByteArray(Charsets.UTF_8))
         val combined = ByteArray(iv.size + ciphertext.size).also {
@@ -123,20 +143,20 @@ open class CredentialStore @Inject constructor(
         return Base64.encodeToString(combined, Base64.NO_WRAP)
     }
 
-    private fun decrypt(email: String, encoded: String): String? {
+    private fun decrypt(prefKey: String, aad: String, encoded: String): String? {
         val combined = try {
             Base64.decode(encoded, Base64.NO_WRAP)
         } catch (e: IllegalArgumentException) {
             // Format we don't recognise - likely leftover data from a previous
             // storage scheme or filesystem corruption. Drop it so we don't
             // keep returning null forever.
-            Log.w(TAG, "Stored password for $email is not valid base64; dropping", e)
-            dropEntry(email)
+            Log.w(TAG, "Stored password ($prefKey) is not valid base64; dropping", e)
+            dropEntry(prefKey)
             return null
         }
         if (combined.size < MIN_PAYLOAD_BYTES) {
-            Log.w(TAG, "Stored password for $email is truncated (${combined.size} bytes); dropping")
-            dropEntry(email)
+            Log.w(TAG, "Stored password ($prefKey) is truncated (${combined.size} bytes); dropping")
+            dropEntry(prefKey)
             return null
         }
         val iv = combined.copyOfRange(0, IV_BYTES)
@@ -148,45 +168,58 @@ open class CredentialStore @Inject constructor(
                 masterKey(),
                 GCMParameterSpec(GCM_TAG_BITS, iv)
             )
-            cipher.updateAAD(email.lowercase().toByteArray(Charsets.UTF_8))
+            cipher.updateAAD(aad.toByteArray(Charsets.UTF_8))
             String(cipher.doFinal(payload), Charsets.UTF_8)
         } catch (e: AEADBadTagException) {
-            // The ciphertext doesn't authenticate under this email's AAD:
-            // either an attacker swapped the entry between accounts (real
+            // The ciphertext doesn't authenticate under this slot's AAD:
+            // either an attacker swapped the entry between accounts/slots (real
             // data-integrity failure), or the file was corrupted. Drop it so
             // we don't keep returning null indefinitely; the user can re-enter
             // their password.
-            Log.w(TAG, "AAD mismatch for stored password; dropping entry", e)
-            dropEntry(email)
+            Log.w(TAG, "AAD mismatch for stored password ($prefKey); dropping entry", e)
+            dropEntry(prefKey)
             null
         } catch (e: GeneralSecurityException) {
             // Likely transient - keystore key invalidated by an OEM bug,
             // provider unavailable, etc. Don't delete the entry; the caller
             // can retry or surface a re-auth flow.
-            Log.w(TAG, "Could not decrypt stored password for $email", e)
+            Log.w(TAG, "Could not decrypt stored password ($prefKey)", e)
             null
         }
     }
 
-    private fun dropEntry(email: String) {
-        prefs.edit { remove(key(email)) }
+    private fun dropEntry(prefKey: String) {
+        prefs.edit { remove(prefKey) }
     }
 
-    open fun savePassword(email: String, password: String?) {
-        val prefKey = key(email)
+    private fun save(prefKey: String, aad: String, password: String?) {
         if (password.isNullOrEmpty()) {
             prefs.edit { remove(prefKey) }
         } else {
-            prefs.edit { putString(prefKey, encrypt(email, password)) }
+            prefs.edit { putString(prefKey, encrypt(aad, password)) }
         }
     }
 
-    open fun getPassword(email: String): String? {
-        val encoded = prefs.getString(key(email), null) ?: return null
-        return decrypt(email, encoded)
+    private fun get(prefKey: String, aad: String): String? {
+        val encoded = prefs.getString(prefKey, null) ?: return null
+        return decrypt(prefKey, aad, encoded)
     }
 
-    open fun deletePassword(email: String) {
-        dropEntry(email)
-    }
+    open fun savePassword(email: String, password: String?) =
+        save(key(email), incomingAad(email), password)
+
+    open fun getPassword(email: String): String? = get(key(email), incomingAad(email))
+
+    open fun deletePassword(email: String) = dropEntry(key(email))
+
+    /** Persist (or clear, when null/empty) the OUTGOING (SMTP) password for [email]. */
+    open fun saveOutgoingPassword(email: String, password: String?) =
+        save(outgoingKey(email), outgoingAad(email), password)
+
+    /** The stored OUTGOING (SMTP) password for [email], or null if none is set. */
+    open fun getOutgoingPassword(email: String): String? =
+        get(outgoingKey(email), outgoingAad(email))
+
+    /** Remove the OUTGOING (SMTP) password for [email]. */
+    open fun deleteOutgoingPassword(email: String) = dropEntry(outgoingKey(email))
 }

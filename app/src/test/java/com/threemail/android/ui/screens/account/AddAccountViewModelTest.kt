@@ -173,6 +173,9 @@ class AddAccountViewModelTest {
         override fun savePassword(email: String, password: String?) {}
         override fun getPassword(email: String): String? = null
         override fun deletePassword(email: String) {}
+        override fun saveOutgoingPassword(email: String, password: String?) {}
+        override fun getOutgoingPassword(email: String): String? = null
+        override fun deleteOutgoingPassword(email: String) {}
     }
 
     /**
@@ -231,10 +234,14 @@ class AddAccountViewModelTest {
             id: Long,
             incomingServer: String?,
             incomingPort: Int,
+            useEncryption: Boolean,
+            useStartTls: Boolean,
+            incomingUsername: String?,
             outgoingServer: String?,
             outgoingPort: Int,
-            useEncryption: Boolean,
-            useStartTls: Boolean
+            outgoingUseEncryption: Boolean,
+            outgoingUseStartTls: Boolean,
+            outgoingUsername: String?
         ) {}
         override suspend fun setAutocryptKeysJson(id: Long, autocryptKeysJson: String) {}
         override suspend fun getAutocryptKeysJson(id: Long): String? = null

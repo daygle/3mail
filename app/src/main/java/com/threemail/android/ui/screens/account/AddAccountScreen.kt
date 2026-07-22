@@ -263,8 +263,8 @@ private fun AccountForm(
         }
         state.discoveryMessage?.let { InfoBanner(it) }
         ProtocolPicker(state = state, onSelect = viewModel::updateAccountType)
-        ServerFields(viewModel = viewModel, state = state)
-        SecurityPicker(state = state, onSelect = viewModel::updateSecurity)
+        IncomingServerFields(viewModel = viewModel, state = state)
+        OutgoingServerFields(viewModel = viewModel, state = state)
     } else {
         // Known provider: server settings tucked behind an expander.
         TextButton(onClick = { showAdvanced = !showAdvanced }) {
@@ -276,8 +276,8 @@ private fun AccountForm(
             )
         }
         if (showAdvanced) {
-            ServerFields(viewModel = viewModel, state = state)
-            SecurityPicker(state = state, onSelect = viewModel::updateSecurity)
+            IncomingServerFields(viewModel = viewModel, state = state)
+            OutgoingServerFields(viewModel = viewModel, state = state)
         }
     }
 
@@ -337,12 +337,13 @@ private fun ProtocolPicker(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ServerFields(
+private fun IncomingServerFields(
     viewModel: AddAccountViewModel,
     state: AddAccountViewModel.UiState
 ) {
-    SettingsGroup(title = stringResource(R.string.add_account_server_section)) {
+    SettingsGroup(title = stringResource(R.string.add_account_incoming_section)) {
         SettingsContentRow {
             OutlinedTextField(
                 value = state.server,
@@ -367,6 +368,34 @@ private fun ServerFields(
                 modifier = Modifier.fillMaxWidth()
             )
             OutlinedTextField(
+                value = state.incomingUsername,
+                onValueChange = viewModel::updateIncomingUsername,
+                label = { Text(stringResource(R.string.incoming_username)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text(
+                text = stringResource(R.string.incoming_username_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            SecurityChips(
+                title = stringResource(R.string.security_incoming_title),
+                selected = state.security,
+                onSelect = viewModel::updateSecurity
+            )
+        }
+    }
+}
+
+@Composable
+private fun OutgoingServerFields(
+    viewModel: AddAccountViewModel,
+    state: AddAccountViewModel.UiState
+) {
+    SettingsGroup(title = stringResource(R.string.add_account_outgoing_section)) {
+        SettingsContentRow {
+            OutlinedTextField(
                 value = state.outgoingServer,
                 onValueChange = viewModel::updateOutgoingServer,
                 label = { Text(stringResource(R.string.outgoing_server)) },
@@ -381,44 +410,73 @@ private fun ServerFields(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
+            OutlinedTextField(
+                value = state.outgoingUsername,
+                onValueChange = viewModel::updateOutgoingUsername,
+                label = { Text(stringResource(R.string.outgoing_username)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = state.outgoingPassword,
+                onValueChange = viewModel::updateOutgoingPassword,
+                label = { Text(stringResource(R.string.outgoing_password)) },
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text(
+                text = stringResource(R.string.outgoing_credentials_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            SecurityChips(
+                title = stringResource(R.string.security_outgoing_title),
+                selected = state.outgoingSecurity,
+                onSelect = viewModel::updateOutgoingSecurity
+            )
         }
     }
 }
 
+/** A titled row of security-mode chips plus the selected mode's subtitle. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun SecurityPicker(
-    state: AddAccountViewModel.UiState,
+private fun SecurityChips(
+    title: String,
+    selected: Security,
     onSelect: (Security) -> Unit
 ) {
-    SettingsGroup(title = stringResource(R.string.security)) {
-        SettingsContentRow {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Security.entries.forEach { mode ->
-                    val labelRes = when (mode) {
-                        Security.NONE -> R.string.security_none
-                        Security.STARTTLS -> R.string.security_starttls
-                        Security.SSL_TLS -> R.string.security_ssl_tls
-                    }
-                    FilterChip(
-                        selected = state.security == mode,
-                        onClick = { onSelect(mode) },
-                        label = { Text(stringResource(labelRes)) }
-                    )
-                }
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelLarge,
+        modifier = Modifier.padding(top = 8.dp)
+    )
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Security.entries.forEach { mode ->
+            val labelRes = when (mode) {
+                Security.NONE -> R.string.security_none
+                Security.STARTTLS -> R.string.security_starttls
+                Security.SSL_TLS -> R.string.security_ssl_tls
             }
-            val subtitleRes = when (state.security) {
-                Security.NONE -> R.string.security_none_subtitle
-                Security.STARTTLS -> R.string.security_starttls_subtitle
-                Security.SSL_TLS -> R.string.security_ssl_tls_subtitle
-            }
-            Text(
-                text = stringResource(subtitleRes),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            FilterChip(
+                selected = selected == mode,
+                onClick = { onSelect(mode) },
+                label = { Text(stringResource(labelRes)) }
             )
         }
     }
+    val subtitleRes = when (selected) {
+        Security.NONE -> R.string.security_none_subtitle
+        Security.STARTTLS -> R.string.security_starttls_subtitle
+        Security.SSL_TLS -> R.string.security_ssl_tls_subtitle
+    }
+    Text(
+        text = stringResource(subtitleRes),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
 }
 
 /** Small informational banner (tertiaryContainer) used for hints and results. */

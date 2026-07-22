@@ -42,12 +42,31 @@ class AddAccountViewModel @Inject constructor(
         val outgoingServer: String = "",
         val outgoingPort: String = "587",
         /**
-         * Connection security applied to IMAP and SMTP. Defaults to SSL_TLS
-         * to match the implicit-SSL default the legacy `useEncryption=true`
-         * row used to produce, so existing users see no behaviour change on
-         * upgrade.
+         * Optional login username for the INCOMING server. Blank means "use the
+         * email address" - the default for almost every provider.
+         */
+        val incomingUsername: String = "",
+        /**
+         * Optional login username for the OUTGOING server. Blank falls back to
+         * the incoming login (then the email).
+         */
+        val outgoingUsername: String = "",
+        /**
+         * Optional separate password for the OUTGOING server. Blank falls back
+         * to the incoming [password].
+         */
+        val outgoingPassword: String = "",
+        /**
+         * Connection security for the INCOMING (IMAP/POP3) server. Defaults to
+         * SSL_TLS to match the implicit-SSL default the legacy
+         * `useEncryption=true` row used to produce.
          */
         val security: Security = Security.SSL_TLS,
+        /**
+         * Connection security for the OUTGOING (SMTP) server. Defaults to
+         * STARTTLS (587), the overwhelmingly common submission mode.
+         */
+        val outgoingSecurity: Security = Security.STARTTLS,
         val accountType: AccountType = AccountType.IMAP,
         val isSaving: Boolean = false,
         val isSaved: Boolean = false,
@@ -83,15 +102,25 @@ class AddAccountViewModel @Inject constructor(
     fun updatePort(value: String) { _uiState.value = _uiState.value.copy(port = value) }
     fun updateOutgoingServer(value: String) { _uiState.value = _uiState.value.copy(outgoingServer = value) }
     fun updateOutgoingPort(value: String) { _uiState.value = _uiState.value.copy(outgoingPort = value) }
+    fun updateIncomingUsername(value: String) { _uiState.value = _uiState.value.copy(incomingUsername = value) }
+    fun updateOutgoingUsername(value: String) { _uiState.value = _uiState.value.copy(outgoingUsername = value) }
+    fun updateOutgoingPassword(value: String) { _uiState.value = _uiState.value.copy(outgoingPassword = value) }
     fun updateSecurity(value: Security) {
         val state = _uiState.value
         _uiState.value = state.copy(
             security = value,
             port = securityPort(state.port, state.security, value, ::defaultIncomingPort),
-            outgoingPort = securityPort(state.outgoingPort, state.security, value, ::defaultOutgoingPort),
             // The user just overrode the auto-upgrade; the banner is no
             // longer contextually true. Clear it.
             upgradeBanner = null
+        )
+    }
+    /** Update the OUTGOING (SMTP) security, resetting the outgoing port to its default when untouched. */
+    fun updateOutgoingSecurity(value: Security) {
+        val state = _uiState.value
+        _uiState.value = state.copy(
+            outgoingSecurity = value,
+            outgoingPort = securityPort(state.outgoingPort, state.outgoingSecurity, value, ::defaultOutgoingPort)
         )
     }
     fun updateAccountType(value: AccountType) {
@@ -151,6 +180,7 @@ class AddAccountViewModel @Inject constructor(
             outgoingServer = preset.smtpHost,
             outgoingPort = preset.smtpPort.toString(),
             security = preset.imapSecurity,
+            outgoingSecurity = preset.smtpSecurity,
             upgradeBanner = null,
             discoveryMessage = null,
             error = null
@@ -177,6 +207,7 @@ class AddAccountViewModel @Inject constructor(
                     outgoingServer = cfg.smtpHost,
                     outgoingPort = cfg.smtpPort.toString(),
                     security = cfg.imapSecurity,
+                    outgoingSecurity = cfg.smtpSecurity,
                     displayName = _uiState.value.displayName.ifBlank { cfg.displayName.orEmpty() },
                     discoveryMessage = context.getString(R.string.autoconfig_found)
                 )
@@ -266,9 +297,13 @@ class AddAccountViewModel @Inject constructor(
         incomingServer = state.server.ifBlank { null },
         incomingPort = state.port.toIntOrNull() ?: defaultIncomingPort(state.security),
         outgoingServer = state.outgoingServer.ifBlank { null },
-        outgoingPort = state.outgoingPort.toIntOrNull() ?: defaultOutgoingPort(state.security),
+        outgoingPort = state.outgoingPort.toIntOrNull() ?: defaultOutgoingPort(state.outgoingSecurity),
         security = state.security,
-        password = state.password.ifBlank { null }
+        outgoingSecurity = state.outgoingSecurity,
+        incomingUsername = state.incomingUsername.ifBlank { null },
+        outgoingUsername = state.outgoingUsername.ifBlank { null },
+        password = state.password.ifBlank { null },
+        outgoingPassword = state.outgoingPassword.ifBlank { null }
     )
 
     /**
@@ -280,10 +315,12 @@ class AddAccountViewModel @Inject constructor(
      */
     private fun applySecurityUpgrade(newSecurity: Security, bannerMessage: String) {
         val state = _uiState.value
+        // The probe reads the INCOMING server's CAPABILITY list, so only the
+        // incoming security/port are auto-upgraded; the outgoing side keeps the
+        // user's (or preset's) choice.
         _uiState.value = state.copy(
             security = newSecurity,
             port = securityPort(state.port, state.security, newSecurity, ::defaultIncomingPort),
-            outgoingPort = securityPort(state.outgoingPort, state.security, newSecurity, ::defaultOutgoingPort),
             upgradeBanner = bannerMessage
         )
     }

@@ -56,22 +56,31 @@ interface AccountDao {
 
     /**
      * Updates the incoming/outgoing server connection settings in one write.
-     * Security is stored as the legacy (useEncryption, useStartTls) pair, so
-     * callers pass the already-mapped booleans.
+     * Each direction's security is stored as its own (useEncryption,
+     * useStartTls) pair and each has its own login username, so callers pass
+     * the already-mapped booleans and normalised usernames. Passwords are not
+     * in this table (they live in the encrypted credential store).
      */
     @Query(
         "UPDATE accounts SET incomingServer = :incomingServer, incomingPort = :incomingPort, " +
+            "useEncryption = :useEncryption, useStartTls = :useStartTls, " +
+            "incomingUsername = :incomingUsername, " +
             "outgoingServer = :outgoingServer, outgoingPort = :outgoingPort, " +
-            "useEncryption = :useEncryption, useStartTls = :useStartTls WHERE id = :id"
+            "outgoingUseEncryption = :outgoingUseEncryption, outgoingUseStartTls = :outgoingUseStartTls, " +
+            "outgoingUsername = :outgoingUsername WHERE id = :id"
     )
     suspend fun setConnectionSettings(
         id: Long,
         incomingServer: String?,
         incomingPort: Int,
+        useEncryption: Boolean,
+        useStartTls: Boolean,
+        incomingUsername: String?,
         outgoingServer: String?,
         outgoingPort: Int,
-        useEncryption: Boolean,
-        useStartTls: Boolean
+        outgoingUseEncryption: Boolean,
+        outgoingUseStartTls: Boolean,
+        outgoingUsername: String?
     )
 
     @Query("UPDATE accounts SET autocryptKeysJson = :autocryptKeysJson WHERE id = :id")

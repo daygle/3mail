@@ -31,6 +31,28 @@ data class AccountEntity(
      * `Security.SSL_TLS` / `Security.STARTTLS` / `Security.NONE`.
      */
     val useStartTls: Boolean = false,
+    /**
+     * Outgoing (SMTP) counterpart to [useEncryption]: `true` means implicit
+     * SSL/TLS on the submission port (e.g. 465). Split from the incoming flags
+     * so the outgoing server can run a different security mode than fetching.
+     * The repository mapper reconciles the (outgoingUseEncryption,
+     * outgoingUseStartTls) pair into the domain
+     * [com.threemail.android.domain.model.Account.outgoingSecurity] enum.
+     */
+    val outgoingUseEncryption: Boolean = false,
+    /** Outgoing (SMTP) counterpart to [useStartTls]: STARTTLS on e.g. port 587. */
+    val outgoingUseStartTls: Boolean = true,
+    /**
+     * Explicit login username for the incoming server; `null` means "use
+     * [email]". See [com.threemail.android.domain.model.Account.incomingUsername].
+     */
+    val incomingUsername: String? = null,
+    /**
+     * Explicit login username for the outgoing (SMTP) server; `null` falls back
+     * to the incoming login. See
+     * [com.threemail.android.domain.model.Account.outgoingUsername].
+     */
+    val outgoingUsername: String? = null,
     val password: String? = null,
     val isActive: Boolean = true,
     val syncEnabled: Boolean = true,

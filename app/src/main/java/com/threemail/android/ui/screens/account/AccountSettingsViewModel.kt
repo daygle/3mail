@@ -223,9 +223,14 @@ class AccountSettingsViewModel @Inject constructor(
     fun testAndSaveConnection(
         incomingServer: String,
         incomingPort: Int,
+        incomingSecurity: Security,
+        incomingUsername: String,
+        incomingPassword: String,
         outgoingServer: String,
         outgoingPort: Int,
-        security: Security
+        outgoingSecurity: Security,
+        outgoingUsername: String,
+        outgoingPassword: String
     ) {
         val account = _uiState.value.account ?: return
         _connectionState.value = ConnectionSettingsState.Testing
@@ -233,9 +238,14 @@ class AccountSettingsViewModel @Inject constructor(
             val candidate = account.copy(
                 incomingServer = incomingServer.ifBlank { null },
                 incomingPort = incomingPort,
+                security = incomingSecurity,
+                incomingUsername = incomingUsername.ifBlank { null },
+                password = incomingPassword.ifBlank { null },
                 outgoingServer = outgoingServer.ifBlank { null },
                 outgoingPort = outgoingPort,
-                security = security
+                outgoingSecurity = outgoingSecurity,
+                outgoingUsername = outgoingUsername.ifBlank { null },
+                outgoingPassword = outgoingPassword.ifBlank { null }
             )
             // testConnection() already returns a Result; unwrap with getOrThrow
             // inside runCatching so we end up with a single flat Result and also
@@ -246,11 +256,17 @@ class AccountSettingsViewModel @Inject constructor(
             result.onSuccess {
                 accountRepository.setConnectionSettings(
                     id = accountId,
+                    email = candidate.email,
                     incomingServer = candidate.incomingServer,
                     incomingPort = candidate.incomingPort,
+                    incomingSecurity = candidate.security,
+                    incomingUsername = candidate.incomingUsername,
+                    incomingPassword = candidate.password,
                     outgoingServer = candidate.outgoingServer,
                     outgoingPort = candidate.outgoingPort,
-                    security = security
+                    outgoingSecurity = candidate.outgoingSecurity,
+                    outgoingUsername = candidate.outgoingUsername,
+                    outgoingPassword = candidate.outgoingPassword
                 )
                 updateAccount { candidate }
                 _connectionState.value = ConnectionSettingsState.Saved
