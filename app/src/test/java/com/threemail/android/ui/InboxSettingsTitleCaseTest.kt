@@ -256,6 +256,7 @@ class AccountFolderRolesVisibilityTest {
         SwipeAction.DELETE -> "Delete"
         SwipeAction.TOGGLE_READ -> "Read/Unread"
         SwipeAction.MARK_SPAM -> "Mark as Spam"
+        SwipeAction.MOVE -> "Move to folder"
     }
 }
 
@@ -290,6 +291,7 @@ private fun SwipeActionLabels() {
                         SwipeAction.DELETE -> "Delete"
                         SwipeAction.TOGGLE_READ -> "Read/Unread"
                         SwipeAction.MARK_SPAM -> "Mark as Spam"
+                        SwipeAction.MOVE -> "Move to folder"
                     }
                 )
             }

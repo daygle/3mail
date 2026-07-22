@@ -9,6 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.Mail
@@ -147,6 +148,38 @@ fun TopBarCustomisationScreen(
                 TopBarToggleRow(
                     item = TopBarItemId.DETAIL_DELETE,
                     label = stringResource(R.string.delete),
+                    settings = settings,
+                    onToggle = viewModel::setTopBarItemHidden
+                )
+            }
+
+            SettingsGroup(title = stringResource(R.string.top_bar_settings_detail_bottom_header), icon = Icons.AutoMirrored.Filled.Reply) {
+                Text(
+                    text = stringResource(R.string.top_bar_settings_detail_bottom_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 8.dp)
+                )
+                CardDivider()
+                TopBarToggleRow(
+                    item = TopBarItemId.DETAIL_REPLY,
+                    label = stringResource(R.string.reply),
+                    settings = settings,
+                    onToggle = viewModel::setTopBarItemHidden
+                )
+                CardDivider()
+                TopBarToggleRow(
+                    item = TopBarItemId.DETAIL_REPLY_ALL,
+                    label = stringResource(R.string.reply_all),
+                    settings = settings,
+                    onToggle = viewModel::setTopBarItemHidden
+                )
+                CardDivider()
+                TopBarToggleRow(
+                    item = TopBarItemId.DETAIL_FORWARD,
+                    label = stringResource(R.string.forward),
                     settings = settings,
                     onToggle = viewModel::setTopBarItemHidden
                 )

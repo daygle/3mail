@@ -30,6 +30,12 @@ enum class TopBarItemId {
     DETAIL_MARK_UNREAD,
     DETAIL_ARCHIVE,
     DETAIL_DELETE,
+    // Message Detail bottom action bar (bottomBar in MessageDetailScreen.kt).
+    // Hiding one drops its button from the bottom bar and surfaces it in the
+    // top bar's overflow menu so the action stays reachable.
+    DETAIL_REPLY,
+    DETAIL_REPLY_ALL,
+    DETAIL_FORWARD,
     // Compose top bar (TopAppBar in ComposeScreen.kt)
     COMPOSE_INSERT_IMAGE,
     COMPOSE_ATTACH,

@@ -460,6 +460,11 @@ class InboxViewModel @Inject constructor(
         viewModelScope.launch { mailActions.markSpamWithUndo(message) }
     }
 
+    /** Move a single message to [target] (used by the swipe "Move" action). */
+    fun move(message: MailMessage, target: MailFolder) {
+        viewModelScope.launch { mailActions.moveWithUndo(message, target) }
+    }
+
     /** Event emitted after an Empty Trash attempt. Collected by the
      * composable to show a snackbar with the result.
      */

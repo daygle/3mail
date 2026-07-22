@@ -96,7 +96,8 @@ fun AccountSettingsScreen(
     viewModel: AccountSettingsViewModel,
     onNavigateBack: () -> Unit,
     onOpenIdentities: () -> Unit = {},
-    onOpenServer: () -> Unit = {},
+    onOpenIncomingServer: () -> Unit = {},
+    onOpenOutgoingServer: () -> Unit = {},
     onOpenFolderRoles: () -> Unit = {},
     onOpenPush: () -> Unit = {},
     onOpenPgp: () -> Unit = {}
@@ -160,6 +161,12 @@ fun AccountSettingsScreen(
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    // Ordered top-to-bottom the way a user sets an account up and
+                    // returns to it: who the account is (General, Identities),
+                    // how it connects (Server), how it behaves (Mail Checking,
+                    // Notifications), then the less-touched sections (Signature,
+                    // Folder Roles, Calendar, encryption keys).
+
                     SettingsGroup(
                         title = stringResource(R.string.account_settings_general),
                         icon = Icons.Default.Badge
@@ -176,6 +183,83 @@ fun AccountSettingsScreen(
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
+                    }
+
+                    SettingsGroup(
+                        title = stringResource(R.string.identities_section),
+                        icon = Icons.Default.AlternateEmail
+                    ) {
+                        SettingsRow(
+                            title = stringResource(R.string.account_manage_identities_subtitle),
+                            onClick = onOpenIdentities
+                        )
+                    }
+
+                    // Server settings: incoming and outgoing each get their own
+                    // drill-in row inside this one Server Settings card. IMAP/POP3
+                    // only - Gmail uses OAuth and fixed hosts.
+                    if (account.accountType != AccountType.GMAIL) {
+                        SettingsGroup(
+                            title = stringResource(R.string.account_settings_server_section),
+                            icon = Icons.Default.Dns
+                        ) {
+                            SettingsRow(
+                                title = stringResource(R.string.account_incoming_server_section),
+                                subtitle = stringResource(R.string.account_manage_incoming_server_subtitle),
+                                onClick = onOpenIncomingServer
+                            )
+                            CardDivider()
+                            SettingsRow(
+                                title = stringResource(R.string.account_outgoing_server_section),
+                                subtitle = stringResource(R.string.account_manage_outgoing_server_subtitle),
+                                onClick = onOpenOutgoingServer
+                            )
+                        }
+                    }
+
+                    // Mail Checking: sync toggle + frequency, plus (for IMAP) the
+                    // Push drill-in - push is part of how often/how instantly mail
+                    // arrives, so it lives with the other checking controls.
+                    SettingsGroup(
+                        title = stringResource(R.string.account_settings_sync_section),
+                        icon = Icons.Default.Sync
+                    ) {
+                        SettingsSwitchRow(
+                            title = stringResource(R.string.account_settings_sync_enabled_title),
+                            subtitle = stringResource(R.string.account_settings_sync_enabled_subtitle),
+                            checked = account.syncEnabled,
+                            onCheckedChange = viewModel::setSyncEnabled
+                        )
+                        CardDivider()
+                        SettingsRow(
+                            title = stringResource(R.string.account_settings_frequency_title),
+                            value = accountFrequencyLabel(
+                                account.syncIntervalMinutes,
+                                state.defaultIntervalMinutes
+                            ),
+                            enabled = account.syncEnabled,
+                            onClick = { showFrequencyDialog = true }
+                        )
+                        if (account.accountType == AccountType.IMAP) {
+                            CardDivider()
+                            SettingsRow(
+                                title = stringResource(R.string.account_push_label),
+                                subtitle = stringResource(R.string.account_manage_push_subtitle),
+                                onClick = onOpenPush
+                            )
+                        }
+                    }
+
+                    SettingsGroup(
+                        title = stringResource(R.string.account_settings_notifications_section),
+                        icon = Icons.Default.Notifications
+                    ) {
+                        SettingsSwitchRow(
+                            title = stringResource(R.string.account_settings_notifications_title),
+                            subtitle = stringResource(R.string.account_settings_notifications_subtitle),
+                            checked = account.notificationsEnabled,
+                            onCheckedChange = viewModel::setNotificationsEnabled
+                        )
                     }
 
                     SettingsGroup(
@@ -197,38 +281,16 @@ fun AccountSettingsScreen(
                         }
                     }
 
-                    SettingsGroup(
-                        title = stringResource(R.string.account_settings_sync_section),
-                        icon = Icons.Default.Sync
-                    ) {
-                        SettingsSwitchRow(
-                            title = stringResource(R.string.account_settings_sync_enabled_title),
-                            subtitle = stringResource(R.string.account_settings_sync_enabled_subtitle),
-                            checked = account.syncEnabled,
-                            onCheckedChange = viewModel::setSyncEnabled
-                        )
-                        CardDivider()
-                        SettingsRow(
-                            title = stringResource(R.string.account_settings_frequency_title),
-                            value = accountFrequencyLabel(
-                                account.syncIntervalMinutes,
-                                state.defaultIntervalMinutes
-                            ),
-                            enabled = account.syncEnabled,
-                            onClick = { showFrequencyDialog = true }
-                        )
-                    }
-
-                    SettingsGroup(
-                        title = stringResource(R.string.account_settings_notifications_section),
-                        icon = Icons.Default.Notifications
-                    ) {
-                        SettingsSwitchRow(
-                            title = stringResource(R.string.account_settings_notifications_title),
-                            subtitle = stringResource(R.string.account_settings_notifications_subtitle),
-                            checked = account.notificationsEnabled,
-                            onCheckedChange = viewModel::setNotificationsEnabled
-                        )
+                    if (account.accountType == AccountType.IMAP) {
+                        SettingsGroup(
+                            title = stringResource(R.string.account_folder_roles_section),
+                            icon = Icons.Default.Folder
+                        ) {
+                            SettingsRow(
+                                title = stringResource(R.string.account_manage_folder_roles_subtitle),
+                                onClick = onOpenFolderRoles
+                            )
+                        }
                     }
 
                     // Calendar sync is Google-only: the Calendar tab is backed by
@@ -244,55 +306,6 @@ fun AccountSettingsScreen(
                                 subtitle = stringResource(R.string.account_settings_calendar_subtitle),
                                 checked = account.calendarSyncEnabled,
                                 onCheckedChange = viewModel::setCalendarSyncEnabled
-                            )
-                        }
-                    }
-
-                    // Each heavier section is its own icon'd card (matching the
-                    // global settings layout) whose single row drills into a
-                    // focused sub-page. Availability follows the account type:
-                    // server/folder-roles/push are IMAP-or-POP3 concepts, so
-                    // they're hidden for Gmail (OAuth + REST folders).
-                    SettingsGroup(
-                        title = stringResource(R.string.identities_section),
-                        icon = Icons.Default.AlternateEmail
-                    ) {
-                        SettingsRow(
-                            title = stringResource(R.string.account_manage_identities_subtitle),
-                            onClick = onOpenIdentities
-                        )
-                    }
-
-                    if (account.accountType != AccountType.GMAIL) {
-                        SettingsGroup(
-                            title = stringResource(R.string.account_settings_server_section),
-                            icon = Icons.Default.Dns
-                        ) {
-                            SettingsRow(
-                                title = stringResource(R.string.account_manage_server_subtitle),
-                                onClick = onOpenServer
-                            )
-                        }
-                    }
-
-                    if (account.accountType == AccountType.IMAP) {
-                        SettingsGroup(
-                            title = stringResource(R.string.account_folder_roles_section),
-                            icon = Icons.Default.Folder
-                        ) {
-                            SettingsRow(
-                                title = stringResource(R.string.account_manage_folder_roles_subtitle),
-                                onClick = onOpenFolderRoles
-                            )
-                        }
-
-                        SettingsGroup(
-                            title = stringResource(R.string.account_push_label),
-                            icon = Icons.Default.Bolt
-                        ) {
-                            SettingsRow(
-                                title = stringResource(R.string.account_manage_push_subtitle),
-                                onClick = onOpenPush
                             )
                         }
                     }
@@ -574,39 +587,30 @@ internal fun PushSection(
 }
 
 /**
- * Editable incoming ("Fetching Mail") and outgoing ("Sending Mail") server
- * settings for IMAP/POP3 accounts. Fields are edited as a local draft and only
- * persisted via [AccountSettingsViewModel.testAndSaveConnection], which probes
- * the server first so a bad host/port can't silently break sync. Each direction
- * carries its own username, password, and connection security, so a provider
- * that fetches and submits with different credentials or TLS modes can be
- * configured. Blank outgoing username/password reuse the incoming credentials.
+ * Editable incoming ("Fetching Mail") server settings for IMAP/POP3 accounts.
+ * Fields are edited as a local draft and only persisted via
+ * [AccountSettingsViewModel.testAndSaveConnection], which probes the server
+ * first so a bad host/port can't silently break sync. Only the incoming
+ * direction is edited here; the outgoing values are carried through from the
+ * saved account so the shared save path leaves them untouched.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun ConnectionSettingsSections(
+internal fun IncomingServerSection(
     account: Account,
     viewModel: AccountSettingsViewModel
 ) {
     val connectionState by viewModel.connectionState.collectAsState()
 
     // Local draft, re-seeded from the account only when the account identity
-    // changes (never on this screen), so unrelated write-through updates to
-    // other settings don't reset a half-typed host. Passwords are pre-seeded
-    // from the hydrated (decrypted) values so the connection test has a real
-    // credential to probe with and the user can edit in place.
+    // changes, so unrelated write-through updates to other settings don't
+    // reset a half-typed host. The password is pre-seeded from the hydrated
+    // (decrypted) value so the connection test has a real credential to probe.
     var incomingServer by remember(account.id) { mutableStateOf(account.incomingServer.orEmpty()) }
     var incomingPort by remember(account.id) { mutableStateOf(account.incomingPort.toString()) }
     var incomingUsername by remember(account.id) { mutableStateOf(account.incomingUsername.orEmpty()) }
     var incomingPassword by remember(account.id) { mutableStateOf(account.password.orEmpty()) }
     var security by remember(account.id) { mutableStateOf(account.security) }
-    var outgoingServer by remember(account.id) { mutableStateOf(account.outgoingServer.orEmpty()) }
-    var outgoingPort by remember(account.id) { mutableStateOf(account.outgoingPort.toString()) }
-    var outgoingUsername by remember(account.id) { mutableStateOf(account.outgoingUsername.orEmpty()) }
-    var outgoingPassword by remember(account.id) { mutableStateOf(account.outgoingPassword.orEmpty()) }
-    var outgoingSecurity by remember(account.id) { mutableStateOf(account.outgoingSecurity) }
 
-    // Any edit invalidates a prior Saved/Failed banner.
     val onEdited: () -> Unit = { viewModel.clearConnectionState() }
 
     val incomingServerLabel = if (account.accountType == AccountType.POP3) {
@@ -661,8 +665,50 @@ internal fun ConnectionSettingsSections(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            ConnectionStatusAndSaveButton(
+                connectionState = connectionState,
+                onSave = {
+                    // Edit incoming; carry the saved outgoing values through so
+                    // the shared save path leaves the sending side untouched.
+                    viewModel.testAndSaveConnection(
+                        incomingServer = incomingServer.trim(),
+                        incomingPort = incomingPort.toIntOrNull() ?: account.incomingPort,
+                        incomingSecurity = security,
+                        incomingUsername = incomingUsername.trim(),
+                        incomingPassword = incomingPassword,
+                        outgoingServer = account.outgoingServer.orEmpty(),
+                        outgoingPort = account.outgoingPort,
+                        outgoingSecurity = account.outgoingSecurity,
+                        outgoingUsername = account.outgoingUsername.orEmpty(),
+                        outgoingPassword = account.outgoingPassword.orEmpty()
+                    )
+                }
+            )
         }
     }
+}
+
+/**
+ * Editable outgoing ("Sending Mail") server settings for IMAP/POP3 accounts.
+ * Mirrors [IncomingServerSection] but edits the SMTP side; the incoming values
+ * are carried through from the saved account. Blank outgoing username/password
+ * fall back to the incoming credentials at send time.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun OutgoingServerSection(
+    account: Account,
+    viewModel: AccountSettingsViewModel
+) {
+    val connectionState by viewModel.connectionState.collectAsState()
+
+    var outgoingServer by remember(account.id) { mutableStateOf(account.outgoingServer.orEmpty()) }
+    var outgoingPort by remember(account.id) { mutableStateOf(account.outgoingPort.toString()) }
+    var outgoingUsername by remember(account.id) { mutableStateOf(account.outgoingUsername.orEmpty()) }
+    var outgoingPassword by remember(account.id) { mutableStateOf(account.outgoingPassword.orEmpty()) }
+    var outgoingSecurity by remember(account.id) { mutableStateOf(account.outgoingSecurity) }
+
+    val onEdited: () -> Unit = { viewModel.clearConnectionState() }
 
     SettingsGroup(
         title = stringResource(R.string.account_sending_section),
@@ -715,51 +761,64 @@ internal fun ConnectionSettingsSections(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            when (val s = connectionState) {
-                is AccountSettingsViewModel.ConnectionSettingsState.Saved -> Text(
-                    text = stringResource(R.string.account_connection_saved),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-                is AccountSettingsViewModel.ConnectionSettingsState.Failed -> Text(
-                    text = stringResource(R.string.account_connection_failed, s.message),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-                else -> Unit
-            }
-            val testing = connectionState is AccountSettingsViewModel.ConnectionSettingsState.Testing
-            Button(
-                onClick = {
+            ConnectionStatusAndSaveButton(
+                connectionState = connectionState,
+                onSave = {
+                    // Edit outgoing; carry the saved incoming values through.
                     viewModel.testAndSaveConnection(
-                        incomingServer = incomingServer.trim(),
-                        incomingPort = incomingPort.toIntOrNull() ?: account.incomingPort,
-                        incomingSecurity = security,
-                        incomingUsername = incomingUsername.trim(),
-                        incomingPassword = incomingPassword,
+                        incomingServer = account.incomingServer.orEmpty(),
+                        incomingPort = account.incomingPort,
+                        incomingSecurity = account.security,
+                        incomingUsername = account.incomingUsername.orEmpty(),
+                        incomingPassword = account.password.orEmpty(),
                         outgoingServer = outgoingServer.trim(),
                         outgoingPort = outgoingPort.toIntOrNull() ?: account.outgoingPort,
                         outgoingSecurity = outgoingSecurity,
                         outgoingUsername = outgoingUsername.trim(),
                         outgoingPassword = outgoingPassword
                     )
-                },
-                enabled = !testing,
-                modifier = Modifier.padding(top = 8.dp)
-            ) {
-                if (testing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.account_connection_testing))
-                } else {
-                    Text(stringResource(R.string.account_connection_test_and_save))
                 }
-            }
+            )
+        }
+    }
+}
+
+/** Shared Saved/Failed banner + Test & Save button for the server sub-pages. */
+@Composable
+private fun ConnectionStatusAndSaveButton(
+    connectionState: AccountSettingsViewModel.ConnectionSettingsState,
+    onSave: () -> Unit
+) {
+    when (val s = connectionState) {
+        is AccountSettingsViewModel.ConnectionSettingsState.Saved -> Text(
+            text = stringResource(R.string.account_connection_saved),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+        is AccountSettingsViewModel.ConnectionSettingsState.Failed -> Text(
+            text = stringResource(R.string.account_connection_failed, s.message),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+        else -> Unit
+    }
+    val testing = connectionState is AccountSettingsViewModel.ConnectionSettingsState.Testing
+    Button(
+        onClick = onSave,
+        enabled = !testing,
+        modifier = Modifier.padding(top = 8.dp)
+    ) {
+        if (testing) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(20.dp),
+                strokeWidth = 2.dp
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.account_connection_testing))
+        } else {
+            Text(stringResource(R.string.account_connection_test_and_save))
         }
     }
 }

@@ -6,19 +6,36 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.res.stringResource
 import com.threemail.android.R
 
-/** Drilled-out incoming/outgoing server settings. See [ConnectionSettingsSections]. */
+/** Drilled-out incoming (fetching) server settings. See [IncomingServerSection]. */
 @Composable
-fun AccountServerScreen(
+fun AccountIncomingServerScreen(
     viewModel: AccountSettingsViewModel,
     onNavigateBack: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
     AccountSubPage(
-        title = stringResource(R.string.account_settings_server_section),
+        title = stringResource(R.string.account_incoming_server_section),
         onNavigateBack = onNavigateBack
     ) {
         state.account?.let { account ->
-            ConnectionSettingsSections(account = account, viewModel = viewModel)
+            IncomingServerSection(account = account, viewModel = viewModel)
+        }
+    }
+}
+
+/** Drilled-out outgoing (sending) server settings. See [OutgoingServerSection]. */
+@Composable
+fun AccountOutgoingServerScreen(
+    viewModel: AccountSettingsViewModel,
+    onNavigateBack: () -> Unit
+) {
+    val state by viewModel.uiState.collectAsState()
+    AccountSubPage(
+        title = stringResource(R.string.account_outgoing_server_section),
+        onNavigateBack = onNavigateBack
+    ) {
+        state.account?.let { account ->
+            OutgoingServerSection(account = account, viewModel = viewModel)
         }
     }
 }

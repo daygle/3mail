@@ -109,6 +109,13 @@ class ComposeViewModel @Inject constructor(
     private val mode: String = savedStateHandle.get<String>("mode") ?: "new"
     private val refId: Long = savedStateHandle.get<Long>("refId") ?: -1L
 
+    /**
+     * Pre-filled To address for a fresh compose (e.g. tapping a sender's
+     * address in the message viewer). Empty when composing normally. The
+     * Navigation component has already URL-decoded the route argument.
+     */
+    private val prefillTo: String = savedStateHandle.get<String>("to").orEmpty()
+
     // Threading headers carried through when replying.
     private var inReplyTo: String? = null
     private var references: String? = null
@@ -137,7 +144,9 @@ class ComposeViewModel @Inject constructor(
                 appliedSignatureBlock = signatureBlock(signature)
                 val original = if (refId >= 0) mailRepository.getMessageById(refId) else null
 
-                var to = ""
+                // A tapped-address compose lands here with mode "new" and no
+                // reference message, so seed the To field from the prefill.
+                var to = if (original == null) prefillTo else ""
                 var cc = ""
                 var subject = ""
                 var body = signatureBlock(signature)

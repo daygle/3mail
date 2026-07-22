@@ -14,8 +14,9 @@ import com.threemail.android.ui.screens.account.AccountFolderRolesScreen
 import com.threemail.android.ui.screens.account.AccountIdentitiesScreen
 import com.threemail.android.ui.screens.account.AccountPgpScreen
 import com.threemail.android.ui.screens.account.AccountPushScreen
+import com.threemail.android.ui.screens.account.AccountIncomingServerScreen
+import com.threemail.android.ui.screens.account.AccountOutgoingServerScreen
 import com.threemail.android.ui.screens.account.AccountScreen
-import com.threemail.android.ui.screens.account.AccountServerScreen
 import com.threemail.android.ui.screens.account.AccountSettingsScreen
 import com.threemail.android.ui.screens.account.AddAccountScreen
 import com.threemail.android.ui.screens.calendar.CalendarEventScreen
@@ -78,7 +79,8 @@ fun ThreeMailNavHost(navController: NavHostController) {
             route = Screen.Compose.route,
             arguments = listOf(
                 navArgument("mode") { type = NavType.StringType; defaultValue = "new" },
-                navArgument("refId") { type = NavType.LongType; defaultValue = -1L }
+                navArgument("refId") { type = NavType.LongType; defaultValue = -1L },
+                navArgument("to") { type = NavType.StringType; defaultValue = "" }
             )
         ) {
             ComposeScreen(
@@ -99,7 +101,8 @@ fun ThreeMailNavHost(navController: NavHostController) {
                 },
                 onReply = { messageId -> navController.navigate(Screen.Compose.createRoute("reply", messageId)) },
                 onReplyAll = { messageId -> navController.navigate(Screen.Compose.createRoute("replyAll", messageId)) },
-                onForward = { messageId -> navController.navigate(Screen.Compose.createRoute("forward", messageId)) }
+                onForward = { messageId -> navController.navigate(Screen.Compose.createRoute("forward", messageId)) },
+                onComposeTo = { address -> navController.navigate(Screen.Compose.createRoute(to = address)) }
             )
         }
         composable(Screen.Search.route) {
@@ -138,8 +141,11 @@ fun ThreeMailNavHost(navController: NavHostController) {
                 onOpenIdentities = {
                     navController.navigate(Screen.AccountIdentities.createRoute(accountId))
                 },
-                onOpenServer = {
-                    navController.navigate(Screen.AccountServer.createRoute(accountId))
+                onOpenIncomingServer = {
+                    navController.navigate(Screen.AccountIncomingServer.createRoute(accountId))
+                },
+                onOpenOutgoingServer = {
+                    navController.navigate(Screen.AccountOutgoingServer.createRoute(accountId))
                 },
                 onOpenFolderRoles = {
                     navController.navigate(Screen.AccountFolderRoles.createRoute(accountId))
@@ -162,10 +168,19 @@ fun ThreeMailNavHost(navController: NavHostController) {
             )
         }
         composable(
-            route = Screen.AccountServer.route,
+            route = Screen.AccountIncomingServer.route,
             arguments = listOf(navArgument("accountId") { type = NavType.LongType })
         ) {
-            AccountServerScreen(
+            AccountIncomingServerScreen(
+                viewModel = hiltViewModel(),
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+        composable(
+            route = Screen.AccountOutgoingServer.route,
+            arguments = listOf(navArgument("accountId") { type = NavType.LongType })
+        ) {
+            AccountOutgoingServerScreen(
                 viewModel = hiltViewModel(),
                 onNavigateBack = { navController.popBackStack() }
             )

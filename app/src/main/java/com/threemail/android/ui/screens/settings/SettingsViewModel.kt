@@ -77,6 +77,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.setLoadImages(enabled) }
     }
 
+    fun setShrinkEmailToFit(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setShrinkEmailToFit(enabled) }
+    }
+
     fun setAfterDeleteNavigation(value: com.threemail.android.data.settings.AfterDeleteNavigation) {
         viewModelScope.launch { settingsRepository.setAfterDeleteNavigation(value) }
     }
