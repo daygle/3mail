@@ -406,6 +406,49 @@ class ImapClient(
         }
 
     /**
+     * Returns the subset of [uids] that STILL EXIST (are not expunged) in
+     * [folderServerId] on the server. Sync uses this to detect messages a
+     * user deleted from another client: any locally-cached uid the server
+     * no longer returns has been removed remotely and should be dropped
+     * from the local cache.
+     *
+     * The check is a direct `UID FETCH` of exactly the supplied uids (chunked
+     * so a large cache doesn't build one enormous command), NOT a re-scan of
+     * the synced window, so even old cached messages are reconciled. An empty
+     * input short-circuits without opening the folder. If the folder can't be
+     * addressed by UID we return the input set unchanged (assume everything
+     * still exists) so a non-UID server never triggers a mass local delete.
+     */
+    suspend fun existingUids(folderServerId: String, uids: List<Long>): Result<Set<Long>> =
+        try {
+            if (uids.isEmpty()) {
+                Result.success(emptySet())
+            } else {
+                withFolder(folderServerId, Folder.READ_ONLY) { folder ->
+                    val uidFolder = folder as? UIDFolder ?: return@withFolder uids.toSet()
+                    val existing = HashSet<Long>(uids.size)
+                    uids.chunked(UID_EXISTENCE_CHUNK).forEach { chunk ->
+                        // getMessagesByUID(long[]) returns an array the same
+                        // length as the input, with a null slot for every uid
+                        // the server no longer has - exactly the expunged set.
+                        val messages = uidFolder.getMessagesByUID(chunk.toLongArray())
+                        for (msg in messages) {
+                            if (msg != null && !msg.isExpunged) {
+                                val uid = uidFolder.getUID(msg)
+                                if (uid > 0L) existing.add(uid)
+                            }
+                        }
+                    }
+                    existing
+                }.let { Result.success(it) }
+            }
+        } catch (e: RecoverableAuthException) {
+            throw e
+        } catch (e: MessagingException) {
+            Result.failure(e)
+        }
+
+    /**
      * Fetches only the envelope headers (RFC 5322 §3.6.1 plus any MIME
      * extensions like `Autocrypt` / `Autocrypt-Gossip`). Cheaper than
      * [fetchBody] for the opportunistic Autocrypt-key-learning path
@@ -853,6 +896,13 @@ class ImapClient(
 
     private companion object {
         private const val TAG = "ImapClient"
+
+        /**
+         * Max uids per `UID FETCH` when probing for expunged messages. JavaMail
+         * compresses consecutive uids into ranges, so this only bounds the
+         * worst case (a sparse cache) and keeps a single command reasonable.
+         */
+        private const val UID_EXISTENCE_CHUNK = 1000
 
         /**
          * Capability keywords surfaced via [IMAPStore.hasCapability]. Picked

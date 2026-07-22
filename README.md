@@ -25,7 +25,7 @@ A modern, full-featured Android mail client supporting IMAP (push), Gmail (OAuth
 - **Rich-text compose**: bold / italic / lists / links toolbar, **inline images** sent as `multipart/related` with `cid:` references and `Content-Disposition: inline`, and the body encoded as multipart/alternative (plain + HTML).
 - **Contact autocomplete** for To/Cc/Bcc: tap-to-complete from system contacts, debounced, scoped to the typed-after-last-comma segment. `READ_CONTACTS` is requested on the user's first interaction with a recipient field (not on screen mount).
 - **Attachments**: view and download incoming attachments; attach files to outgoing mail.
-- **Two-way sync**: read flags and delete/archive/move actions mirror between local Room and the IMAP/Gmail server.
+- **Two-way sync**: read flags and delete/archive/move actions mirror between local Room and the IMAP/Gmail server. Incremental sync also reconciles **remote deletions** - each synced IMAP folder probes its locally-cached UIDs against the server and drops any that were expunged from another client (with IMAP IDLE surfacing a shrinking mailbox for a near-immediate pass); the probe is skipped on any network error so a transient failure never wipes the cache.
 - **Conversation threading** derived from `References`/`In-Reply-To` headers, plus server-side Gmail threads when available.
 - **Drafts** saved to the server's Drafts folder.
 - **Offline outbox**: composed mail is queued locally and delivered by a `SendMailWorker` with network-constrained retry, so a send survives connectivity loss and process death instead of being lost on a failed immediate call.

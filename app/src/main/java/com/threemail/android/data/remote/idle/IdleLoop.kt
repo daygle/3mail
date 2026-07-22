@@ -51,8 +51,15 @@ class IdleLoop(private val ops: IdleFolderOps) {
                     true
                 } ?: false
                 val newCount = ops.messageCount()
-                val delta = (newCount - lastCount).coerceAtLeast(0)
-                if (delta > 0) emit(IdleEvent.NewMail(newCount, delta))
+                val delta = newCount - lastCount
+                when {
+                    // New mail arrived.
+                    delta > 0 -> emit(IdleEvent.NewMail(newCount, delta))
+                    // The mailbox shrank: another client expunged messages.
+                    // Surface it so the consumer can reconcile the deletion
+                    // locally without going down the new-mail notification path.
+                    delta < 0 -> emit(IdleEvent.MailboxShrank(newCount, -delta))
+                }
                 // If the timeout fired (`idleReentered == false`) we re-armed
                 // IDLE on our own - that's an internal detail, not a new-mail
                 // signal unless the message count actually changed.

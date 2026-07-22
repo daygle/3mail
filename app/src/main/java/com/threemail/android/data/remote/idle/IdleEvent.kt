@@ -18,6 +18,14 @@ sealed interface IdleEvent {
     data class NewMail(val messageCount: Int, val delta: Int) : IdleEvent
 
     /**
+     * The mailbox shrank since we last looked - i.e. another client expunged
+     * one or more messages. Distinct from [NewMail] so the consumer can
+     * trigger a sync (to reconcile the deletion locally) WITHOUT running the
+     * new-mail notification path. [removed] is how many messages disappeared.
+     */
+    data class MailboxShrank(val messageCount: Int, val removed: Int) : IdleEvent
+
+    /**
      * IDLE failed or the server dropped the connection. The caller should
      * reconnect (with backoff) - [cause] is the original exception's message.
      */

@@ -278,6 +278,30 @@ class MailRepository @Inject constructor(
         messageDao.deleteByFolder(folderId)
     }
 
+    /**
+     * Server uids (uid > 0) currently cached for a folder. Sync probes these
+     * against the server to find messages another client deleted.
+     */
+    suspend fun getCachedUids(folderId: Long): List<Long> =
+        messageDao.getUidRows(folderId).map { it.uid }
+
+    /**
+     * Remove locally-cached messages in [folderId] whose uid is not in
+     * [existingUids] (i.e. the server no longer has them). Returns the count
+     * deleted.
+     *
+     * Callers MUST pass a set they successfully fetched from the server -
+     * passing an empty set after a failed lookup would wipe the whole folder.
+     * A message with no server uid (uid <= 0) is never touched.
+     */
+    suspend fun reconcileFolderDeletions(folderId: Long, existingUids: Set<Long>): Int {
+        val staleIds = messageDao.getUidRows(folderId)
+            .filter { it.uid !in existingUids }
+            .map { it.id }
+        if (staleIds.isNotEmpty()) messageDao.deleteByIds(staleIds)
+        return staleIds.size
+    }
+
     suspend fun updateReadStatus(id: Long, isRead: Boolean) {
         messageDao.updateReadStatus(id, isRead)
     }

@@ -38,6 +38,18 @@ class IdleLoopTest {
     }
 
     @Test
+    fun `emits MailboxShrank when messageCount drops across idle returns`() = runTest(UnconfinedTestDispatcher()) {
+        val ops = ScriptedIdleOps(
+            idleCompletions = listOf({}),
+            counts = listOf(5, 3)
+        )
+        // Open(5) then a shrink of 2 (another client expunged two messages).
+        val events = IdleLoop(ops).events().take(2).toList()
+        assertEquals(IdleEvent.Open(5), events[0])
+        assertEquals(IdleEvent.MailboxShrank(3, removed = 2), events[1])
+    }
+
+    @Test
     fun `no NewMail emitted when messageCount does not change across idle returns`() = runTest(UnconfinedTestDispatcher()) {
         val ops = ScriptedIdleOps(
             idleCompletions = listOf({}), // one idle call after Open
