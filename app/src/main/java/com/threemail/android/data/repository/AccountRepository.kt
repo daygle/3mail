@@ -93,6 +93,9 @@ open class AccountRepository @Inject constructor(
     suspend fun setCalendarSyncEnabled(id: Long, enabled: Boolean) =
         accountDao.setCalendarSyncEnabled(id, enabled)
 
+    suspend fun setAccountColor(id: Long, color: Int?) =
+        accountDao.setAccountColor(id, color)
+
     /**
      * Updates the full incoming/outgoing server connection settings in one
      * write: hosts, ports, per-direction security (each mapped back onto its
@@ -228,7 +231,8 @@ open class AccountRepository @Inject constructor(
         identities = parseIdentities(identitiesJson),
         folderRoles = parseFolderRoles(folderRolesJson),
         peerKeys = parsePeerKeysJson(autocryptKeysJson),
-        pushFolders = parseStringList(pushFoldersJson)
+        pushFolders = parseStringList(pushFoldersJson),
+        color = color
     )
 
     private fun Account.toEntity(): AccountEntity = AccountEntity(
@@ -261,7 +265,8 @@ open class AccountRepository @Inject constructor(
         identitiesJson = serializeIdentities(identities),
         folderRolesJson = serializeFolderRoles(folderRoles),
         autocryptKeysJson = serializePeerKeysJson(peerKeys),
-        pushFoldersJson = serializeStringList(pushFolders)
+        pushFoldersJson = serializeStringList(pushFolders),
+        color = color
     )
 
     private fun serializeIdentities(identities: List<Identity>): String {

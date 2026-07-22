@@ -54,6 +54,9 @@ interface AccountDao {
     @Query("UPDATE accounts SET pushFoldersJson = :pushFoldersJson WHERE id = :id")
     suspend fun setPushFoldersJson(id: Long, pushFoldersJson: String)
 
+    @Query("UPDATE accounts SET color = :color WHERE id = :id")
+    suspend fun setAccountColor(id: Long, color: Int?)
+
     /**
      * Updates the incoming/outgoing server connection settings in one write.
      * Each direction's security is stored as its own (useEncryption,

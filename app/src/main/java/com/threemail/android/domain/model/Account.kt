@@ -139,7 +139,12 @@ data class Account(
      * a dedicated persistent IDLE connection. IMAP-only - ignored for Gmail
      * (Google push) and POP3 (no push at all).
      */
-    val pushFolders: List<String> = emptyList()
+    val pushFolders: List<String> = emptyList(),
+    /**
+     * Optional user-selected background color for the account (ARGB). When
+     * null, the UI uses the deterministic domain-based fallback.
+     */
+    val color: Int? = null
 ) {
     /**
      * The username to authenticate the incoming (IMAP/POP3) server with:

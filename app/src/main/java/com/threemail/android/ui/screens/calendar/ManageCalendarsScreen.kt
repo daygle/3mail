@@ -62,6 +62,7 @@ import com.threemail.android.R
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.CalendarEntry
 import com.threemail.android.domain.model.CalendarSource
+import com.threemail.android.ui.components.AccountAvatar
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -387,21 +388,11 @@ private fun AccountHeaderRow(account: Account) {
             .padding(start = 16.dp, top = 8.dp, bottom = 4.dp, end = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(28.dp)
-                .background(
-                    color = avatarColorFor(account.email),
-                    shape = CircleShape
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = account.email.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
-                style = MaterialTheme.typography.titleSmall,
-                color = Color.White
-            )
-        }
+        AccountAvatar(
+            email = account.email,
+            size = 28.dp,
+            accountColor = account.color
+        )
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -867,10 +858,3 @@ private fun CreateCalendarDialog(
     )
 }
 
-/**
- * Stable, low-overlap indicator color for the account-chip dot. Reuses
- * the inbox row's `avatarColorFor` so the chip color matches the rest
- * of the app's account chrome.
- */
-private fun avatarColorFor(email: String): Color =
-    com.threemail.android.ui.theme.avatarColorFor(email)

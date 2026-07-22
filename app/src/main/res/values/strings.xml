@@ -286,6 +286,8 @@
     <string name="account_connection_saved">Connection verified and saved.</string>
     <string name="account_connection_failed">Couldn\'t connect: %1$s</string>
     <string name="account_settings_open">Open Settings</string>
+    <string name="account_color_label">Account Color</string>
+    <string name="account_color_default">Default</string>
     <string name="account_settings_calendar_section">Calendar</string>
     <string name="account_settings_calendar_title">Sync Google Calendar</string>
     <string name="account_settings_calendar_subtitle">Show this account\'s events in the Calendar tab.</string>

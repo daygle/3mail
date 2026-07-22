@@ -655,6 +655,18 @@ val MIGRATION_24_25: Migration = object : Migration(24, 25) {
 }
 
 /**
+ * Adds a nullable `color` column to the `accounts` table so users can
+ * customize the background color of their account avatars. Existing rows
+ * default to `NULL`, which the UI interprets as "use the deterministic
+ * domain-based color".
+ */
+val MIGRATION_25_26: Migration = object : Migration(25, 26) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE accounts ADD COLUMN color INTEGER DEFAULT NULL")
+    }
+}
+
+/**
  * Idempotently creates the FTS4 virtual table, the keep-in-sync triggers and an
  * initial backfill.  All statements use IF NOT EXISTS so a partial state can be
  * resumed without crashing; the backfill is a no-op on empty `messages`.

@@ -112,5 +112,11 @@ data class AccountEntity(
      * single additive `ALTER TABLE`.
      */
     val pushFoldersJson: String = "[]",
+    /**
+     * Optional user-selected background color for the account's avatar/icon
+     * (ARGB integer). When null, the UI falls back to the deterministic
+     * domain-based color.
+     */
+    val color: Int? = null,
     val createdAt: Long = System.currentTimeMillis()
 )

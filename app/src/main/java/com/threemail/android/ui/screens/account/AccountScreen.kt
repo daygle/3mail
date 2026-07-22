@@ -3,7 +3,6 @@ package com.threemail.android.ui.screens.account
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -47,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import com.threemail.android.ui.theme.appTopBarColors
 import com.threemail.android.R
 import com.threemail.android.domain.model.Account
+import com.threemail.android.ui.components.AccountAvatar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -133,7 +133,11 @@ private fun AccountCard(
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Avatar(account.displayName.ifBlank { account.email })
+        AccountAvatar(
+            email = account.email,
+            size = 44.dp,
+            accountColor = account.color
+        )
         Spacer(Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -165,26 +169,6 @@ private fun AccountCard(
             imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = stringResource(R.string.account_settings_open),
             tint = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-/** Circular avatar showing the first letter of the account's name/email. */
-@Composable
-private fun Avatar(seed: String) {
-    val initial = seed.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
-    Box(
-        modifier = Modifier
-            .size(44.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.primaryContainer),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = initial,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onPrimaryContainer
         )
     }
 }

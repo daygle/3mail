@@ -206,6 +206,11 @@ class AccountSettingsViewModel @Inject constructor(
         viewModelScope.launch { accountRepository.setCalendarSyncEnabled(accountId, enabled) }
     }
 
+    fun setAccountColor(color: Int?) {
+        updateAccount { it.copy(color = color) }
+        viewModelScope.launch { accountRepository.setAccountColor(accountId, color) }
+    }
+
     /** Reset the connection-test banner after the user edits a server field. */
     fun clearConnectionState() {
         if (_connectionState.value != ConnectionSettingsState.Idle) {

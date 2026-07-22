@@ -279,20 +279,11 @@ fun FolderDrawerContent(
                                 modifier = Modifier.weight(1f)
                             )
                         } else {
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(CircleShape)
-                                    .background(avatarColorFor(account.email)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_launcher_foreground),
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(28.dp)
-                                )
-                            }
+                            AccountAvatar(
+                                email = account.email,
+                                size = 48.dp,
+                                accountColor = account.color
+                            )
                             Column(
                                 modifier = Modifier
                                     .weight(1f)
@@ -905,20 +896,11 @@ private fun AccountRow(
             .padding(start = 12.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(avatarColorFor(account.email)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_launcher_foreground),
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(22.dp)
-            )
-        }
+        AccountAvatar(
+            email = account.email,
+            size = 40.dp,
+            accountColor = account.color
+        )
         Column(
             modifier = Modifier
                 .weight(1f)
