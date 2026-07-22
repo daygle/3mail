@@ -17,6 +17,9 @@
     <string name="add_account_app_password_hint">This provider needs an app-specific password, not your normal login password.</string>
     <string name="add_account_credentials">Account</string>
     <string name="add_account_server_section">Server</string>
+    <string name="add_account_incoming_section">Incoming server</string>
+    <string name="add_account_outgoing_section">Outgoing server</string>
+    <string name="add_account_connecting">Connecting…</string>
     <string name="add_account_detect">Detect settings automatically</string>
     <string name="add_account_advanced">Advanced server settings</string>
     <string name="add_account_hide_advanced">Hide advanced settings</string>
@@ -140,6 +143,13 @@
     <string name="email_address">Email address</string>
     <string name="password">Password</string>
     <string name="port">Port</string>
+    <string name="incoming_username">Username (optional)</string>
+    <string name="outgoing_username">Username (optional)</string>
+    <string name="outgoing_password">Password (optional)</string>
+    <string name="incoming_username_hint">Leave blank to sign in with your email address.</string>
+    <string name="outgoing_credentials_hint">Leave blank to reuse your incoming server\'s username and password.</string>
+    <string name="security_incoming_title">Incoming security</string>
+    <string name="security_outgoing_title">Outgoing security</string>
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
     <string name="new_mail_notification_title">New mail</string>
@@ -243,7 +253,8 @@
     <!-- Per-account incoming/outgoing server settings -->
     <string name="account_fetching_section">Fetching Mail</string>
     <string name="account_sending_section">Sending Mail</string>
-    <string name="account_connection_security_hint">Connection security applies to both fetching and sending mail.</string>
+    <string name="account_connection_security_hint">Connection security for the incoming (fetching) server.</string>
+    <string name="account_outgoing_security_hint">Connection security for the outgoing (sending) server.</string>
     <string name="account_connection_test_and_save">Test &amp; Save</string>
     <string name="account_connection_testing">Testing connection…</string>
     <string name="account_connection_saved">Connection verified and saved.</string>
@@ -256,6 +267,13 @@
     <!-- Drill-in "Manage" group linking to the heavier sub-pages -->
     <string name="account_settings_manage_section">Manage</string>
     <string name="account_settings_server_section">Server Settings</string>
+
+    <!-- One-line subtitles for the per-account drill-in cards -->
+    <string name="account_manage_identities_subtitle">Extra addresses you can send from.</string>
+    <string name="account_manage_server_subtitle">Incoming and outgoing server details.</string>
+    <string name="account_manage_folder_roles_subtitle">Map Inbox, Sent, Trash and more to server folders.</string>
+    <string name="account_manage_push_subtitle">Watch extra folders for instant new-mail push.</string>
+    <string name="account_manage_pgp_subtitle">Your encryption key and saved contact keys.</string>
 
     <!-- Per-account folder-role overrides -->
     <string name="account_folder_roles_section">Folder Roles</string>

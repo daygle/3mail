@@ -140,8 +140,22 @@ interface MessageDao {
     @Query("DELETE FROM messages WHERE id = :id")
     suspend fun deleteById(id: Long)
 
+    @Query("DELETE FROM messages WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<Long>)
+
     @Query("DELETE FROM messages WHERE folderId = :folderId")
     suspend fun deleteByFolder(folderId: Long)
+
+    /**
+     * Lightweight (local id, server uid) pairs for a folder, restricted to
+     * rows that carry a real server uid (`uid > 0`). Backs sync's deletion
+     * reconciliation: the uids are probed against the server and the ids of
+     * any that no longer exist are passed to [deleteByIds]. POP3 rows (whose
+     * uid is an unstable message number) are intentionally still included, but
+     * the POP3 transport's no-op existence check means they're never dropped.
+     */
+    @Query("SELECT id, uid FROM messages WHERE folderId = :folderId AND uid > 0")
+    suspend fun getUidRows(folderId: Long): List<MessageUidRow>
 
     @Query("SELECT COUNT(*) FROM messages WHERE folderId = :folderId AND isRead = 0")
     fun getUnreadCount(folderId: Long): Flow<Int>
@@ -165,4 +179,10 @@ interface MessageDao {
 data class MessageWithFlags(
     @Embedded val message: MessageEntity,
     val isEncrypted: Boolean?
+)
+
+/** Projection of a cached message's local id and its server uid, for sync reconciliation. */
+data class MessageUidRow(
+    val id: Long,
+    val uid: Long
 )

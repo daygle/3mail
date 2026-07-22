@@ -25,14 +25,31 @@ class GoogleAuthHelper @Inject constructor(
 
     companion object {
         const val GMAIL_SCOPE = "https://mail.google.com/"
+
+        /** Sentinel shipped in `strings.xml`; a real build overrides it. */
+        private const val PLACEHOLDER_WEB_CLIENT_ID = "YOUR_WEB_CLIENT_ID"
     }
 
     private val credentialManager = CredentialManager.create(context)
 
     suspend fun signInWithGoogle(activityContext: Context): Result<GoogleUserInfo> = withContext(Dispatchers.Main) {
+        val webClientId = context.getString(R.string.default_web_client_id)
+        // The app ships with a placeholder web client id; until it's replaced
+        // with a real OAuth 2.0 Web client id the Credential Manager call fails
+        // with an opaque error. Fail fast with an actionable message instead so
+        // the add-account screen can tell the user what to fix.
+        if (webClientId.isBlank() || webClientId == PLACEHOLDER_WEB_CLIENT_ID) {
+            return@withContext Result.failure(
+                IllegalStateException(
+                    "Google sign-in isn't configured for this build. Set " +
+                        "default_web_client_id to your Google Cloud OAuth 2.0 Web client id."
+                )
+            )
+        }
+
         val googleIdOption = GetGoogleIdOption.Builder()
             .setFilterByAuthorizedAccounts(false)
-            .setServerClientId(context.getString(R.string.default_web_client_id))
+            .setServerClientId(webClientId)
             .build()
 
         val request = GetCredentialRequest.Builder()

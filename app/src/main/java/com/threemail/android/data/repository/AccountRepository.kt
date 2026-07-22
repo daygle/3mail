@@ -40,18 +40,24 @@ open class AccountRepository @Inject constructor(
         accountDao.getByEmail(email)?.toDomain()
 
     open suspend fun addAccount(account: Account): Long {
-        // Persist the password in the encrypted credential store, not the database.
+        // Persist the passwords in the encrypted credential store, not the
+        // database. The outgoing password is stored separately; a null/blank
+        // value clears the slot so the outgoing side falls back to the
+        // incoming password at connect time.
         credentialStore.savePassword(account.email, account.password)
+        credentialStore.saveOutgoingPassword(account.email, account.outgoingPassword)
         return accountDao.insert(account.toEntity())
     }
 
     open suspend fun updateAccount(account: Account) {
         credentialStore.savePassword(account.email, account.password)
+        credentialStore.saveOutgoingPassword(account.email, account.outgoingPassword)
         accountDao.update(account.toEntity())
     }
 
     open suspend fun deleteAccount(account: Account) {
         credentialStore.deletePassword(account.email)
+        credentialStore.deleteOutgoingPassword(account.email)
         accountDao.delete(account.toEntity())
     }
 
@@ -88,26 +94,46 @@ open class AccountRepository @Inject constructor(
         accountDao.setCalendarSyncEnabled(id, enabled)
 
     /**
-     * Updates the incoming/outgoing server connection settings, mapping the
-     * domain [Security] enum back onto the stored (useEncryption, useStartTls)
-     * pair (exactly one true, or both false for [Security.NONE]).
+     * Updates the full incoming/outgoing server connection settings in one
+     * write: hosts, ports, per-direction security (each mapped back onto its
+     * stored (useEncryption, useStartTls) pair), and per-direction login
+     * usernames. Passwords are written to the encrypted credential store (keyed
+     * by [email]) rather than the DB - a null/blank outgoing password clears
+     * that slot so the outgoing side falls back to the incoming password.
+     *
+     * Usernames are normalised so a blank field is stored as `null` ("use the
+     * account email" for incoming, "use the incoming login" for outgoing).
      */
     suspend fun setConnectionSettings(
         id: Long,
+        email: String,
         incomingServer: String?,
         incomingPort: Int,
+        incomingSecurity: Security,
+        incomingUsername: String?,
+        incomingPassword: String?,
         outgoingServer: String?,
         outgoingPort: Int,
-        security: Security
-    ) = accountDao.setConnectionSettings(
-        id = id,
-        incomingServer = incomingServer,
-        incomingPort = incomingPort,
-        outgoingServer = outgoingServer,
-        outgoingPort = outgoingPort,
-        useEncryption = security == Security.SSL_TLS,
-        useStartTls = security == Security.STARTTLS
-    )
+        outgoingSecurity: Security,
+        outgoingUsername: String?,
+        outgoingPassword: String?
+    ) {
+        credentialStore.savePassword(email, incomingPassword)
+        credentialStore.saveOutgoingPassword(email, outgoingPassword)
+        accountDao.setConnectionSettings(
+            id = id,
+            incomingServer = incomingServer,
+            incomingPort = incomingPort,
+            useEncryption = incomingSecurity == Security.SSL_TLS,
+            useStartTls = incomingSecurity == Security.STARTTLS,
+            incomingUsername = incomingUsername?.takeIf { it.isNotBlank() },
+            outgoingServer = outgoingServer,
+            outgoingPort = outgoingPort,
+            outgoingUseEncryption = outgoingSecurity == Security.SSL_TLS,
+            outgoingUseStartTls = outgoingSecurity == Security.STARTTLS,
+            outgoingUsername = outgoingUsername?.takeIf { it.isNotBlank() }
+        )
+    }
 
     suspend fun setNotificationsEnabled(id: Long, enabled: Boolean) =
         accountDao.setNotificationsEnabled(id, enabled)
@@ -175,10 +201,23 @@ open class AccountRepository @Inject constructor(
             useEncryption -> Security.SSL_TLS
             else -> Security.NONE
         },
-        // Hydrate the password from the encrypted store; the DB column stays
+        // Outgoing (SMTP) security is stored as its own (outgoingUseEncryption,
+        // outgoingUseStartTls) pair, reconciled the same way as the incoming
+        // side so each direction is independent.
+        outgoingSecurity = when {
+            outgoingUseStartTls -> Security.STARTTLS
+            outgoingUseEncryption -> Security.SSL_TLS
+            else -> Security.NONE
+        },
+        incomingUsername = incomingUsername,
+        outgoingUsername = outgoingUsername,
+        // Hydrate the passwords from the encrypted store; the DB column stays
         // null. Both IMAP and POP3 authenticate with a stored password (only
-        // Gmail uses OAuth), so hydrate for every non-Gmail account.
+        // Gmail uses OAuth), so hydrate for every non-Gmail account. The
+        // outgoing password may be null - the outgoing side then falls back to
+        // the incoming password via Account.outgoingSecret.
         password = if (accountType != AccountType.GMAIL) credentialStore.getPassword(email) else null,
+        outgoingPassword = if (accountType != AccountType.GMAIL) credentialStore.getOutgoingPassword(email) else null,
         isActive = isActive,
         syncEnabled = syncEnabled,
         calendarSyncEnabled = calendarSyncEnabled,
@@ -207,6 +246,10 @@ open class AccountRepository @Inject constructor(
         // the two to true (or both false for Security.NONE).
         useEncryption = security == Security.SSL_TLS,
         useStartTls = security == Security.STARTTLS,
+        outgoingUseEncryption = outgoingSecurity == Security.SSL_TLS,
+        outgoingUseStartTls = outgoingSecurity == Security.STARTTLS,
+        incomingUsername = incomingUsername?.takeIf { it.isNotBlank() },
+        outgoingUsername = outgoingUsername?.takeIf { it.isNotBlank() },
         password = null,
         isActive = isActive,
         syncEnabled = syncEnabled,

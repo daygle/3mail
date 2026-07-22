@@ -28,13 +28,13 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Draw
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.CircularProgressIndicator
@@ -51,6 +51,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -247,38 +248,61 @@ fun AccountSettingsScreen(
                         }
                     }
 
-                    // Drill-in rows for the heavier sections; each opens its own
-                    // focused sub-page instead of stacking on this scroll.
+                    // Each heavier section is its own icon'd card (matching the
+                    // global settings layout) whose single row drills into a
+                    // focused sub-page. Availability follows the account type:
+                    // server/folder-roles/push are IMAP-or-POP3 concepts, so
+                    // they're hidden for Gmail (OAuth + REST folders).
                     SettingsGroup(
-                        title = stringResource(R.string.account_settings_manage_section),
-                        icon = Icons.Default.Tune
+                        title = stringResource(R.string.identities_section),
+                        icon = Icons.Default.AlternateEmail
                     ) {
                         SettingsRow(
-                            title = stringResource(R.string.identities_section),
+                            title = stringResource(R.string.account_manage_identities_subtitle),
                             onClick = onOpenIdentities
                         )
-                        if (account.accountType != AccountType.GMAIL) {
-                            CardDivider()
+                    }
+
+                    if (account.accountType != AccountType.GMAIL) {
+                        SettingsGroup(
+                            title = stringResource(R.string.account_settings_server_section),
+                            icon = Icons.Default.Dns
+                        ) {
                             SettingsRow(
-                                title = stringResource(R.string.account_settings_server_section),
+                                title = stringResource(R.string.account_manage_server_subtitle),
                                 onClick = onOpenServer
                             )
                         }
-                        if (account.accountType == AccountType.IMAP) {
-                            CardDivider()
+                    }
+
+                    if (account.accountType == AccountType.IMAP) {
+                        SettingsGroup(
+                            title = stringResource(R.string.account_folder_roles_section),
+                            icon = Icons.Default.Folder
+                        ) {
                             SettingsRow(
-                                title = stringResource(R.string.account_folder_roles_section),
+                                title = stringResource(R.string.account_manage_folder_roles_subtitle),
                                 onClick = onOpenFolderRoles
                             )
-                            CardDivider()
+                        }
+
+                        SettingsGroup(
+                            title = stringResource(R.string.account_push_label),
+                            icon = Icons.Default.Bolt
+                        ) {
                             SettingsRow(
-                                title = stringResource(R.string.account_push_label),
+                                title = stringResource(R.string.account_manage_push_subtitle),
                                 onClick = onOpenPush
                             )
                         }
-                        CardDivider()
+                    }
+
+                    SettingsGroup(
+                        title = stringResource(R.string.pgp_keys_section),
+                        icon = Icons.Default.Key
+                    ) {
                         SettingsRow(
-                            title = stringResource(R.string.pgp_keys_section),
+                            title = stringResource(R.string.account_manage_pgp_subtitle),
                             onClick = onOpenPgp
                         )
                     }
@@ -553,9 +577,10 @@ internal fun PushSection(
  * Editable incoming ("Fetching Mail") and outgoing ("Sending Mail") server
  * settings for IMAP/POP3 accounts. Fields are edited as a local draft and only
  * persisted via [AccountSettingsViewModel.testAndSaveConnection], which probes
- * the server first so a bad host/port can't silently break sync. Connection
- * security is a single setting shared by both directions (matching the account
- * model), shown under Fetching Mail.
+ * the server first so a bad host/port can't silently break sync. Each direction
+ * carries its own username, password, and connection security, so a provider
+ * that fetches and submits with different credentials or TLS modes can be
+ * configured. Blank outgoing username/password reuse the incoming credentials.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -567,12 +592,19 @@ internal fun ConnectionSettingsSections(
 
     // Local draft, re-seeded from the account only when the account identity
     // changes (never on this screen), so unrelated write-through updates to
-    // other settings don't reset a half-typed host.
+    // other settings don't reset a half-typed host. Passwords are pre-seeded
+    // from the hydrated (decrypted) values so the connection test has a real
+    // credential to probe with and the user can edit in place.
     var incomingServer by remember(account.id) { mutableStateOf(account.incomingServer.orEmpty()) }
     var incomingPort by remember(account.id) { mutableStateOf(account.incomingPort.toString()) }
+    var incomingUsername by remember(account.id) { mutableStateOf(account.incomingUsername.orEmpty()) }
+    var incomingPassword by remember(account.id) { mutableStateOf(account.password.orEmpty()) }
+    var security by remember(account.id) { mutableStateOf(account.security) }
     var outgoingServer by remember(account.id) { mutableStateOf(account.outgoingServer.orEmpty()) }
     var outgoingPort by remember(account.id) { mutableStateOf(account.outgoingPort.toString()) }
-    var security by remember(account.id) { mutableStateOf(account.security) }
+    var outgoingUsername by remember(account.id) { mutableStateOf(account.outgoingUsername.orEmpty()) }
+    var outgoingPassword by remember(account.id) { mutableStateOf(account.outgoingPassword.orEmpty()) }
+    var outgoingSecurity by remember(account.id) { mutableStateOf(account.outgoingSecurity) }
 
     // Any edit invalidates a prior Saved/Failed banner.
     val onEdited: () -> Unit = { viewModel.clearConnectionState() }
@@ -603,20 +635,27 @@ internal fun ConnectionSettingsSections(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
-            Text(
-                text = stringResource(R.string.security),
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.padding(top = 8.dp)
+            OutlinedTextField(
+                value = incomingUsername,
+                onValueChange = { incomingUsername = it; onEdited() },
+                label = { Text(stringResource(R.string.incoming_username)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
             )
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Security.entries.forEach { mode ->
-                    FilterChip(
-                        selected = security == mode,
-                        onClick = { security = mode; onEdited() },
-                        label = { Text(stringResource(securityLabelRes(mode))) }
-                    )
-                }
-            }
+            OutlinedTextField(
+                value = incomingPassword,
+                onValueChange = { incomingPassword = it; onEdited() },
+                label = { Text(stringResource(R.string.password)) },
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            ConnectionSecurityChips(
+                title = stringResource(R.string.security_incoming_title),
+                selected = security,
+                onSelect = { security = it; onEdited() }
+            )
             Text(
                 text = stringResource(R.string.account_connection_security_hint),
                 style = MaterialTheme.typography.bodySmall,
@@ -645,6 +684,37 @@ internal fun ConnectionSettingsSections(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
+            OutlinedTextField(
+                value = outgoingUsername,
+                onValueChange = { outgoingUsername = it; onEdited() },
+                label = { Text(stringResource(R.string.outgoing_username)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = outgoingPassword,
+                onValueChange = { outgoingPassword = it; onEdited() },
+                label = { Text(stringResource(R.string.outgoing_password)) },
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text(
+                text = stringResource(R.string.outgoing_credentials_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            ConnectionSecurityChips(
+                title = stringResource(R.string.security_outgoing_title),
+                selected = outgoingSecurity,
+                onSelect = { outgoingSecurity = it; onEdited() }
+            )
+            Text(
+                text = stringResource(R.string.account_outgoing_security_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             when (val s = connectionState) {
                 is AccountSettingsViewModel.ConnectionSettingsState.Saved -> Text(
                     text = stringResource(R.string.account_connection_saved),
@@ -666,9 +736,14 @@ internal fun ConnectionSettingsSections(
                     viewModel.testAndSaveConnection(
                         incomingServer = incomingServer.trim(),
                         incomingPort = incomingPort.toIntOrNull() ?: account.incomingPort,
+                        incomingSecurity = security,
+                        incomingUsername = incomingUsername.trim(),
+                        incomingPassword = incomingPassword,
                         outgoingServer = outgoingServer.trim(),
                         outgoingPort = outgoingPort.toIntOrNull() ?: account.outgoingPort,
-                        security = security
+                        outgoingSecurity = outgoingSecurity,
+                        outgoingUsername = outgoingUsername.trim(),
+                        outgoingPassword = outgoingPassword
                     )
                 },
                 enabled = !testing,
@@ -685,6 +760,30 @@ internal fun ConnectionSettingsSections(
                     Text(stringResource(R.string.account_connection_test_and_save))
                 }
             }
+        }
+    }
+}
+
+/** Titled row of security-mode chips used by both the incoming and outgoing sections. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ConnectionSecurityChips(
+    title: String,
+    selected: Security,
+    onSelect: (Security) -> Unit
+) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelLarge,
+        modifier = Modifier.padding(top = 8.dp)
+    )
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Security.entries.forEach { mode ->
+            FilterChip(
+                selected = selected == mode,
+                onClick = { onSelect(mode) },
+                label = { Text(stringResource(securityLabelRes(mode))) }
+            )
         }
     }
 }

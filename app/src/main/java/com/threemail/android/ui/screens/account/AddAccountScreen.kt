@@ -128,6 +128,8 @@ fun AddAccountScreen(
         ) {
             when (step) {
                 AddStep.ChooseProvider -> ProviderChooser(
+                    isBusy = state.isSaving,
+                    error = state.error,
                     onGoogle = { viewModel.signInWithGoogle(context) },
                     onProvider = { picked ->
                         viewModel.applyProvider(picked)
@@ -136,6 +138,7 @@ fun AddAccountScreen(
                     },
                     onOther = {
                         provider = null
+                        viewModel.updateError(null)
                         viewModel.updateAccountType(AccountType.IMAP)
                         step = AddStep.Form
                     }
@@ -152,6 +155,8 @@ fun AddAccountScreen(
 
 @Composable
 private fun ProviderChooser(
+    isBusy: Boolean,
+    error: String?,
     onGoogle: () -> Unit,
     onProvider: (ProviderPreset) -> Unit,
     onOther: () -> Unit
@@ -160,23 +165,52 @@ private fun ProviderChooser(
         text = stringResource(R.string.add_account_choose_provider),
         style = MaterialTheme.typography.titleMedium
     )
+    // While a provider sign-in (currently only Google's Credential Manager
+    // flow) is in flight, show a spinner and disable the cards so a second
+    // tap can't kick off a parallel request.
+    if (isBusy) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+            Spacer(Modifier.width(12.dp))
+            Text(
+                text = stringResource(R.string.add_account_connecting),
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+    }
     MailProviders.ALL.forEach { preset ->
         ProviderCard(
             label = preset.displayName,
+            enabled = !isBusy,
             onClick = {
                 if (preset.auth == ProviderAuth.OAUTH_GOOGLE) onGoogle() else onProvider(preset)
             }
         )
     }
-    ProviderCard(label = stringResource(R.string.add_account_other), onClick = onOther)
+    ProviderCard(
+        label = stringResource(R.string.add_account_other),
+        enabled = !isBusy,
+        onClick = onOther
+    )
+    // Surface sign-in failures here too - the provider chooser is a distinct
+    // step from the details form, and an error raised during Google sign-in
+    // (e.g. an unconfigured OAuth client id, or the user dismissing the sheet)
+    // would otherwise be invisible because the form's error text never shows.
+    error?.let {
+        Text(
+            text = it,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodyMedium
+        )
+    }
 }
 
 @Composable
-private fun ProviderCard(label: String, onClick: () -> Unit) {
+private fun ProviderCard(label: String, enabled: Boolean = true, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() },
+            .clickable(enabled = enabled) { onClick() },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
     ) {
         Row(
@@ -263,8 +297,8 @@ private fun AccountForm(
         }
         state.discoveryMessage?.let { InfoBanner(it) }
         ProtocolPicker(state = state, onSelect = viewModel::updateAccountType)
-        ServerFields(viewModel = viewModel, state = state)
-        SecurityPicker(state = state, onSelect = viewModel::updateSecurity)
+        IncomingServerFields(viewModel = viewModel, state = state)
+        OutgoingServerFields(viewModel = viewModel, state = state)
     } else {
         // Known provider: server settings tucked behind an expander.
         TextButton(onClick = { showAdvanced = !showAdvanced }) {
@@ -276,8 +310,8 @@ private fun AccountForm(
             )
         }
         if (showAdvanced) {
-            ServerFields(viewModel = viewModel, state = state)
-            SecurityPicker(state = state, onSelect = viewModel::updateSecurity)
+            IncomingServerFields(viewModel = viewModel, state = state)
+            OutgoingServerFields(viewModel = viewModel, state = state)
         }
     }
 
@@ -337,12 +371,13 @@ private fun ProtocolPicker(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ServerFields(
+private fun IncomingServerFields(
     viewModel: AddAccountViewModel,
     state: AddAccountViewModel.UiState
 ) {
-    SettingsGroup(title = stringResource(R.string.add_account_server_section)) {
+    SettingsGroup(title = stringResource(R.string.add_account_incoming_section)) {
         SettingsContentRow {
             OutlinedTextField(
                 value = state.server,
@@ -367,6 +402,34 @@ private fun ServerFields(
                 modifier = Modifier.fillMaxWidth()
             )
             OutlinedTextField(
+                value = state.incomingUsername,
+                onValueChange = viewModel::updateIncomingUsername,
+                label = { Text(stringResource(R.string.incoming_username)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text(
+                text = stringResource(R.string.incoming_username_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            SecurityChips(
+                title = stringResource(R.string.security_incoming_title),
+                selected = state.security,
+                onSelect = viewModel::updateSecurity
+            )
+        }
+    }
+}
+
+@Composable
+private fun OutgoingServerFields(
+    viewModel: AddAccountViewModel,
+    state: AddAccountViewModel.UiState
+) {
+    SettingsGroup(title = stringResource(R.string.add_account_outgoing_section)) {
+        SettingsContentRow {
+            OutlinedTextField(
                 value = state.outgoingServer,
                 onValueChange = viewModel::updateOutgoingServer,
                 label = { Text(stringResource(R.string.outgoing_server)) },
@@ -381,44 +444,73 @@ private fun ServerFields(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
+            OutlinedTextField(
+                value = state.outgoingUsername,
+                onValueChange = viewModel::updateOutgoingUsername,
+                label = { Text(stringResource(R.string.outgoing_username)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = state.outgoingPassword,
+                onValueChange = viewModel::updateOutgoingPassword,
+                label = { Text(stringResource(R.string.outgoing_password)) },
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text(
+                text = stringResource(R.string.outgoing_credentials_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            SecurityChips(
+                title = stringResource(R.string.security_outgoing_title),
+                selected = state.outgoingSecurity,
+                onSelect = viewModel::updateOutgoingSecurity
+            )
         }
     }
 }
 
+/** A titled row of security-mode chips plus the selected mode's subtitle. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun SecurityPicker(
-    state: AddAccountViewModel.UiState,
+private fun SecurityChips(
+    title: String,
+    selected: Security,
     onSelect: (Security) -> Unit
 ) {
-    SettingsGroup(title = stringResource(R.string.security)) {
-        SettingsContentRow {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Security.entries.forEach { mode ->
-                    val labelRes = when (mode) {
-                        Security.NONE -> R.string.security_none
-                        Security.STARTTLS -> R.string.security_starttls
-                        Security.SSL_TLS -> R.string.security_ssl_tls
-                    }
-                    FilterChip(
-                        selected = state.security == mode,
-                        onClick = { onSelect(mode) },
-                        label = { Text(stringResource(labelRes)) }
-                    )
-                }
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelLarge,
+        modifier = Modifier.padding(top = 8.dp)
+    )
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Security.entries.forEach { mode ->
+            val labelRes = when (mode) {
+                Security.NONE -> R.string.security_none
+                Security.STARTTLS -> R.string.security_starttls
+                Security.SSL_TLS -> R.string.security_ssl_tls
             }
-            val subtitleRes = when (state.security) {
-                Security.NONE -> R.string.security_none_subtitle
-                Security.STARTTLS -> R.string.security_starttls_subtitle
-                Security.SSL_TLS -> R.string.security_ssl_tls_subtitle
-            }
-            Text(
-                text = stringResource(subtitleRes),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            FilterChip(
+                selected = selected == mode,
+                onClick = { onSelect(mode) },
+                label = { Text(stringResource(labelRes)) }
             )
         }
     }
+    val subtitleRes = when (selected) {
+        Security.NONE -> R.string.security_none_subtitle
+        Security.STARTTLS -> R.string.security_starttls_subtitle
+        Security.SSL_TLS -> R.string.security_ssl_tls_subtitle
+    }
+    Text(
+        text = stringResource(subtitleRes),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
 }
 
 /** Small informational banner (tertiaryContainer) used for hints and results. */

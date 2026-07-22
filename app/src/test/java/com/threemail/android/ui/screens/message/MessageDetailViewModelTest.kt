@@ -393,5 +393,8 @@ class MessageDetailViewModelTest {
         override fun savePassword(email: String, password: String?) {}
         override fun getPassword(email: String): String? = null
         override fun deletePassword(email: String) {}
+        override fun saveOutgoingPassword(email: String, password: String?) {}
+        override fun getOutgoingPassword(email: String): String? = null
+        override fun deleteOutgoingPassword(email: String) {}
     }
 }

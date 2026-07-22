@@ -635,4 +635,71 @@ class MigrationsTest {
             db.close()
         }
     }
+
+    /**
+     * Minimal v24 `accounts` table carrying just the columns MIGRATION_24_25
+     * reads (the incoming security pair) plus identity columns, so the ALTERs
+     * and the behaviour-preserving backfill can be exercised in isolation.
+     */
+    private fun openV24Database(): SupportSQLiteDatabase {
+        val context = RuntimeEnvironment.getApplication() as Context
+        return openWithCallback(context, 24) {
+            "CREATE TABLE accounts (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "email TEXT NOT NULL, " +
+                "useEncryption INTEGER NOT NULL, " +
+                "useStartTls INTEGER NOT NULL)"
+        }
+    }
+
+    @Test
+    fun `migration 24 to 25 splits outgoing security and adds username columns`() {
+        val db = openV24Database()
+        try {
+            // Three rows spanning the incoming security modes:
+            //  ssl  : useEncryption=1, useStartTls=0  (Security.SSL_TLS)
+            //  tls  : useEncryption=0, useStartTls=1  (Security.STARTTLS)
+            //  none : useEncryption=0, useStartTls=0  (Security.NONE)
+            db.execSQL("INSERT INTO accounts (email, useEncryption, useStartTls) VALUES ('ssl@example.com', 1, 0)")
+            db.execSQL("INSERT INTO accounts (email, useEncryption, useStartTls) VALUES ('tls@example.com', 0, 1)")
+            db.execSQL("INSERT INTO accounts (email, useEncryption, useStartTls) VALUES ('none@example.com', 0, 0)")
+
+            MIGRATION_24_25.migrate(db)
+
+            val columns = mutableSetOf<String>()
+            db.query("PRAGMA table_info(accounts)").use { cursor ->
+                val nameIdx = cursor.getColumnIndexOrThrow("name")
+                while (cursor.moveToNext()) {
+                    columns.add(cursor.getString(nameIdx))
+                }
+            }
+            assertTrue(columns.contains("outgoingUseEncryption"))
+            assertTrue(columns.contains("outgoingUseStartTls"))
+            assertTrue(columns.contains("incomingUsername"))
+            assertTrue(columns.contains("outgoingUsername"))
+
+            // Behaviour-preserving backfill: SMTP was STARTTLS whenever fetching
+            // had any encryption, cleartext otherwise, and never implicit SSL.
+            fun outgoing(email: String): Pair<Int, Int> =
+                db.query(
+                    "SELECT outgoingUseEncryption, outgoingUseStartTls FROM accounts WHERE email = '$email'"
+                ).use { cursor ->
+                    assertTrue(cursor.moveToFirst())
+                    cursor.getInt(0) to cursor.getInt(1)
+                }
+
+            assertEquals("SSL_TLS incoming -> STARTTLS outgoing", 0 to 1, outgoing("ssl@example.com"))
+            assertEquals("STARTTLS incoming -> STARTTLS outgoing", 0 to 1, outgoing("tls@example.com"))
+            assertEquals("NONE incoming -> NONE outgoing", 0 to 0, outgoing("none@example.com"))
+
+            // Usernames backfill to NULL (i.e. "use the account email").
+            db.query("SELECT incomingUsername, outgoingUsername FROM accounts WHERE email = 'ssl@example.com'").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertTrue("incomingUsername should be NULL", cursor.isNull(0))
+                assertTrue("outgoingUsername should be NULL", cursor.isNull(1))
+            }
+        } finally {
+            db.close()
+        }
+    }
 }

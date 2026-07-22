@@ -611,6 +611,50 @@ val MIGRATION_23_24: Migration = object : Migration(23, 24) {
 }
 
 /**
+ * Splits the incoming and outgoing servers into fully independent connections:
+ * each direction gets its own security mode and login username, so a user whose
+ * SMTP submission needs different credentials or a different TLS mode than IMAP
+ * fetching can now configure them separately. (The outgoing password lives in
+ * the encrypted [com.threemail.android.data.security.CredentialStore], not the
+ * DB, so there is no password column to add here.)
+ *
+ * Four additive columns:
+ *  - `outgoingUseEncryption` / `outgoingUseStartTls` : the SMTP-side counterpart
+ *    to the `(useEncryption, useStartTls)` pair, mapped by
+ *    [com.threemail.android.data.repository.AccountRepository] into the domain
+ *    `outgoingSecurity` enum.
+ *  - `incomingUsername` / `outgoingUsername` : explicit per-direction logins;
+ *    `NULL` preserves the historical "authenticate with the account email"
+ *    behaviour.
+ *
+ * Behaviour-preserving backfill for existing rows: before this split, the
+ * client always drove SMTP over STARTTLS whenever any encryption was enabled
+ * (`security != NONE`) and cleartext otherwise - it never used implicit SSL on
+ * the submission port. The `UPDATE` reproduces exactly that: outgoing STARTTLS
+ * when the incoming side had any encryption, outgoing cleartext when it was
+ * `Security.NONE`. `outgoingUseEncryption` stays 0 for every existing row for
+ * the same reason. Usernames backfill to `NULL` (still the account email).
+ *
+ * `ADD COLUMN` cannot take `IF NOT EXISTS`, but none of the four carry an index,
+ * FK, or trigger, so a partially-applied migration is safe to resume.
+ */
+val MIGRATION_24_25: Migration = object : Migration(24, 25) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE accounts ADD COLUMN outgoingUseEncryption INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE accounts ADD COLUMN outgoingUseStartTls INTEGER NOT NULL DEFAULT 1")
+        db.execSQL("ALTER TABLE accounts ADD COLUMN incomingUsername TEXT DEFAULT NULL")
+        db.execSQL("ALTER TABLE accounts ADD COLUMN outgoingUsername TEXT DEFAULT NULL")
+        // Preserve the legacy "SMTP is STARTTLS whenever fetching was encrypted,
+        // else cleartext" behaviour for rows that predate the split.
+        db.execSQL(
+            "UPDATE accounts SET " +
+                "outgoingUseStartTls = (CASE WHEN useEncryption <> 0 OR useStartTls <> 0 THEN 1 ELSE 0 END), " +
+                "outgoingUseEncryption = 0"
+        )
+    }
+}
+
+/**
  * Idempotently creates the FTS4 virtual table, the keep-in-sync triggers and an
  * initial backfill.  All statements use IF NOT EXISTS so a partial state can be
  * resumed without crashing; the backfill is a no-op on empty `messages`.

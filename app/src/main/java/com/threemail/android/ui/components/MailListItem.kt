@@ -67,18 +67,18 @@ fun MailListItem(
         else -> 44.dp
     }
 
-    // Unread/selected tints intentionally avoid `primaryContainer` because it
-    // is taken from the user's Material You accent palette. A red wallpaper
-    // would otherwise turn every unread row red (the accent can be highly
-    // saturated, so even 0.1f alpha reads as the accent colour). The neutral
-    // `surfaceVariant` comes from the accent-free tonal palette and stays
-    // neutral regardless of the wallpaper. Selected rows deliberately keep
-    // `primaryContainer` here because the user just chose them and the highlight
-    // should follow the theme.
-    val background = when {
-        selected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-        message.isRead -> MaterialTheme.colorScheme.surface
-        else -> MaterialTheme.colorScheme.surfaceVariant
+    // Unread rows are distinguished by font weight (bold sender + subject) and
+    // the full-opacity avatar, NOT a background fill. An earlier `surfaceVariant`
+    // tint on unread rows read as a grey band behind every unread item, which
+    // looked like clutter across a mostly-unread inbox. Read and unread rows now
+    // share the plain `surface`. Selected rows still get a highlight because the
+    // user just chose them; we keep it to `primaryContainer` (theme-driven) and
+    // deliberately avoid the accent colour on the rest of the row so a saturated
+    // Material You wallpaper can't tint the list.
+    val background = if (selected) {
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+    } else {
+        MaterialTheme.colorScheme.surface
     }
 
     Row(

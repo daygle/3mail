@@ -111,20 +111,46 @@ class NotificationHelper @Inject constructor(
         manager.notify(NOTIFICATION_ID, buildSummaryNotification(messages, recent))
     }
 
+    /**
+     * Sender label for notifications. Shows the actual From address so the
+     * user can see exactly who mailed them, prefixed with the display name when
+     * the sender supplied one (e.g. `Jane Doe <jane@example.com>`). Falls back
+     * to the bare address, then the bare name, then a generic "unknown sender"
+     * when there is no usable From at all.
+     */
+    private fun senderLabel(message: MailMessage): String {
+        val from = message.from.firstOrNull()
+        val name = from?.name?.trim().orEmpty()
+        val address = from?.address?.trim().orEmpty()
+        return when {
+            name.isNotBlank() && address.isNotBlank() && !name.equals(address, ignoreCase = true) ->
+                "$name <$address>"
+            address.isNotBlank() -> address
+            name.isNotBlank() -> name
+            else -> context.getString(R.string.notification_unknown_sender)
+        }
+    }
+
     private fun buildMessageNotification(message: MailMessage): Notification {
-        val sender = message.from.firstOrNull()
-            ?.let { it.name.ifBlank { it.address } }
-            ?: context.getString(R.string.notification_unknown_sender)
+        val sender = senderLabel(message)
         val subject = message.subject.ifBlank {
             context.getString(R.string.notification_no_subject)
         }
-        val preview = message.bodyPreview.ifBlank { subject }
+        // Lead the expanded view with the subject so it stays visible (BigText
+        // replaces the collapsed content text), then append the body preview
+        // when it adds anything beyond the subject.
+        val preview = message.bodyPreview.trim()
+        val bigText = if (preview.isBlank() || preview == subject) subject else "$subject\n\n$preview"
         val notificationId = messageNotificationId(message.id)
         return NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(sender)
             .setContentText(subject)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(preview))
+            .setStyle(
+                NotificationCompat.BigTextStyle()
+                    .setBigContentTitle(sender)
+                    .bigText(bigText)
+            )
             .setContentIntent(openMessageIntent(message.id))
             .setAutoCancel(true)
             .setGroup(NEW_MAIL_GROUP)
@@ -148,13 +174,11 @@ class NotificationHelper @Inject constructor(
     ): Notification {
         val inbox = NotificationCompat.InboxStyle()
         recent.forEach { message ->
-            val sender = message.from.firstOrNull()
-                ?.let { it.name.ifBlank { it.address } }
-                ?: context.getString(R.string.notification_unknown_sender)
+            val sender = senderLabel(message)
             val subject = message.subject.ifBlank {
                 context.getString(R.string.notification_no_subject)
             }
-            inbox.addLine("$sender  $subject")
+            inbox.addLine("$sender — $subject")
         }
         return NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)

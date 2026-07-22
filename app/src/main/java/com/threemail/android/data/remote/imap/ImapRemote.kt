@@ -22,6 +22,9 @@ class ImapRemote(private val client: ImapClient) : MailRemote {
     override suspend fun fetchMessages(folder: MailFolder, sinceCursor: Long, limit: Int): Result<RemoteFetch> =
         client.fetchMessagesSince(folder.serverId, sinceCursor, limit)
 
+    override suspend fun listExistingMessageUids(folder: MailFolder, cachedUids: List<Long>): Result<Set<Long>> =
+        client.existingUids(folder.serverId, cachedUids)
+
     override suspend fun fetchBody(folder: MailFolder, message: MailMessage): Result<MessageBody> =
         client.fetchBody(folder.serverId, uid(message))
 

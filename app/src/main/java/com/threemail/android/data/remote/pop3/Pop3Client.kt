@@ -53,7 +53,9 @@ class Pop3Client(private val account: Account) {
     private fun createSession(): Session {
         val isSsl = account.security == Security.SSL_TLS
         val isStartTls = account.security == Security.STARTTLS
-        val smtpStartTls = account.security != Security.NONE
+        // Outgoing (SMTP) security is independent of the incoming POP3 mode.
+        val smtpSsl = account.outgoingSecurity == Security.SSL_TLS
+        val smtpStartTls = account.outgoingSecurity == Security.STARTTLS
         val props = Properties().apply {
             setProperty("mail.store.protocol", protocol)
             setProperty("mail.$protocol.host", incomingServer())
@@ -67,6 +69,7 @@ class Pop3Client(private val account: Account) {
 
             // SMTP submission (identical policy to the IMAP client).
             setProperty("mail.smtp.auth", "true")
+            setProperty("mail.smtp.ssl.enable", smtpSsl.toString())
             setProperty("mail.smtp.starttls.enable", smtpStartTls.toString())
             if (smtpStartTls) setProperty("mail.smtp.starttls.required", "true")
             setProperty("mail.smtp.host", smtpServer())
@@ -94,8 +97,12 @@ class Pop3Client(private val account: Account) {
     private fun password(): String =
         account.password ?: throw IllegalStateException("POP3 account requires password")
 
+    // SMTP secret: the outgoing password, falling back to the incoming one.
+    private fun outgoingPassword(): String =
+        account.outgoingSecret ?: throw IllegalStateException("POP3 account requires password")
+
     private fun connectStore(): Store = getSession().getStore(protocol).apply {
-        connect(incomingServer(), account.email, password())
+        connect(incomingServer(), account.incomingLogin, password())
     }
 
     /** Opens INBOX in [mode], runs [block], and always closes cleanly. */
@@ -216,7 +223,7 @@ class Pop3Client(private val account: Account) {
             val mime = MimeBuilder.build(account.email, account.displayName, message)
             val transport = getSession().getTransport("smtp")
             try {
-                transport.connect(smtpServer(), account.outgoingPort, account.email, password())
+                transport.connect(smtpServer(), account.outgoingPort, account.outgoingLogin, outgoingPassword())
                 transport.sendMessage(mime, mime.allRecipients)
             } finally {
                 runCatching { transport.close() }

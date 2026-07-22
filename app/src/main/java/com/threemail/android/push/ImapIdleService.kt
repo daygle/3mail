@@ -233,6 +233,14 @@ class ImapIdleService : Service() {
                 // fetched (and notified) regardless of which one it was.
                 syncScheduler.enqueueImmediateSync(key.accountId)
             }
+            is IdleEvent.MailboxShrank -> {
+                Log.i(TAG, "IDLE mailbox shrank for $key (removed=${event.removed})")
+                // A message was deleted from another client. The same immediate
+                // sync runs the deletion-reconcile pass in MailSyncWorker, which
+                // drops the expunged message locally. No notification results
+                // because the sync only notifies for genuinely-new unread mail.
+                syncScheduler.enqueueImmediateSync(key.accountId)
+            }
             is IdleEvent.Disconnected -> {
                 Log.w(TAG, "IDLE disconnected for $key: ${event.cause}")
                 jobs.remove(key)

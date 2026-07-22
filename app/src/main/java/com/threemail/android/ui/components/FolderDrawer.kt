@@ -482,7 +482,11 @@ fun FolderDrawerContent(
                                     .fillMaxWidth()
                                     .onSizeChanged { rowHeightPx = it.height.toFloat() }
                                     .zIndex(if (isDragging) 1f else 0f)
-                                    .padding(horizontal = 12.dp, vertical = 4.dp)
+                                    // Outer margin only; the inner content padding
+                                    // below matches FolderTreeRow so a favourite row
+                                    // is exactly as tall as an email-folder row (and
+                                    // the selected pill fills the same height).
+                                    .padding(vertical = 2.dp)
                                     .then(
                                         if (isSelected) {
                                             Modifier
@@ -516,7 +520,11 @@ fun FolderDrawerContent(
                                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                             showMenu = true
                                         }
-                                    ),
+                                    )
+                                    // Inner content padding matched to FolderTreeRow
+                                    // (top/bottom 10.dp) so both row types share the
+                                    // same height and vertical rhythm.
+                                    .padding(start = 8.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 // Left chrome: folder-type icon mirroring
@@ -525,12 +533,17 @@ fun FolderDrawerContent(
                                 // so the favorites section reads as a folder
                                 // list rather than a tag list, and matches
                                 // the visual vocabulary the tree below uses.
-                                Icon(
-                                    imageVector = iconFor(folder.type),
-                                    contentDescription = null,
-                                    tint = contentTint,
-                                    modifier = Modifier.size(20.dp)
-                                )
+                                Box(
+                                    modifier = Modifier.size(24.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = iconFor(folder.type),
+                                        contentDescription = null,
+                                        tint = contentTint,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
                                 Spacer(Modifier.width(12.dp))
                                 Text(
                                     text = folder.name,

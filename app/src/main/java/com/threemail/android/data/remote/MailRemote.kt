@@ -34,6 +34,20 @@ interface MailRemote {
 
     suspend fun fetchMessages(folder: MailFolder, sinceCursor: Long, limit: Int): Result<RemoteFetch>
 
+    /**
+     * Given the provider ids ([cachedUids] - IMAP UIDs) currently cached
+     * locally for [folder], return the subset that STILL EXIST on the server.
+     * Sync deletes the difference (cached ids the server didn't return) so a
+     * message removed from another client also disappears here.
+     *
+     * The default keeps every id (a safe no-op) for transports that can't
+     * answer this cheaply (Gmail REST, POP3), so they never wrongly drop
+     * cached mail. On any error the caller must skip reconciliation rather
+     * than treat "unknown" as "deleted".
+     */
+    suspend fun listExistingMessageUids(folder: MailFolder, cachedUids: List<Long>): Result<Set<Long>> =
+        Result.success(cachedUids.toSet())
+
     suspend fun fetchBody(folder: MailFolder, message: MailMessage): Result<MessageBody>
 
     /**

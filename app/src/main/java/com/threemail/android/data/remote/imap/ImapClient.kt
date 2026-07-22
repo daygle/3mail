@@ -74,12 +74,14 @@ class ImapClient(
         //   SSL_TLS  → use the `imaps` protocol on port 993 (implicit TLS from byte 0)
         //   STARTTLS → use the `imap` protocol on port 143, then upgrade via STARTTLS
         //   NONE     → cleartext `imap` on port 143
-        // SMTP semantics lag IMAP by convention - 587 + STARTTLS is overwhelmingly
-        // the default for modern submission - so any non-NONE security asks for
-        // and requires STARTTLS on the SMTP side too.
+        // The outgoing (SMTP) server has its own security mode, independent of
+        // the incoming one: SSL_TLS uses implicit TLS (e.g. 465), STARTTLS
+        // upgrades a cleartext submission connection (e.g. 587), NONE is plain.
         val isSsl = account.security == Security.SSL_TLS
         val isStartTls = account.security == Security.STARTTLS
-        val smtpStartTls = account.security != Security.NONE
+        val outgoingSecurity = account.outgoingSecurity
+        val smtpSsl = outgoingSecurity == Security.SSL_TLS
+        val smtpStartTls = outgoingSecurity == Security.STARTTLS
         val protocol = if (isSsl) "imaps" else "imap"
 
         val props = Properties().apply {
@@ -97,6 +99,10 @@ class ImapClient(
             }
 
             setProperty("mail.smtp.auth", "true")
+            // Implicit TLS (SSL_TLS) vs opportunistic upgrade (STARTTLS) are
+            // mutually exclusive JavaMail flags; drive them from the outgoing
+            // security so a 465/SSL submission host works as well as 587/STARTTLS.
+            setProperty("mail.smtp.ssl.enable", smtpSsl.toString())
             setProperty("mail.smtp.starttls.enable", smtpStartTls.toString())
             setProperty("mail.smtp.host", getSmtpServer())
             setProperty("mail.smtp.port", getSmtpPort().toString())
@@ -157,7 +163,7 @@ class ImapClient(
             }
             AccountType.IMAP, AccountType.POP3 -> {
                 val password = account.password ?: throw IllegalStateException("IMAP account requires password")
-                store.connect(server, account.email, password)
+                store.connect(server, account.incomingLogin, password)
             }
         }
         return store
@@ -400,6 +406,49 @@ class ImapClient(
         }
 
     /**
+     * Returns the subset of [uids] that STILL EXIST (are not expunged) in
+     * [folderServerId] on the server. Sync uses this to detect messages a
+     * user deleted from another client: any locally-cached uid the server
+     * no longer returns has been removed remotely and should be dropped
+     * from the local cache.
+     *
+     * The check is a direct `UID FETCH` of exactly the supplied uids (chunked
+     * so a large cache doesn't build one enormous command), NOT a re-scan of
+     * the synced window, so even old cached messages are reconciled. An empty
+     * input short-circuits without opening the folder. If the folder can't be
+     * addressed by UID we return the input set unchanged (assume everything
+     * still exists) so a non-UID server never triggers a mass local delete.
+     */
+    suspend fun existingUids(folderServerId: String, uids: List<Long>): Result<Set<Long>> =
+        try {
+            if (uids.isEmpty()) {
+                Result.success(emptySet())
+            } else {
+                withFolder(folderServerId, Folder.READ_ONLY) { folder ->
+                    val uidFolder = folder as? UIDFolder ?: return@withFolder uids.toSet()
+                    val existing = HashSet<Long>(uids.size)
+                    uids.chunked(UID_EXISTENCE_CHUNK).forEach { chunk ->
+                        // getMessagesByUID(long[]) returns an array the same
+                        // length as the input, with a null slot for every uid
+                        // the server no longer has - exactly the expunged set.
+                        val messages = uidFolder.getMessagesByUID(chunk.toLongArray())
+                        for (msg in messages) {
+                            if (msg != null && !msg.isExpunged) {
+                                val uid = uidFolder.getUID(msg)
+                                if (uid > 0L) existing.add(uid)
+                            }
+                        }
+                    }
+                    existing
+                }.let { Result.success(it) }
+            }
+        } catch (e: RecoverableAuthException) {
+            throw e
+        } catch (e: MessagingException) {
+            Result.failure(e)
+        }
+
+    /**
      * Fetches only the envelope headers (RFC 5322 §3.6.1 plus any MIME
      * extensions like `Autocrypt` / `Autocrypt-Gossip`). Cheaper than
      * [fetchBody] for the opportunistic Autocrypt-key-learning path
@@ -627,7 +676,7 @@ class ImapClient(
             // properties (and TLS verification) actually apply.
             val transport = getSession().getTransport("smtp")
             try {
-                transport.connect(getSmtpServer(), getSmtpPort(), account.email, credential)
+                transport.connect(getSmtpServer(), getSmtpPort(), account.outgoingLogin, credential)
                 transport.sendMessage(mime, mime.allRecipients)
             } finally {
                 runCatching { transport.close() }
@@ -661,7 +710,7 @@ class ImapClient(
             val credential = credential()
             val transport = getSession().getTransport("smtp")
             try {
-                transport.connect(getSmtpServer(), getSmtpPort(), account.email, credential)
+                transport.connect(getSmtpServer(), getSmtpPort(), account.outgoingLogin, credential)
                 transport.sendMessage(mime, mime.allRecipients)
             } finally {
                 runCatching { transport.close() }
@@ -702,9 +751,12 @@ class ImapClient(
             Result.failure(e)
         }
 
+    // The SMTP credential: for password accounts this is the outgoing secret,
+    // which falls back to the incoming password when no separate outgoing
+    // password is configured (Account.outgoingSecret).
     private suspend fun credential(): String = when (account.accountType) {
         AccountType.GMAIL -> tokenProvider() ?: throw IllegalStateException("Gmail account requires OAuth access token")
-        AccountType.IMAP, AccountType.POP3 -> account.password ?: throw IllegalStateException("IMAP account requires password")
+        AccountType.IMAP, AccountType.POP3 -> account.outgoingSecret ?: throw IllegalStateException("IMAP account requires password")
     }
 
     // region parsing
@@ -844,6 +896,13 @@ class ImapClient(
 
     private companion object {
         private const val TAG = "ImapClient"
+
+        /**
+         * Max uids per `UID FETCH` when probing for expunged messages. JavaMail
+         * compresses consecutive uids into ranges, so this only bounds the
+         * worst case (a sparse cache) and keeps a single command reasonable.
+         */
+        private const val UID_EXISTENCE_CHUNK = 1000
 
         /**
          * Capability keywords surfaced via [IMAPStore.hasCapability]. Picked
