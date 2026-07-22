@@ -68,6 +68,15 @@ import kotlinx.coroutines.launch
 @Composable
 fun ManageCalendarsScreen(
     viewModel: ManageCalendarsViewModel = hiltViewModel(),
+    /**
+     * When `true` the "choose calendar type" chooser dialog opens immediately
+     * on first composition - used by the empty-state primary action on the
+     * main Calendar page so a user with no calendars at all lands one tap
+     * away from the type picker. Existing top-bar / deep-link callers pass
+     * `false` (the default) and continue to land on the manage list, with
+     * the existing FAB still opening the chooser manually if they want it.
+     */
+    autoAdd: Boolean = false,
     onNavigateBack: () -> Unit
 ) {
     val rowsByAccount by viewModel.rowsByAccount.collectAsState()
@@ -77,7 +86,7 @@ fun ManageCalendarsScreen(
     val snackbarHost = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    var showAddChooser by remember { mutableStateOf(false) }
+    var showAddChooser by remember { mutableStateOf(autoAdd) }
     var showSubscribeDialog by remember { mutableStateOf(false) }
     var showCreateDialog by remember { mutableStateOf(false) }
     var showAddIcsDialog by remember { mutableStateOf(false) }

@@ -231,7 +231,18 @@ fun ThreeMailNavHost(navController: NavHostController) {
                 onEditEvent = { accountId, eventId ->
                     navController.navigate(Screen.CalendarEvent.createRoute(accountId, eventId))
                 },
-                onNavigateToManageCalendars = { navController.navigate(Screen.ManageCalendars.route) },
+                // The boolean flag tells the receiver to land straight on the
+                // "choose calendar type" chooser - used by the empty-state
+                // primary action so users who have no calendars at all get a
+                // picker one tap away. The top-bar Tune shortcut still passes
+                // `false` so existing users land on the manage list as before.
+                onNavigateToManageCalendars = { autoAdd ->
+                    if (autoAdd) {
+                        navController.navigate(Screen.ManageCalendars.createRoute(autoAdd = true))
+                    } else {
+                        navController.navigate(Screen.ManageCalendars.route)
+                    }
+                },
                 onAddAccount = { navController.navigate(Screen.AddAccount.route) },
                 bottomBar = bottomBar
             )
@@ -252,9 +263,19 @@ fun ThreeMailNavHost(navController: NavHostController) {
                 onNavigateBack = { navController.popBackStack() }
             )
         }
-        composable(Screen.ManageCalendars.route) {
+        composable(
+            route = Screen.ManageCalendars.route,
+            arguments = listOf(
+                navArgument("autoAdd") {
+                    type = NavType.BoolType
+                    defaultValue = false
+                }
+            )
+        ) { backStackEntry ->
+            val autoAdd = backStackEntry.arguments?.getBoolean("autoAdd") ?: false
             ManageCalendarsScreen(
                 viewModel = hiltViewModel(),
+                autoAdd = autoAdd,
                 onNavigateBack = { navController.popBackStack() }
             )
         }

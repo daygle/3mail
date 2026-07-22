@@ -30,6 +30,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -65,7 +66,18 @@ fun CalendarScreen(
     onCreateEvent: (accountId: Long) -> Unit,
     onCreateSourceEvent: (sourceId: Long) -> Unit = {},
     onEditEvent: (accountId: Long, eventId: Long) -> Unit,
-    onNavigateToManageCalendars: () -> Unit = {},
+    /**
+     * Navigate to the Manage Calendars surface.
+     *
+     * The boolean flag is forwarded to [Screen.ManageCalendars.createRoute]
+     * to control whether the screen opens its "choose calendar type" chooser
+     * dialog on first composition. The top-bar Tune shortcut passes `false`
+     * so existing users land on the list as before; the empty-state primary
+     * action passes `true` so users with no calendars at all land one tap
+     * away from the picker for whatever calendar they have available
+     * (Google / CalDAV / webcal/ICS).
+     */
+    onNavigateToManageCalendars: (Boolean) -> Unit = {},
     onAddAccount: () -> Unit = {},
     bottomBar: @Composable () -> Unit = {}
 ) {
@@ -118,7 +130,7 @@ fun CalendarScreen(
                             contentDescription = stringResource(R.string.calendar_next_month)
                         )
                     }
-                    IconButton(onClick = onNavigateToManageCalendars) {
+                    IconButton(onClick = { onNavigateToManageCalendars(false) }) {
                         Icon(
                             imageVector = Icons.Default.Tune,
                             contentDescription = stringResource(R.string.manage_calendars_open)
@@ -158,11 +170,24 @@ fun CalendarScreen(
     ) { padding ->
         if (activeAccounts.isEmpty() && sources.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+                // Empty state when no Gmail accounts have calendar sync on AND
+                // no standalone subscriptions are configured. Two affordances:
+                //  - Primary "Add calendar" opens the type chooser (any of
+                //    Google / CalDAV / public webcal), so the user is not
+                //    forced to sign in with Google.
+                //  - Secondary "Sign in with Google" keeps the existing
+                //    one-tap path to add a Google account intact for users
+                //    who came here specifically to do that.
                 EmptyState(
                     title = stringResource(R.string.calendar_no_account_title),
                     subtitle = stringResource(R.string.calendar_no_account_subtitle),
-                    actionLabel = stringResource(R.string.sign_in_with_google),
-                    onAction = onAddAccount
+                    actionLabel = stringResource(R.string.calendar_add_action),
+                    onAction = { onNavigateToManageCalendars(true) },
+                    secondary = {
+                        TextButton(onClick = onAddAccount) {
+                            Text(stringResource(R.string.sign_in_with_google))
+                        }
+                    }
                 )
             }
             return@Scaffold

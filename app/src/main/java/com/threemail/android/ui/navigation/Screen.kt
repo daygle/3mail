@@ -79,6 +79,18 @@ sealed class Screen(val route: String) {
      * calendars with a per-row visibility toggle and surfaces two CTAs
      * (subscribe by URL / create new) so users can expand what the
      * calendar app shows. Deep-linked from CalendarScreen's top bar.
+     *
+     * [autoAdd] is an optional navigation argument: when `true`,
+     * [com.threemail.android.ui.screens.calendar.ManageCalendarsScreen]
+     * opens its "choose calendar type" chooser dialog on first
+     * composition (used by the empty-state primary action on the main
+     * Calendar page so the user lands one tap away from the type picker
+     * rather than having to tap a second FAB). Defaults to `false` so
+     * plain deep-links from the top bar continue to land on the manage
+     * list itself.
      */
-    data object ManageCalendars : Screen("manage_calendars")
+    data object ManageCalendars : Screen("manage_calendars?autoAdd={autoAdd}") {
+        fun createRoute(autoAdd: Boolean = false): String =
+            "manage_calendars?autoAdd=$autoAdd"
+    }
 }

@@ -27,6 +27,12 @@ import androidx.compose.ui.unit.dp
  * a primary call-to-action button beneath the subtitle. This turns otherwise
  * dead end-states (e.g. a fresh install with no accounts) into discoverable
  * recovery paths instead of leaving the user stranded with a static icon.
+ *
+ * The optional [secondary] composable slot renders below the primary
+ * action (or below the subtitle when no primary action is supplied), so
+ * callers can stack low-emphasis follow-up affordances - e.g. a
+ * TextButton for "sign in with Google" alongside a primary "Add calendar"
+ * button. The slot is responsible for its own spacing.
  */
 @Composable
 fun EmptyState(
@@ -34,7 +40,8 @@ fun EmptyState(
     subtitle: String,
     modifier: Modifier = Modifier,
     actionLabel: String? = null,
-    onAction: (() -> Unit)? = null
+    onAction: (() -> Unit)? = null,
+    secondary: @Composable () -> Unit = {}
 ) {
     Box(
         modifier = modifier.fillMaxSize(),
@@ -70,6 +77,7 @@ fun EmptyState(
                     Text(text = actionLabel)
                 }
             }
+            secondary()
         }
     }
 }

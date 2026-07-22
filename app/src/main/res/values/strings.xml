@@ -329,8 +329,14 @@
 
     <!-- Calendar -->
 
-    <string name="calendar_no_account_title">No Google account connected</string>
-    <string name="calendar_no_account_subtitle">Sign in with Google to see your events here.</string>
+    <!-- Empty state on the Calendar tab. The page supports any calendar type -
+         Google, CalDAV, or a public webcal/ICS link - so the copy talks about
+         "a calendar" rather than only Google. The primary action takes the
+         user to Manage Calendars with the chooser dialog open so they can
+         pick whichever source they have. -->
+    <string name="calendar_no_account_title">No calendars</string>
+    <string name="calendar_no_account_subtitle">Add a calendar to see your events here. 3mail supports Google calendars, CalDAV servers, and public iCal (webcal) feeds.</string>
+    <string name="calendar_add_action">Add calendar</string>
     <string name="calendar_no_events_title">Nothing scheduled</string>
     <string name="calendar_no_events_subtitle">Tap New event to add one.</string>
     <string name="calendar_prev_month">Previous month</string>
