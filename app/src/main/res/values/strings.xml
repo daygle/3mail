@@ -6,7 +6,7 @@
     <string name="search">Search</string>
     <string name="settings">Settings</string>
     <string name="accounts">Accounts</string>
-    <string name="add_account">Add account</string>
+    <string name="add_account">Add Account</string>
     <string name="sign_in_with_google">Sign in with Google</string>
     <string name="autoconfig_found">Found settings for your provider. Just add your password below.</string>
     <string name="autoconfig_not_found">Couldn\'t detect settings automatically. Enter your server details below.</string>
@@ -39,8 +39,8 @@
     <string name="sync">Sync</string>
     <string name="syncing">Syncing…</string>
     <string name="no_messages">No Messages</string>
-    <string name="unified_inbox">Unified inbox</string>
-    <string name="all_inboxes">All inboxes</string>
+    <string name="unified_inbox">Unified Inbox</string>
+    <string name="all_inboxes">All Inboxes</string>
     <string name="mark_all_read">Mark All as Read</string>
     <string name="mark_read">Mark Read</string>
     <string name="mark_unread">Mark Unread</string>
@@ -437,10 +437,10 @@
     <string name="footer_send_receive">Send/Receive</string>
     <string name="footer_manage_folders">Manage Folders</string>
     <string name="footer_settings">Settings</string>
-    <string name="footer_sync_all">Sync all accounts</string>
+    <string name="footer_sync_all">Sync All Accounts</string>
 
     <!-- Account switcher (drawer header expands to the account list) -->
-    <string name="account_list">Account list</string>
+    <string name="account_list">Account List</string>
 
     <!-- Security picker on Add Account -->
     <string name="security">Security</string>
