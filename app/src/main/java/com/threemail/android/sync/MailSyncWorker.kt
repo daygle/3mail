@@ -145,15 +145,18 @@ class MailSyncWorker(
                         }
                     }
                     mailRepository.updateFolderCursor(folder.id, fetch.nextCursor)
+                }
 
-                    // Propagate server-side deletions: any message another
-                    // client expunged should disappear here too. Incremental
-                    // fetch only ever ADDS (it asks for uids above the cursor),
-                    // so without this a message deleted elsewhere lingered
-                    // forever. The shared helper probes the exact set of cached
-                    // uids against the server and only deletes when the probe
-                    // SUCCEEDS, so a network failure is never read as "everything
-                    // was deleted"; Gmail/POP3 fall back to the no-op default.
+                // Propagate server-side deletions across EVERY folder, not just
+                // the deep-synced ones above. A message deleted from another
+                // client in any folder the user has opened (so it has cached
+                // rows) should disappear here too - the deep-sync fetch only
+                // ADDS mail above the cursor, so only this probe removes it.
+                // The shared helper deletes only when the server probe SUCCEEDS
+                // (a network failure is never read as "everything was deleted"),
+                // is a no-op for folders with nothing cached, and falls back to
+                // the MailRemote no-op default for Gmail/POP3.
+                savedFolders.forEach { folder ->
                     mailRepository.reconcileDeletions(remote, folder)
                         .onSuccess { removed ->
                             if (removed > 0) {
