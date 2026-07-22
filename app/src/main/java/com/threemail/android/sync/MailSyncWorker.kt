@@ -166,20 +166,14 @@ class MailSyncWorker(
                 // client in any folder the user has opened (so it has cached
                 // rows) should disappear here too - the deep-sync fetch only
                 // ADDS mail above the cursor, so only this probe removes it.
-                // The shared helper deletes only when the server probe SUCCEEDS
-                // (a network failure is never read as "everything was deleted"),
-                // is a no-op for folders with nothing cached, and falls back to
-                // the MailRemote no-op default for Gmail/POP3.
-                savedFolders.forEach { folder ->
-                    mailRepository.reconcileDeletions(remote, folder)
-                        .onSuccess { removed ->
-                            if (removed > 0) {
-                                Log.d(TAG, "Removed $removed remotely-deleted message(s) from ${folder.name}")
-                            }
-                        }
-                        .onFailure {
-                            Log.w(TAG, "Deletion reconcile skipped for ${folder.name}: ${it.message}")
-                        }
+                // The batch reconcile probes all folders over ONE connection
+                // (instead of reconnecting per folder), deletes only for folders
+                // the server actually reported back (a dropped connection is a
+                // safe no-op), skips folders with nothing cached, and no-ops for
+                // Gmail/POP3 via the MailRemote default.
+                val removedAcrossFolders = mailRepository.reconcileDeletionsBatch(remote, savedFolders)
+                if (removedAcrossFolders > 0) {
+                    Log.d(TAG, "Removed $removedAcrossFolders remotely-deleted message(s) for ${account.email}")
                 }
             }
 

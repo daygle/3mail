@@ -25,6 +25,21 @@ class ImapRemote(private val client: ImapClient) : MailRemote {
     override suspend fun listExistingMessageUids(folder: MailFolder, cachedUids: List<Long>): Result<Set<Long>> =
         client.existingUids(folder.serverId, cachedUids)
 
+    override suspend fun listExistingMessageUidsBatch(
+        folderUids: Map<MailFolder, List<Long>>
+    ): Result<Map<MailFolder, Set<Long>>> {
+        // One store connection for every folder, then map serverId results back
+        // to their MailFolder keys. Folders the client omitted (probe failed)
+        // stay omitted here too, so the caller leaves their cache untouched.
+        val bySrvId = client.existingUidsBatch(folderUids.entries.associate { it.key.serverId to it.value })
+            .getOrElse { return Result.failure(it) }
+        val out = HashMap<MailFolder, Set<Long>>(folderUids.size)
+        for (folder in folderUids.keys) {
+            bySrvId[folder.serverId]?.let { out[folder] = it }
+        }
+        return Result.success(out)
+    }
+
     override suspend fun fetchBody(folder: MailFolder, message: MailMessage): Result<MessageBody> =
         client.fetchBody(folder.serverId, uid(message))
 

@@ -425,21 +425,7 @@ class ImapClient(
                 Result.success(emptySet())
             } else {
                 withFolder(folderServerId, Folder.READ_ONLY) { folder ->
-                    val uidFolder = folder as? UIDFolder ?: return@withFolder uids.toSet()
-                    val existing = HashSet<Long>(uids.size)
-                    uids.chunked(UID_EXISTENCE_CHUNK).forEach { chunk ->
-                        // getMessagesByUID(long[]) returns an array the same
-                        // length as the input, with a null slot for every uid
-                        // the server no longer has - exactly the expunged set.
-                        val messages = uidFolder.getMessagesByUID(chunk.toLongArray())
-                        for (msg in messages) {
-                            if (msg != null && !msg.isExpunged) {
-                                val uid = uidFolder.getUID(msg)
-                                if (uid > 0L) existing.add(uid)
-                            }
-                        }
-                    }
-                    existing
+                    existingUidsIn(folder, uids)
                 }.let { Result.success(it) }
             }
         } catch (e: RecoverableAuthException) {
@@ -447,6 +433,80 @@ class ImapClient(
         } catch (e: MessagingException) {
             Result.failure(e)
         }
+
+    /**
+     * Batch counterpart to [existingUids]: probe several folders' cached uids
+     * over a SINGLE store connection instead of reconnecting per folder, which
+     * is what the periodic deletion-reconcile sweep needs when it checks every
+     * folder the user has opened. Returns a map from serverId to its surviving
+     * uid set.
+     *
+     * Per-folder resilience: a folder that can't be opened (e.g. it was deleted
+     * on the server) is simply OMITTED from the result rather than failing the
+     * whole batch, so one vanished folder never blocks reconciling the others
+     * and never gets its own cache wrongly cleared (the caller only prunes
+     * folders present in the map). If the store connection itself fails, the
+     * whole call fails and nothing is reconciled. Folders with an empty uid
+     * list map to an empty set without opening them.
+     */
+    suspend fun existingUidsBatch(folderUids: Map<String, List<Long>>): Result<Map<String, Set<Long>>> =
+        withContext(Dispatchers.IO) {
+            try {
+                val store = connectStore()
+                try {
+                    val out = HashMap<String, Set<Long>>(folderUids.size)
+                    for ((serverId, uids) in folderUids) {
+                        if (uids.isEmpty()) {
+                            out[serverId] = emptySet()
+                            continue
+                        }
+                        // Open each folder inside the shared store; a failure
+                        // for one folder (missing/expunged) omits it, leaving
+                        // its cache untouched, without tearing down the batch.
+                        runCatching {
+                            val folder = store.getFolder(serverId)
+                            if (!folder.isOpen) folder.open(Folder.READ_ONLY)
+                            try {
+                                existingUidsIn(folder, uids)
+                            } finally {
+                                runCatching { folder.close(false) }
+                            }
+                        }.onSuccess { out[serverId] = it }
+                    }
+                    Result.success(out)
+                } finally {
+                    runCatching { store.close() }
+                }
+            } catch (e: RecoverableAuthException) {
+                throw e
+            } catch (e: MessagingException) {
+                Result.failure(e)
+            }
+        }
+
+    /**
+     * Core existence probe shared by [existingUids] and [existingUidsBatch]:
+     * chunked `UID FETCH` of exactly [uids] against an already-open [folder],
+     * returning the subset the server still has. A non-UID folder yields the
+     * input set unchanged so a non-UID server never triggers a mass delete.
+     */
+    private fun existingUidsIn(folder: Folder, uids: List<Long>): Set<Long> {
+        val uidFolder = folder as? UIDFolder ?: return uids.toSet()
+        val existing = HashSet<Long>(uids.size)
+        uids.chunked(UID_EXISTENCE_CHUNK).forEach { chunk ->
+            // getMessagesByUID(long[]) returns an array the same length as the
+            // input, with a null slot for every uid the server no longer has -
+            // exactly the expunged set.
+            val messages = uidFolder.getMessagesByUID(chunk.toLongArray())
+            for (msg in messages) {
+                if (msg != null && !msg.isExpunged) {
+                    val uid = uidFolder.getUID(msg)
+                    if (uid > 0L) existing.add(uid)
+                }
+            }
+        }
+        return existing
+    }
 
     /**
      * Fetches only the envelope headers (RFC 5322 §3.6.1 plus any MIME

@@ -172,7 +172,7 @@ class MailRepositoryTest {
         insertMessage(folderId, uid = 30L, messageId = "c")
 
         // Server reports only uids 10 and 30 still exist; 20 was expunged.
-        val remote = FakeExistenceRemote(existing = Result.success(setOf(10L, 30L)))
+        val remote = FakeExistenceRemote { _, _ -> Result.success(setOf(10L, 30L)) }
         val removed = repository.reconcileDeletions(remote, folder).getOrThrow()
 
         assertEquals(1, removed)
@@ -194,7 +194,7 @@ class MailRepositoryTest {
         insertMessage(folderId, uid = 20L, messageId = "b")
 
         // A transient network error must NOT be read as "everything was deleted".
-        val remote = FakeExistenceRemote(existing = Result.failure(java.io.IOException("offline")))
+        val remote = FakeExistenceRemote { _, _ -> Result.failure(java.io.IOException("offline")) }
         val result = repository.reconcileDeletions(remote, folder)
 
         assertTrue(result.isFailure)
@@ -257,18 +257,77 @@ class MailRepositoryTest {
         )
     }
 
+    @Test
+    fun `reconcileDeletionsBatch reconciles multiple folders in one pass`() = runBlocking {
+        val inboxId = insertFolder("INBOX", FolderType.Inbox)
+        val workId = insertFolder("Work", FolderType.CUSTOM)
+        insertMessage(inboxId, uid = 10L, messageId = "i-keep")
+        insertMessage(inboxId, uid = 20L, messageId = "i-gone")
+        insertMessage(workId, uid = 30L, messageId = "w-gone")
+        insertMessage(workId, uid = 40L, messageId = "w-keep")
+
+        // Per-folder server truth: INBOX keeps 10, Work keeps 40.
+        val remote = FakeExistenceRemote { folder, _ ->
+            when (folder.serverId) {
+                "INBOX" -> Result.success(setOf(10L))
+                "Work" -> Result.success(setOf(40L))
+                else -> Result.success(emptySet())
+            }
+        }
+        val folders = repository.getFoldersOnce(accountId)
+        val removed = repository.reconcileDeletionsBatch(remote, folders)
+
+        assertEquals(2, removed)
+        assertEquals(listOf("i-keep"), repository.getMessagesOnce(inboxId).map { it.messageId })
+        assertEquals(listOf("w-keep"), repository.getMessagesOnce(workId).map { it.messageId })
+    }
+
+    @Test
+    fun `reconcileDeletionsBatch leaves a folder untouched when its probe fails`() = runBlocking {
+        val inboxId = insertFolder("INBOX", FolderType.Inbox)
+        val workId = insertFolder("Work", FolderType.CUSTOM)
+        insertMessage(inboxId, uid = 10L, messageId = "i-keep")
+        insertMessage(inboxId, uid = 20L, messageId = "i-gone")
+        insertMessage(workId, uid = 30L, messageId = "w-a")
+        insertMessage(workId, uid = 40L, messageId = "w-b")
+
+        // Work's probe fails (folder vanished / transient error) so it is omitted
+        // from the batch result and must keep both of its messages; INBOX still
+        // reconciles normally.
+        val remote = FakeExistenceRemote { folder, _ ->
+            when (folder.serverId) {
+                "INBOX" -> Result.success(setOf(10L))
+                else -> Result.failure(java.io.IOException("folder gone"))
+            }
+        }
+        val removed = repository.reconcileDeletionsBatch(remote, repository.getFoldersOnce(accountId))
+
+        assertEquals(1, removed)
+        assertEquals(listOf("i-keep"), repository.getMessagesOnce(inboxId).map { it.messageId })
+        assertEquals(2, repository.getMessagesOnce(workId).size)
+    }
+
+    private suspend fun insertFolder(serverId: String, type: FolderType): Long =
+        db.folderDao().insert(
+            com.threemail.android.data.local.entity.FolderEntity(
+                accountId = accountId, serverId = serverId, name = serverId, type = type
+            )
+        )
+
     /**
-     * Minimal [MailRemote] that answers only listExistingMessageUids (with a
-     * caller-supplied result) and fails loudly on any other call, so the test
-     * exercises exactly the reconcile probe.
+     * Minimal [MailRemote] that answers only listExistingMessageUids (via a
+     * caller-supplied per-folder probe) and fails loudly on any other call, so
+     * the tests exercise exactly the reconcile probe. The batch reconcile runs
+     * through the default [MailRemote.listExistingMessageUidsBatch], which loops
+     * this probe and omits folders whose probe fails.
      */
     private class FakeExistenceRemote(
-        private val existing: Result<Set<Long>>
+        private val probe: (MailFolder, List<Long>) -> Result<Set<Long>>
     ) : MailRemote {
         override suspend fun listExistingMessageUids(
             folder: MailFolder,
             cachedUids: List<Long>
-        ): Result<Set<Long>> = existing
+        ): Result<Set<Long>> = probe(folder, cachedUids)
 
         override suspend fun testConnection(): Result<RemoteCapabilities> = notStubbed()
         override suspend fun fetchFolders(): Result<List<MailFolder>> = notStubbed()

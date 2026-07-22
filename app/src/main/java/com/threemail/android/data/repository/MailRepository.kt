@@ -378,6 +378,31 @@ class MailRepository @Inject constructor(
             .map { existing -> reconcileFolderDeletions(folder.id, existing) }
     }
 
+    /**
+     * Reconcile remote deletions across [folders] in one shot. Collects each
+     * folder's cached uids, hands the non-empty ones to
+     * [MailRemote.listExistingMessageUidsBatch] (IMAP probes them over a single
+     * connection instead of reconnecting per folder), then prunes the missing
+     * uids folder-by-folder. Returns the total number of messages removed.
+     *
+     * Only folders the remote actually reported back are touched: a folder it
+     * omitted (probe failed) or that had nothing cached is left intact. A total
+     * batch failure is a safe no-op (returns 0) so a dropped connection never
+     * reads as "everything was deleted". Gmail/POP3 fall back to the default
+     * batch, which reports every cached uid as still-existing (deletes nothing).
+     */
+    suspend fun reconcileDeletionsBatch(remote: MailRemote, folders: List<MailFolder>): Int {
+        val folderUids = folders.associateWith { getCachedUids(it.id) }
+            .filterValues { it.isNotEmpty() }
+        if (folderUids.isEmpty()) return 0
+        val existingByFolder = remote.listExistingMessageUidsBatch(folderUids).getOrElse { return 0 }
+        var removed = 0
+        for ((folder, existing) in existingByFolder) {
+            removed += reconcileFolderDeletions(folder.id, existing)
+        }
+        return removed
+    }
+
     suspend fun updateReadStatus(id: Long, isRead: Boolean) {
         messageDao.updateReadStatus(id, isRead)
     }

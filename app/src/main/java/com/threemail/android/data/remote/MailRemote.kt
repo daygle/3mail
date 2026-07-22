@@ -48,6 +48,29 @@ interface MailRemote {
     suspend fun listExistingMessageUids(folder: MailFolder, cachedUids: List<Long>): Result<Set<Long>> =
         Result.success(cachedUids.toSet())
 
+    /**
+     * Batch counterpart to [listExistingMessageUids]: given each folder's
+     * cached uids, return the surviving subset per folder. IMAP overrides this
+     * to probe every folder over a SINGLE connection (the periodic
+     * deletion-reconcile sweep touches every opened folder, so one connection
+     * instead of N matters). The default just loops the single-folder probe.
+     *
+     * A folder whose probe fails is OMITTED from the result (its cache is then
+     * left untouched by the caller) rather than failing the whole batch, so one
+     * vanished folder never blocks the others. A total failure (e.g. the
+     * connection dropping) is only surfaced by transports that choose to; the
+     * default never fails.
+     */
+    suspend fun listExistingMessageUidsBatch(
+        folderUids: Map<MailFolder, List<Long>>
+    ): Result<Map<MailFolder, Set<Long>>> {
+        val out = HashMap<MailFolder, Set<Long>>(folderUids.size)
+        for ((folder, uids) in folderUids) {
+            listExistingMessageUids(folder, uids).onSuccess { out[folder] = it }
+        }
+        return Result.success(out)
+    }
+
     suspend fun fetchBody(folder: MailFolder, message: MailMessage): Result<MessageBody>
 
     /**
