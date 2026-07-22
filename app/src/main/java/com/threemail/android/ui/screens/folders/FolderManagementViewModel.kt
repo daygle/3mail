@@ -7,9 +7,12 @@ import com.threemail.android.data.repository.AccountRepository
 import com.threemail.android.data.repository.MailRepository
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.MailFolder
+import com.threemail.android.data.repository.FolderPaths
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -87,4 +90,117 @@ class FolderManagementViewModel @Inject constructor(
             }
         }
     }
+
+    /**
+     * One-shot messages for the screen's snackbar. The screen maps each event
+     * to a localized string; keeping the event provider-agnostic (and free of
+     * `Context`) means the view-model needs no Android string handles.
+     */
+    sealed interface FolderEvent {
+        /** Folder was successfully renamed/moved/deleted; carries the display name. */
+        data class Renamed(val name: String) : FolderEvent
+        data class Moved(val name: String) : FolderEvent
+        data class Deleted(val name: String) : FolderEvent
+        /** Server (or transport) rejected the operation. */
+        data class Failed(val name: String) : FolderEvent
+        /** Client-side validation stopped the operation before any server call. */
+        object InvalidName : FolderEvent
+        object DuplicateName : FolderEvent
+    }
+
+    private val _events = MutableSharedFlow<FolderEvent>(extraBufferCapacity = 8)
+    val events: SharedFlow<FolderEvent> = _events
+
+    /**
+     * Rename a custom folder's leaf (its parent is unchanged). Validates the
+     * new name locally, renames on the server, and only then rewrites the local
+     * cache (folder + descendants) so the tree never drifts ahead of the server.
+     */
+    fun renameFolder(folder: MailFolder, newLeafName: String) {
+        val folders = uiState.value.folders
+        val separator = FolderPaths.separatorOf(folders)
+        val trimmed = newLeafName.trim()
+        if (trimmed.isEmpty() || trimmed.indexOf(separator) >= 0) {
+            _events.tryEmit(FolderEvent.InvalidName)
+            return
+        }
+        if (trimmed == folder.name) return // no-op rename
+        val newServerId = FolderPaths.renamed(folder.serverId, trimmed, separator)
+        if (folders.any { it.serverId == newServerId }) {
+            _events.tryEmit(FolderEvent.DuplicateName)
+            return
+        }
+        relocate(folder, newServerId, trimmed, folders, separator, FolderEvent.Renamed(trimmed))
+    }
+
+    /**
+     * Move a custom folder under [newParent] (or to the top level when null),
+     * keeping its own name. Rejects moving a folder into itself or one of its
+     * descendants, and rejects a destination already occupied by another folder.
+     */
+    fun moveFolder(folder: MailFolder, newParent: MailFolder?) {
+        val folders = uiState.value.folders
+        val separator = FolderPaths.separatorOf(folders)
+        if (newParent != null &&
+            FolderPaths.isSelfOrDescendant(folder.serverId, newParent.serverId, separator)
+        ) {
+            _events.tryEmit(FolderEvent.Failed(folder.name))
+            return
+        }
+        val newServerId = FolderPaths.reparented(folder.serverId, newParent?.serverId, separator)
+        if (newServerId == folder.serverId) return // already in place
+        if (folders.any { it.serverId == newServerId }) {
+            _events.tryEmit(FolderEvent.DuplicateName)
+            return
+        }
+        relocate(folder, newServerId, folder.name, folders, separator, FolderEvent.Moved(folder.name))
+    }
+
+    /** Delete a custom folder and its subfolders on the server, then locally. */
+    fun deleteFolder(folder: MailFolder) {
+        viewModelScope.launch {
+            val folders = uiState.value.folders
+            val separator = FolderPaths.separatorOf(folders)
+            val account = accountFor(folder) ?: return@launch
+            val serverIds = listOf(folder.serverId) +
+                FolderPaths.descendantsOf(folder.serverId, folders, separator).map { it.serverId }
+            val result = runCatching {
+                mailRemoteFactory.create(account).deleteFolder(folder.serverId)
+            }.getOrElse { Result.failure(it) }
+            if (result.isSuccess) {
+                mailRepository.applyFolderDeletion(account.id, serverIds)
+                _events.emit(FolderEvent.Deleted(folder.name))
+            } else {
+                _events.emit(FolderEvent.Failed(folder.name))
+            }
+        }
+    }
+
+    private fun relocate(
+        folder: MailFolder,
+        newServerId: String,
+        newName: String,
+        folders: List<MailFolder>,
+        separator: Char,
+        success: FolderEvent
+    ) {
+        viewModelScope.launch {
+            val account = accountFor(folder) ?: return@launch
+            val rewrites = FolderPaths.descendantsOf(folder.serverId, folders, separator)
+                .map { it.serverId to FolderPaths.rewriteDescendant(it.serverId, folder.serverId, newServerId) }
+            val result = runCatching {
+                mailRemoteFactory.create(account).renameFolder(folder.serverId, newServerId)
+            }.getOrElse { Result.failure(it) }
+            if (result.isSuccess) {
+                mailRepository.applyFolderRelocation(account.id, folder.serverId, newServerId, newName, rewrites)
+                _events.emit(success)
+            } else {
+                _events.emit(FolderEvent.Failed(folder.name))
+            }
+        }
+    }
+
+    private suspend fun accountFor(folder: MailFolder): Account? =
+        _selectedAccount.value?.takeIf { it.id == folder.accountId }
+            ?: accountRepository.getAccountById(folder.accountId)
 }

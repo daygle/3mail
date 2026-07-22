@@ -50,6 +50,66 @@ interface FolderDao {
     @Query("DELETE FROM folders WHERE accountId = :accountId")
     suspend fun deleteByAccount(accountId: Long)
 
+    @Query("DELETE FROM folders WHERE accountId = :accountId AND serverId = :serverId")
+    suspend fun deleteByServerId(accountId: Long, serverId: String)
+
+    /** Change a folder's full path AND its displayed leaf name (used on rename). */
+    @Query("UPDATE folders SET serverId = :newServerId, name = :newName WHERE accountId = :accountId AND serverId = :oldServerId")
+    suspend fun updateFolderPathAndName(accountId: Long, oldServerId: String, newServerId: String, newName: String)
+
+    /** Change only a folder's full path, keeping its name (used for descendants). */
+    @Query("UPDATE folders SET serverId = :newServerId WHERE accountId = :accountId AND serverId = :oldServerId")
+    suspend fun updateFolderServerId(accountId: Long, oldServerId: String, newServerId: String)
+
+    /** Follow a folder's path change in the favourites side table so a renamed
+     *  or moved folder keeps its starred state and drag-order slot. */
+    @Query("UPDATE folder_favorites SET serverId = :newServerId WHERE accountId = :accountId AND serverId = :oldServerId")
+    suspend fun updateFavoriteServerId(accountId: Long, oldServerId: String, newServerId: String)
+
+    /**
+     * Apply a rename or reparent (both are a full-path change) atomically for a
+     * folder and all its descendants. [descendantRewrites] is a list of
+     * (oldServerId -> newServerId) for every folder strictly beneath the moved
+     * one; those keep their display name and only shift path prefix. The moved
+     * folder itself takes [newServerId] and [newName] (unchanged on a pure move).
+     *
+     * Wrapped in a [Transaction] so a crash or cancellation mid-rewrite can't
+     * leave the tree half-renamed. Descendants are rewritten before the folder
+     * itself, but order is immaterial here: the server has already accepted the
+     * same rename, so none of the target paths collide with a surviving row.
+     * Favourite rows are moved alongside each path so starred state survives.
+     */
+    @Transaction
+    suspend fun relocateFolder(
+        accountId: Long,
+        oldServerId: String,
+        newServerId: String,
+        newName: String,
+        descendantRewrites: List<Pair<String, String>>
+    ) {
+        descendantRewrites.forEach { (oldId, newId) ->
+            updateFolderServerId(accountId, oldId, newId)
+            updateFavoriteServerId(accountId, oldId, newId)
+        }
+        updateFolderPathAndName(accountId, oldServerId, newServerId, newName)
+        updateFavoriteServerId(accountId, oldServerId, newServerId)
+    }
+
+    /**
+     * Delete a folder and its descendants locally after a successful server
+     * delete. Removing each `folders` row cascades to its cached `messages`
+     * (folderId FK is ON DELETE CASCADE); the favourites side table has no FK,
+     * so its rows are cleared explicitly. [serverIds] must include the folder
+     * itself plus every descendant serverId.
+     */
+    @Transaction
+    suspend fun deleteFolderTree(accountId: Long, serverIds: List<String>) {
+        serverIds.forEach { serverId ->
+            removeFavorite(accountId, serverId)
+            deleteByServerId(accountId, serverId)
+        }
+    }
+
     /**
      * Reactive feed of all (accountId, serverId) pairs in `folder_favorites`
      * for the given account, in the order the user has dragged them to.

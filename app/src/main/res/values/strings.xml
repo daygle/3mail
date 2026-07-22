@@ -109,8 +109,29 @@
     <string name="protocol_imap_subtitle">Keeps mail and folders in sync with the server (recommended).</string>
     <string name="protocol_pop3_subtitle">Downloads inbox mail. No server folders, flags, or push.</string>
     <string name="pop3_server">POP3 server</string>
-    <string name="manage_folders_title">Manage folders</string>
+    <string name="manage_folders_title">Manage Folders</string>
     <string name="manage_folders_description">Turn a folder off to hide it from the navigation drawer. On IMAP this also unsubscribes it on the server so other apps hide it too; the folder stays on the server and keeps syncing.</string>
+    <!-- Per-row overflow: rename / move / delete a custom IMAP folder. -->
+    <string name="folder_actions_content_description">Folder actions</string>
+    <string name="folder_action_rename">Rename</string>
+    <string name="folder_action_move">Move</string>
+    <string name="folder_action_delete">Delete</string>
+    <!-- Rename dialog -->
+    <string name="rename_folder_title">Rename folder</string>
+    <string name="rename_folder_label">Folder name</string>
+    <!-- Move dialog -->
+    <string name="move_folder_title">Move folder</string>
+    <string name="move_folder_top_level">Top level (no parent)</string>
+    <!-- Delete confirmation -->
+    <string name="delete_folder_title">Delete folder?</string>
+    <string name="delete_folder_message">Delete \"%1$s\" and any subfolders from the server? This also removes their cached messages and can\'t be undone.</string>
+    <!-- Snackbar results -->
+    <string name="folder_renamed">Renamed to \"%1$s\"</string>
+    <string name="folder_moved">Moved \"%1$s\"</string>
+    <string name="folder_deleted">Deleted \"%1$s\"</string>
+    <string name="folder_op_failed">Couldn\'t update \"%1$s\" on the server</string>
+    <string name="folder_name_invalid">Enter a valid folder name</string>
+    <string name="folder_name_duplicate">A folder with that name already exists</string>
     <string name="action_undo">Undo</string>
     <string name="snackbar_archived">Archived</string>
     <string name="snackbar_deleted">Moved to Trash</string>

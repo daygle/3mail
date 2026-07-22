@@ -635,6 +635,75 @@ class ImapClient(
             Result.failure(e)
         }
 
+    /**
+     * Rename (or reparent) a folder by changing its full path from
+     * [oldServerId] to [newServerId]. IMAP's RENAME command relocates the
+     * folder and all of its subfolders in one step, so no per-descendant
+     * work is needed here. Fails if the source is missing or a folder already
+     * exists at the destination (so we never clobber an unrelated mailbox).
+     */
+    suspend fun renameFolder(oldServerId: String, newServerId: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            try {
+                val store = connectStore()
+                try {
+                    val source = store.getFolder(oldServerId)
+                    if (!source.exists()) {
+                        return@withContext Result.failure(
+                            MessagingException("Folder no longer exists: $oldServerId")
+                        )
+                    }
+                    val dest = store.getFolder(newServerId)
+                    if (dest.exists()) {
+                        return@withContext Result.failure(
+                            MessagingException("A folder already exists at: $newServerId")
+                        )
+                    }
+                    if (source.isOpen) runCatching { source.close(false) }
+                    if (source.renameTo(dest)) {
+                        Result.success(Unit)
+                    } else {
+                        Result.failure(MessagingException("Server rejected rename of $oldServerId"))
+                    }
+                } finally {
+                    runCatching { store.close() }
+                }
+            } catch (e: RecoverableAuthException) {
+                throw e
+            } catch (e: MessagingException) {
+                Result.failure(e)
+            }
+        }
+
+    /**
+     * Delete a folder and its subfolders from the server. Treated as a
+     * successful no-op when the folder is already gone (idempotent), so a
+     * retried delete doesn't surface a spurious error.
+     */
+    suspend fun deleteFolder(serverId: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            try {
+                val store = connectStore()
+                try {
+                    val folder = store.getFolder(serverId)
+                    if (!folder.exists()) return@withContext Result.success(Unit)
+                    if (folder.isOpen) runCatching { folder.close(false) }
+                    // recurse = true so subfolders are removed alongside the parent.
+                    if (folder.delete(true)) {
+                        Result.success(Unit)
+                    } else {
+                        Result.failure(MessagingException("Server rejected delete of $serverId"))
+                    }
+                } finally {
+                    runCatching { store.close() }
+                }
+            } catch (e: RecoverableAuthException) {
+                throw e
+            } catch (e: MessagingException) {
+                Result.failure(e)
+            }
+        }
+
     suspend fun moveMessage(fromServerId: String, uid: Long, toServerId: String): Result<Unit> =
         try {
             withContext(Dispatchers.IO) {
