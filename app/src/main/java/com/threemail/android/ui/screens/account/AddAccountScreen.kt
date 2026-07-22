@@ -128,6 +128,8 @@ fun AddAccountScreen(
         ) {
             when (step) {
                 AddStep.ChooseProvider -> ProviderChooser(
+                    isBusy = state.isSaving,
+                    error = state.error,
                     onGoogle = { viewModel.signInWithGoogle(context) },
                     onProvider = { picked ->
                         viewModel.applyProvider(picked)
@@ -136,6 +138,7 @@ fun AddAccountScreen(
                     },
                     onOther = {
                         provider = null
+                        viewModel.updateError(null)
                         viewModel.updateAccountType(AccountType.IMAP)
                         step = AddStep.Form
                     }
@@ -152,6 +155,8 @@ fun AddAccountScreen(
 
 @Composable
 private fun ProviderChooser(
+    isBusy: Boolean,
+    error: String?,
     onGoogle: () -> Unit,
     onProvider: (ProviderPreset) -> Unit,
     onOther: () -> Unit
@@ -160,23 +165,52 @@ private fun ProviderChooser(
         text = stringResource(R.string.add_account_choose_provider),
         style = MaterialTheme.typography.titleMedium
     )
+    // While a provider sign-in (currently only Google's Credential Manager
+    // flow) is in flight, show a spinner and disable the cards so a second
+    // tap can't kick off a parallel request.
+    if (isBusy) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+            Spacer(Modifier.width(12.dp))
+            Text(
+                text = stringResource(R.string.add_account_connecting),
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+    }
     MailProviders.ALL.forEach { preset ->
         ProviderCard(
             label = preset.displayName,
+            enabled = !isBusy,
             onClick = {
                 if (preset.auth == ProviderAuth.OAUTH_GOOGLE) onGoogle() else onProvider(preset)
             }
         )
     }
-    ProviderCard(label = stringResource(R.string.add_account_other), onClick = onOther)
+    ProviderCard(
+        label = stringResource(R.string.add_account_other),
+        enabled = !isBusy,
+        onClick = onOther
+    )
+    // Surface sign-in failures here too - the provider chooser is a distinct
+    // step from the details form, and an error raised during Google sign-in
+    // (e.g. an unconfigured OAuth client id, or the user dismissing the sheet)
+    // would otherwise be invisible because the form's error text never shows.
+    error?.let {
+        Text(
+            text = it,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodyMedium
+        )
+    }
 }
 
 @Composable
-private fun ProviderCard(label: String, onClick: () -> Unit) {
+private fun ProviderCard(label: String, enabled: Boolean = true, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() },
+            .clickable(enabled = enabled) { onClick() },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
     ) {
         Row(

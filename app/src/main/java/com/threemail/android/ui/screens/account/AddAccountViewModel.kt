@@ -225,11 +225,19 @@ class AddAccountViewModel @Inject constructor(
     }
 
     fun signInWithGoogle(context: android.content.Context) {
+        // Show the busy state immediately so tapping "Google" gives feedback
+        // while the Credential Manager sheet is being prepared (or while a
+        // configuration failure is surfaced).
+        _uiState.value = _uiState.value.copy(isSaving = true, error = null)
         viewModelScope.launch {
             googleAuthHelper.signInWithGoogle(context).onSuccess { userInfo ->
+                // saveGmailAccount keeps isSaving = true through the save.
                 saveGmailAccount(userInfo.email, userInfo.displayName.orEmpty())
             }.onFailure { error ->
-                updateError("Google Sign-In failed: ${error.message}")
+                _uiState.value = _uiState.value.copy(
+                    isSaving = false,
+                    error = "Google Sign-In failed: ${error.message}"
+                )
             }
         }
     }
