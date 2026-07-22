@@ -150,25 +150,19 @@ class MailSyncWorker(
                     // client expunged should disappear here too. Incremental
                     // fetch only ever ADDS (it asks for uids above the cursor),
                     // so without this a message deleted elsewhere lingered
-                    // forever. We probe the exact set of locally-cached uids
-                    // against the server - not just the freshly-fetched window,
-                    // so even older cached mail is reconciled - and only delete
-                    // when the probe SUCCEEDS. A network failure must never be
-                    // read as "everything was deleted". Gmail/POP3 fall back to
-                    // the MailRemote no-op default and are left untouched.
-                    val cachedUids = mailRepository.getCachedUids(folder.id)
-                    if (cachedUids.isNotEmpty()) {
-                        remote.listExistingMessageUids(folder, cachedUids)
-                            .onSuccess { existing ->
-                                val removed = mailRepository.reconcileFolderDeletions(folder.id, existing)
-                                if (removed > 0) {
-                                    Log.d(TAG, "Removed $removed remotely-deleted message(s) from ${folder.name}")
-                                }
+                    // forever. The shared helper probes the exact set of cached
+                    // uids against the server and only deletes when the probe
+                    // SUCCEEDS, so a network failure is never read as "everything
+                    // was deleted"; Gmail/POP3 fall back to the no-op default.
+                    mailRepository.reconcileDeletions(remote, folder)
+                        .onSuccess { removed ->
+                            if (removed > 0) {
+                                Log.d(TAG, "Removed $removed remotely-deleted message(s) from ${folder.name}")
                             }
-                            .onFailure {
-                                Log.w(TAG, "Deletion reconcile skipped for ${folder.name}: ${it.message}")
-                            }
-                    }
+                        }
+                        .onFailure {
+                            Log.w(TAG, "Deletion reconcile skipped for ${folder.name}: ${it.message}")
+                        }
                 }
             }
 

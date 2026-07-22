@@ -313,6 +313,10 @@ class InboxViewModel @Inject constructor(
             mailRepository.saveMessages(fetch.messages.map { it.copy(folderId = folder.id) })
         }
         mailRepository.updateFolderCursor(folder.id, fetch.nextCursor)
+        // Incremental fetch only ADDS mail above the cursor, so a pull-to-refresh
+        // would otherwise never notice a message deleted from another client.
+        // Probe the cached uids and drop the ones the server no longer has.
+        mailRepository.reconcileDeletions(remote, folder)
     }
 
     /**
@@ -342,6 +346,9 @@ class InboxViewModel @Inject constructor(
                     mailRepository.saveMessages(fetch.messages.map { it.copy(folderId = inbox.id) })
                 }
                 mailRepository.updateFolderCursor(inbox.id, fetch.nextCursor)
+                // Drop messages this account's inbox lost to a delete on another
+                // client (incremental fetch above only adds, never removes).
+                mailRepository.reconcileDeletions(remote, inbox)
             } catch (e: RecoverableAuthException) {
                 throw e
             } catch (_: Exception) {

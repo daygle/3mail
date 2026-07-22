@@ -6,17 +6,26 @@ import androidx.test.core.app.ApplicationProvider
 import com.threemail.android.data.local.ThreeMailDatabase
 import com.threemail.android.data.local.entity.AccountEntity
 import com.threemail.android.data.local.entity.MessageEntity
+import com.threemail.android.data.remote.MailRemote
+import com.threemail.android.data.remote.MessageBody
+import com.threemail.android.data.remote.OutgoingMessage
+import com.threemail.android.data.remote.RemoteCapabilities
+import com.threemail.android.data.remote.RemoteFetch
 import com.threemail.android.domain.model.AccountType
+import com.threemail.android.domain.model.Attachment
 import com.threemail.android.domain.model.FolderType
 import com.threemail.android.domain.model.MailFolder
+import com.threemail.android.domain.model.MailMessage
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.io.File
 
 /**
  * Regression coverage for [MailRepository.saveFolders].
@@ -143,5 +152,98 @@ class MailRepositoryTest {
                 .sortedBy { it.favoritePosition }
                 .map { it.serverId }
         )
+    }
+
+    /**
+     * Regression coverage for "inbox still shows emails deleted from another
+     * client": pull-to-refresh (and the worker) call reconcileDeletions, which
+     * must drop cached messages the server no longer returns.
+     */
+    @Test
+    fun `reconcileDeletions drops messages the server no longer has`() = runBlocking {
+        val folderId = db.folderDao().insert(
+            com.threemail.android.data.local.entity.FolderEntity(
+                accountId = accountId, serverId = "INBOX", name = "Inbox", type = FolderType.Inbox
+            )
+        )
+        val folder = MailFolder(id = folderId, accountId = accountId, serverId = "INBOX", name = "Inbox", type = FolderType.Inbox)
+        insertMessage(folderId, uid = 10L, messageId = "a")
+        insertMessage(folderId, uid = 20L, messageId = "b") // this one was deleted elsewhere
+        insertMessage(folderId, uid = 30L, messageId = "c")
+
+        // Server reports only uids 10 and 30 still exist; 20 was expunged.
+        val remote = FakeExistenceRemote(existing = Result.success(setOf(10L, 30L)))
+        val removed = repository.reconcileDeletions(remote, folder).getOrThrow()
+
+        assertEquals(1, removed)
+        assertEquals(
+            listOf("a", "c"),
+            repository.getMessagesOnce(folderId).map { it.messageId }.sorted()
+        )
+    }
+
+    @Test
+    fun `reconcileDeletions never wipes the cache when the server probe fails`() = runBlocking {
+        val folderId = db.folderDao().insert(
+            com.threemail.android.data.local.entity.FolderEntity(
+                accountId = accountId, serverId = "INBOX", name = "Inbox", type = FolderType.Inbox
+            )
+        )
+        val folder = MailFolder(id = folderId, accountId = accountId, serverId = "INBOX", name = "Inbox", type = FolderType.Inbox)
+        insertMessage(folderId, uid = 10L, messageId = "a")
+        insertMessage(folderId, uid = 20L, messageId = "b")
+
+        // A transient network error must NOT be read as "everything was deleted".
+        val remote = FakeExistenceRemote(existing = Result.failure(java.io.IOException("offline")))
+        val result = repository.reconcileDeletions(remote, folder)
+
+        assertTrue(result.isFailure)
+        assertEquals(2, repository.getMessagesOnce(folderId).size)
+    }
+
+    private suspend fun insertMessage(folderId: Long, uid: Long, messageId: String) {
+        db.messageDao().insertAll(
+            listOf(
+                MessageEntity(
+                    accountId = accountId,
+                    folderId = folderId,
+                    messageId = messageId,
+                    uid = uid,
+                    subject = "Subject $messageId",
+                    fromJson = "[]", toJson = "[]", ccJson = "[]", bccJson = "[]",
+                    date = 1_700_000_000_000L,
+                    syncedAt = 1_700_000_000_000L
+                )
+            )
+        )
+    }
+
+    /**
+     * Minimal [MailRemote] that answers only listExistingMessageUids (with a
+     * caller-supplied result) and fails loudly on any other call, so the test
+     * exercises exactly the reconcile probe.
+     */
+    private class FakeExistenceRemote(
+        private val existing: Result<Set<Long>>
+    ) : MailRemote {
+        override suspend fun listExistingMessageUids(
+            folder: MailFolder,
+            cachedUids: List<Long>
+        ): Result<Set<Long>> = existing
+
+        override suspend fun testConnection(): Result<RemoteCapabilities> = notStubbed()
+        override suspend fun fetchFolders(): Result<List<MailFolder>> = notStubbed()
+        override suspend fun fetchMessages(folder: MailFolder, sinceCursor: Long, limit: Int): Result<RemoteFetch> = notStubbed()
+        override suspend fun fetchBody(folder: MailFolder, message: MailMessage): Result<MessageBody> = notStubbed()
+        override suspend fun setSeen(folder: MailFolder, message: MailMessage, seen: Boolean): Result<Unit> = notStubbed()
+        override suspend fun setFlagged(folder: MailFolder, message: MailMessage, flagged: Boolean): Result<Unit> = notStubbed()
+        override suspend fun delete(folder: MailFolder, message: MailMessage, trash: MailFolder?): Result<Unit> = notStubbed()
+        override suspend fun move(from: MailFolder, message: MailMessage, to: MailFolder): Result<Unit> = notStubbed()
+        override suspend fun downloadAttachment(folder: MailFolder, message: MailMessage, attachment: Attachment, dest: File): Result<File> = notStubbed()
+        override suspend fun send(message: OutgoingMessage): Result<Unit> = notStubbed()
+        override suspend fun sendRaw(messageBytes: ByteArray): Result<Unit> = notStubbed()
+        override suspend fun appendDraft(draftsFolder: MailFolder, message: OutgoingMessage): Result<Unit> = notStubbed()
+
+        private fun notStubbed(): Nothing = error("FakeExistenceRemote method not stubbed for this test")
     }
 }

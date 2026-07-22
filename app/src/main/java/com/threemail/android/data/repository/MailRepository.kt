@@ -6,6 +6,7 @@ import com.threemail.android.data.local.dao.MessageFlagDao
 import com.threemail.android.data.local.entity.MessageFlagEntity
 import com.threemail.android.data.local.entity.FolderEntity
 import com.threemail.android.data.local.entity.MessageEntity
+import com.threemail.android.data.remote.MailRemote
 import com.threemail.android.domain.model.Attachment
 import com.threemail.android.domain.model.EmailAddress
 import com.threemail.android.domain.model.MailFolder
@@ -339,6 +340,26 @@ class MailRepository @Inject constructor(
             .map { it.id }
         if (staleIds.isNotEmpty()) messageDao.deleteByIds(staleIds)
         return staleIds.size
+    }
+
+    /**
+     * Probe [folder]'s locally-cached uids against [remote] and drop any the
+     * server no longer has (messages another client deleted). Returns the
+     * number removed, or [Result.failure] if the server probe failed - the
+     * mapping only deletes on SUCCESS, so a transient network error never
+     * reads as "everything was deleted" and never wipes the cache. Gmail/POP3
+     * fall back to the [MailRemote.listExistingMessageUids] no-op default and
+     * are left untouched.
+     *
+     * Shared by [com.threemail.android.sync.MailSyncWorker] (periodic sync) and
+     * the inbox's pull-to-refresh so BOTH sync entry points reconcile remote
+     * deletions - not just the background worker.
+     */
+    suspend fun reconcileDeletions(remote: MailRemote, folder: MailFolder): Result<Int> {
+        val cachedUids = getCachedUids(folder.id)
+        if (cachedUids.isEmpty()) return Result.success(0)
+        return remote.listExistingMessageUids(folder, cachedUids)
+            .map { existing -> reconcileFolderDeletions(folder.id, existing) }
     }
 
     suspend fun updateReadStatus(id: Long, isRead: Boolean) {
