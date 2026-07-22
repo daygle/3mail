@@ -6,17 +6,26 @@ import androidx.test.core.app.ApplicationProvider
 import com.threemail.android.data.local.ThreeMailDatabase
 import com.threemail.android.data.local.entity.AccountEntity
 import com.threemail.android.data.local.entity.MessageEntity
+import com.threemail.android.data.remote.MailRemote
+import com.threemail.android.data.remote.MessageBody
+import com.threemail.android.data.remote.OutgoingMessage
+import com.threemail.android.data.remote.RemoteCapabilities
+import com.threemail.android.data.remote.RemoteFetch
 import com.threemail.android.domain.model.AccountType
+import com.threemail.android.domain.model.Attachment
 import com.threemail.android.domain.model.FolderType
 import com.threemail.android.domain.model.MailFolder
+import com.threemail.android.domain.model.MailMessage
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.io.File
 
 /**
  * Regression coverage for [MailRepository.saveFolders].
@@ -143,5 +152,235 @@ class MailRepositoryTest {
                 .sortedBy { it.favoritePosition }
                 .map { it.serverId }
         )
+    }
+
+    /**
+     * Regression coverage for "inbox still shows emails deleted from another
+     * client": pull-to-refresh (and the worker) call reconcileDeletions, which
+     * must drop cached messages the server no longer returns.
+     */
+    @Test
+    fun `reconcileDeletions drops messages the server no longer has`() = runBlocking {
+        val folderId = db.folderDao().insert(
+            com.threemail.android.data.local.entity.FolderEntity(
+                accountId = accountId, serverId = "INBOX", name = "Inbox", type = FolderType.Inbox
+            )
+        )
+        val folder = MailFolder(id = folderId, accountId = accountId, serverId = "INBOX", name = "Inbox", type = FolderType.Inbox)
+        insertMessage(folderId, uid = 10L, messageId = "a")
+        insertMessage(folderId, uid = 20L, messageId = "b") // this one was deleted elsewhere
+        insertMessage(folderId, uid = 30L, messageId = "c")
+
+        // Server reports only uids 10 and 30 still exist; 20 was expunged.
+        val remote = FakeExistenceRemote { _, _ -> Result.success(setOf(10L, 30L)) }
+        val removed = repository.reconcileDeletions(remote, folder).getOrThrow()
+
+        assertEquals(1, removed)
+        assertEquals(
+            listOf("a", "c"),
+            repository.getMessagesOnce(folderId).map { it.messageId }.sorted()
+        )
+    }
+
+    @Test
+    fun `reconcileDeletions never wipes the cache when the server probe fails`() = runBlocking {
+        val folderId = db.folderDao().insert(
+            com.threemail.android.data.local.entity.FolderEntity(
+                accountId = accountId, serverId = "INBOX", name = "Inbox", type = FolderType.Inbox
+            )
+        )
+        val folder = MailFolder(id = folderId, accountId = accountId, serverId = "INBOX", name = "Inbox", type = FolderType.Inbox)
+        insertMessage(folderId, uid = 10L, messageId = "a")
+        insertMessage(folderId, uid = 20L, messageId = "b")
+
+        // A transient network error must NOT be read as "everything was deleted".
+        val remote = FakeExistenceRemote { _, _ -> Result.failure(java.io.IOException("offline")) }
+        val result = repository.reconcileDeletions(remote, folder)
+
+        assertTrue(result.isFailure)
+        assertEquals(2, repository.getMessagesOnce(folderId).size)
+    }
+
+    @Test
+    fun `pruneFolders removes folders absent from the server and cascades their messages`() = runBlocking {
+        val keepId = db.folderDao().insert(
+            com.threemail.android.data.local.entity.FolderEntity(
+                accountId = accountId, serverId = "INBOX", name = "Inbox", type = FolderType.Inbox
+            )
+        )
+        val goneId = db.folderDao().insert(
+            com.threemail.android.data.local.entity.FolderEntity(
+                accountId = accountId, serverId = "Old", name = "Old", type = FolderType.CUSTOM
+            )
+        )
+        insertMessage(keepId, uid = 1L, messageId = "keep")
+        insertMessage(goneId, uid = 2L, messageId = "gone")
+
+        // Server still lists INBOX but not "Old".
+        val pruned = repository.pruneFolders(accountId, setOf("INBOX"))
+
+        assertEquals(1, pruned)
+        assertEquals(listOf("INBOX"), repository.getFoldersOnce(accountId).map { it.serverId })
+        // The pruned folder's cached messages cascade away; INBOX's stay.
+        assertEquals(1, repository.getFolderMessageCount(keepId))
+        assertEquals(0, repository.getFolderMessageCount(goneId))
+    }
+
+    @Test
+    fun `pruneFolders is a no-op when the keep set is empty`() = runBlocking {
+        db.folderDao().insert(
+            com.threemail.android.data.local.entity.FolderEntity(
+                accountId = accountId, serverId = "INBOX", name = "Inbox", type = FolderType.Inbox
+            )
+        )
+        // An empty keep set (e.g. a failed fetch) must never wipe the tree.
+        val pruned = repository.pruneFolders(accountId, emptySet())
+
+        assertEquals(0, pruned)
+        assertEquals(listOf("INBOX"), repository.getFoldersOnce(accountId).map { it.serverId })
+    }
+
+    private suspend fun insertMessage(folderId: Long, uid: Long, messageId: String) {
+        db.messageDao().insertAll(
+            listOf(
+                MessageEntity(
+                    accountId = accountId,
+                    folderId = folderId,
+                    messageId = messageId,
+                    uid = uid,
+                    subject = "Subject $messageId",
+                    fromJson = "[]", toJson = "[]", ccJson = "[]", bccJson = "[]",
+                    date = 1_700_000_000_000L,
+                    syncedAt = 1_700_000_000_000L
+                )
+            )
+        )
+    }
+
+    @Test
+    fun `reconcileDeletionsBatch reconciles multiple folders in one pass`() = runBlocking {
+        val inboxId = insertFolder("INBOX", FolderType.Inbox)
+        val workId = insertFolder("Work", FolderType.CUSTOM)
+        insertMessage(inboxId, uid = 10L, messageId = "i-keep")
+        insertMessage(inboxId, uid = 20L, messageId = "i-gone")
+        insertMessage(workId, uid = 30L, messageId = "w-gone")
+        insertMessage(workId, uid = 40L, messageId = "w-keep")
+
+        // Per-folder server truth: INBOX keeps 10, Work keeps 40.
+        val remote = FakeExistenceRemote { folder, _ ->
+            when (folder.serverId) {
+                "INBOX" -> Result.success(setOf(10L))
+                "Work" -> Result.success(setOf(40L))
+                else -> Result.success(emptySet())
+            }
+        }
+        val folders = repository.getFoldersOnce(accountId)
+        val removed = repository.reconcileDeletionsBatch(remote, folders)
+
+        assertEquals(2, removed)
+        assertEquals(listOf("i-keep"), repository.getMessagesOnce(inboxId).map { it.messageId })
+        assertEquals(listOf("w-keep"), repository.getMessagesOnce(workId).map { it.messageId })
+    }
+
+    @Test
+    fun `reconcileDeletionsBatch leaves a folder untouched when its probe fails`() = runBlocking {
+        val inboxId = insertFolder("INBOX", FolderType.Inbox)
+        val workId = insertFolder("Work", FolderType.CUSTOM)
+        insertMessage(inboxId, uid = 10L, messageId = "i-keep")
+        insertMessage(inboxId, uid = 20L, messageId = "i-gone")
+        insertMessage(workId, uid = 30L, messageId = "w-a")
+        insertMessage(workId, uid = 40L, messageId = "w-b")
+
+        // Work's probe fails (folder vanished / transient error) so it is omitted
+        // from the batch result and must keep both of its messages; INBOX still
+        // reconciles normally.
+        val remote = FakeExistenceRemote { folder, _ ->
+            when (folder.serverId) {
+                "INBOX" -> Result.success(setOf(10L))
+                else -> Result.failure(java.io.IOException("folder gone"))
+            }
+        }
+        val removed = repository.reconcileDeletionsBatch(remote, repository.getFoldersOnce(accountId))
+
+        assertEquals(1, removed)
+        assertEquals(listOf("i-keep"), repository.getMessagesOnce(inboxId).map { it.messageId })
+        assertEquals(2, repository.getMessagesOnce(workId).size)
+    }
+
+    @Test
+    fun `moving a message clears its uid so the destination reconcile leaves it alone`() = runBlocking {
+        val inboxId = insertFolder("INBOX", FolderType.Inbox)
+        val archiveId = insertFolder("Archive", FolderType.ARCHIVE)
+        insertMessage(inboxId, uid = 100L, messageId = "m")
+        val msgId = repository.getMessagesOnce(inboxId).single().id
+
+        repository.moveMessageToFolder(msgId, archiveId)
+
+        // Folder changed and the (source-folder) uid was cleared.
+        val moved = repository.getMessageById(msgId)!!
+        assertEquals(archiveId, moved.folderId)
+        assertEquals(0L, moved.uid)
+
+        // A reconcile of Archive that finds nothing must NOT delete the moved
+        // message: uid=0 excludes it from the probe, so the optimistic move
+        // survives until Archive is synced and the row re-adopts its real uid.
+        val remote = FakeExistenceRemote { _, _ -> Result.success(emptySet()) }
+        val archiveFolder = repository.getFoldersOnce(accountId).single { it.serverId == "Archive" }
+        val removed = repository.reconcileDeletions(remote, archiveFolder).getOrThrow()
+        assertEquals(0, removed)
+        assertEquals(1, repository.getMessagesOnce(archiveId).size)
+    }
+
+    @Test
+    fun `restoreMessageToFolder puts the message back with its original uid`() = runBlocking {
+        val inboxId = insertFolder("INBOX", FolderType.Inbox)
+        val archiveId = insertFolder("Archive", FolderType.ARCHIVE)
+        insertMessage(inboxId, uid = 100L, messageId = "m")
+        val msgId = repository.getMessagesOnce(inboxId).single().id
+
+        repository.moveMessageToFolder(msgId, archiveId)      // optimistic move clears uid
+        repository.restoreMessageToFolder(msgId, inboxId, 100L) // undo restores it
+
+        val restored = repository.getMessageById(msgId)!!
+        assertEquals(inboxId, restored.folderId)
+        assertEquals(100L, restored.uid)
+    }
+
+    private suspend fun insertFolder(serverId: String, type: FolderType): Long =
+        db.folderDao().insert(
+            com.threemail.android.data.local.entity.FolderEntity(
+                accountId = accountId, serverId = serverId, name = serverId, type = type
+            )
+        )
+
+    /**
+     * Minimal [MailRemote] that answers only listExistingMessageUids (via a
+     * caller-supplied per-folder probe) and fails loudly on any other call, so
+     * the tests exercise exactly the reconcile probe. The batch reconcile runs
+     * through the default [MailRemote.listExistingMessageUidsBatch], which loops
+     * this probe and omits folders whose probe fails.
+     */
+    private class FakeExistenceRemote(
+        private val probe: (MailFolder, List<Long>) -> Result<Set<Long>>
+    ) : MailRemote {
+        override suspend fun listExistingMessageUids(
+            folder: MailFolder,
+            cachedUids: List<Long>
+        ): Result<Set<Long>> = probe(folder, cachedUids)
+
+        override suspend fun testConnection(): Result<RemoteCapabilities> = notStubbed()
+        override suspend fun fetchFolders(): Result<List<MailFolder>> = notStubbed()
+        override suspend fun fetchMessages(folder: MailFolder, sinceCursor: Long, limit: Int): Result<RemoteFetch> = notStubbed()
+        override suspend fun fetchBody(folder: MailFolder, message: MailMessage): Result<MessageBody> = notStubbed()
+        override suspend fun setSeen(folder: MailFolder, message: MailMessage, seen: Boolean): Result<Unit> = notStubbed()
+        override suspend fun setFlagged(folder: MailFolder, message: MailMessage, flagged: Boolean): Result<Unit> = notStubbed()
+        override suspend fun delete(folder: MailFolder, message: MailMessage, trash: MailFolder?): Result<Unit> = notStubbed()
+        override suspend fun move(from: MailFolder, message: MailMessage, to: MailFolder): Result<Unit> = notStubbed()
+        override suspend fun downloadAttachment(folder: MailFolder, message: MailMessage, attachment: Attachment, dest: File): Result<File> = notStubbed()
+        override suspend fun send(message: OutgoingMessage): Result<Unit> = notStubbed()
+        override suspend fun sendRaw(messageBytes: ByteArray): Result<Unit> = notStubbed()
+        override suspend fun appendDraft(draftsFolder: MailFolder, message: OutgoingMessage): Result<Unit> = notStubbed()
+
+        private fun notStubbed(): Nothing = error("FakeExistenceRemote method not stubbed for this test")
     }
 }

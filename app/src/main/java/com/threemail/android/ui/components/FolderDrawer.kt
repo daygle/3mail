@@ -70,6 +70,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.threemail.android.R
+import com.threemail.android.data.repository.FolderPaths
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.FolderType
 import com.threemail.android.domain.model.MailFolder
@@ -101,14 +102,14 @@ internal fun buildFolderTree(
 ): List<FolderNode> {
     if (folders.isEmpty()) return emptyList()
 
-    val separator = detectSeparator(folders)
+    val separator = FolderPaths.separatorOf(folders)
 
     // Compute parent-child relationships
     val serverIdSet = folders.mapTo(HashSet()) { it.serverId }
     val childrenByParent = mutableMapOf<String, MutableList<MailFolder>>()
 
     for (folder in folders) {
-        val parentId = parentServerId(folder.serverId, separator)
+        val parentId = FolderPaths.parentOf(folder.serverId, separator)
         if (parentId != null && parentId in serverIdSet) {
             childrenByParent.getOrPut(parentId) { mutableListOf() }.add(folder)
         }
@@ -120,7 +121,7 @@ internal fun buildFolderTree(
     // the old filter `it.serverId !in allParentIds` removed those folders
     // entirely.
     val rootFolders = folders.filter { folder ->
-        parentServerId(folder.serverId, separator) !in serverIdSet
+        FolderPaths.parentOf(folder.serverId, separator) !in serverIdSet
     }.toMutableList()
 
     // Within each level sort by: special folders (by type ordinal) first,
@@ -150,37 +151,6 @@ internal fun buildFolderTree(
     }
 
     return result
-}
-
-/**
- * Detect the IMAP folder hierarchy separator by examining the difference
- * between `serverId` (full path) and `name` (leaf). Falls back to `.`
- * when nothing can be inferred.
- */
-internal fun detectSeparator(folders: List<MailFolder>): Char {
-    for (folder in folders) {
-        if (folder.serverId != folder.name && folder.serverId.endsWith(folder.name)) {
-            val sep = folder.serverId[folder.serverId.length - folder.name.length - 1]
-            return sep
-        }
-    }
-    // Try common IMAP separators
-    for (sep in listOf('.', '/', '\\', '-', '_')) {
-        if (folders.any { it.serverId.contains(sep) }) return sep
-    }
-    return '.'
-}
-
-/**
- * Return the parent's `serverId` by stripping the last path component.
- * `null` means the folder is at the root of the hierarchy.
- */
-private fun parentServerId(serverId: String, separator: Char): String? {
-    val idx = serverId.lastIndexOf(separator)
-    if (idx > 0) {
-        return serverId.substring(0, idx)
-    }
-    return null
 }
 
 /**
@@ -255,10 +225,10 @@ fun FolderDrawerContent(
     // is visible on first open.
     LaunchedEffect(treeFolders) {
         if (expanded.isEmpty() && treeFolders.isNotEmpty()) {
-            val sep = detectSeparator(treeFolders)
+            val sep = FolderPaths.separatorOf(treeFolders)
             expandedServerIds.value = buildSet {
                 for (folder in treeFolders) {
-                    parentServerId(folder.serverId, sep)?.let { add(it) }
+                    FolderPaths.parentOf(folder.serverId, sep)?.let { add(it) }
                 }
             }
         }

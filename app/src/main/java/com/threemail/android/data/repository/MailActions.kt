@@ -75,7 +75,7 @@ class MailActions @Inject constructor(
         undoController.enqueue(
             kind = UndoKind.ARCHIVE,
             commit = { account?.let { mailRemoteFactory.create(it).move(source, message, archive) } },
-            revert = { mailRepository.moveMessageToFolder(message.id, source.id) }
+            revert = { mailRepository.restoreMessageToFolder(message.id, source.id, message.uid) }
         )
     }
 
@@ -94,7 +94,7 @@ class MailActions @Inject constructor(
         undoController.enqueue(
             kind = UndoKind.DELETE,
             commit = { account?.let { mailRemoteFactory.create(it).delete(source, message, trash) } },
-            revert = { mailRepository.moveMessageToFolder(message.id, source.id) }
+            revert = { mailRepository.restoreMessageToFolder(message.id, source.id, message.uid) }
         )
     }
 
@@ -106,7 +106,7 @@ class MailActions @Inject constructor(
         undoController.enqueue(
             kind = if (spam) UndoKind.SPAM else UndoKind.MOVE,
             commit = { if (source != null) account?.let { mailRemoteFactory.create(it).move(source, message, target) } },
-            revert = { source?.let { mailRepository.moveMessageToFolder(message.id, it.id) } }
+            revert = { source?.let { mailRepository.restoreMessageToFolder(message.id, it.id, message.uid) } }
         )
     }
 
@@ -157,7 +157,7 @@ class MailActions @Inject constructor(
             revert = {
                 for ((msg, source, _) in moves) {
                     runCatching {
-                        mailRepository.moveMessageToFolder(msg.id, source.id)
+                        mailRepository.restoreMessageToFolder(msg.id, source.id, msg.uid)
                     }
                 }
             }
@@ -197,7 +197,7 @@ class MailActions @Inject constructor(
         undoController.enqueue(
             kind = UndoKind.SPAM,
             commit = { if (source != null) account?.let { mailRemoteFactory.create(it).move(source, message, spam) } },
-            revert = { source?.let { mailRepository.moveMessageToFolder(message.id, it.id) } }
+            revert = { source?.let { mailRepository.restoreMessageToFolder(message.id, it.id, message.uid) } }
         )
     }
 
@@ -263,7 +263,7 @@ class MailActions @Inject constructor(
             revert = {
                 for ((msg, source, _) in moves) {
                     runCatching {
-                        mailRepository.moveMessageToFolder(msg.id, source.id)
+                        mailRepository.restoreMessageToFolder(msg.id, source.id, msg.uid)
                     }
                 }
             }

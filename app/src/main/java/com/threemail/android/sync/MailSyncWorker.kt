@@ -64,6 +64,20 @@ class MailSyncWorker(
                 Log.d(TAG, "Fetched ${remoteFolders.size} folders for ${account.email}")
                 val savedFolders = mailRepository.saveFolders(remoteFolders)
 
+                // Drop local folders the server no longer lists (deleted or
+                // renamed from another client) so they don't linger with their
+                // cached messages. Guarded on a non-empty fetch so a server
+                // hiccup can never wipe the folder tree.
+                if (remoteFolders.isNotEmpty()) {
+                    val prunedFolders = mailRepository.pruneFolders(
+                        account.id,
+                        remoteFolders.mapTo(HashSet()) { it.serverId }
+                    )
+                    if (prunedFolders > 0) {
+                        Log.d(TAG, "Pruned $prunedFolders folder(s) removed on the server for ${account.email}")
+                    }
+                }
+
                 savedFolders.forEach { folder ->
                     // Deep-sync the core folders, plus any folder the user opted
                     // into IMAP push for (so an IDLE hit on it actually fetches
@@ -145,30 +159,21 @@ class MailSyncWorker(
                         }
                     }
                     mailRepository.updateFolderCursor(folder.id, fetch.nextCursor)
+                }
 
-                    // Propagate server-side deletions: any message another
-                    // client expunged should disappear here too. Incremental
-                    // fetch only ever ADDS (it asks for uids above the cursor),
-                    // so without this a message deleted elsewhere lingered
-                    // forever. We probe the exact set of locally-cached uids
-                    // against the server - not just the freshly-fetched window,
-                    // so even older cached mail is reconciled - and only delete
-                    // when the probe SUCCEEDS. A network failure must never be
-                    // read as "everything was deleted". Gmail/POP3 fall back to
-                    // the MailRemote no-op default and are left untouched.
-                    val cachedUids = mailRepository.getCachedUids(folder.id)
-                    if (cachedUids.isNotEmpty()) {
-                        remote.listExistingMessageUids(folder, cachedUids)
-                            .onSuccess { existing ->
-                                val removed = mailRepository.reconcileFolderDeletions(folder.id, existing)
-                                if (removed > 0) {
-                                    Log.d(TAG, "Removed $removed remotely-deleted message(s) from ${folder.name}")
-                                }
-                            }
-                            .onFailure {
-                                Log.w(TAG, "Deletion reconcile skipped for ${folder.name}: ${it.message}")
-                            }
-                    }
+                // Propagate server-side deletions across EVERY folder, not just
+                // the deep-synced ones above. A message deleted from another
+                // client in any folder the user has opened (so it has cached
+                // rows) should disappear here too - the deep-sync fetch only
+                // ADDS mail above the cursor, so only this probe removes it.
+                // The batch reconcile probes all folders over ONE connection
+                // (instead of reconnecting per folder), deletes only for folders
+                // the server actually reported back (a dropped connection is a
+                // safe no-op), skips folders with nothing cached, and no-ops for
+                // Gmail/POP3 via the MailRemote default.
+                val removedAcrossFolders = mailRepository.reconcileDeletionsBatch(remote, savedFolders)
+                if (removedAcrossFolders > 0) {
+                    Log.d(TAG, "Removed $removedAcrossFolders remotely-deleted message(s) for ${account.email}")
                 }
             }
 

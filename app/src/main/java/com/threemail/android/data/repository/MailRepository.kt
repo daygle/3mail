@@ -6,6 +6,7 @@ import com.threemail.android.data.local.dao.MessageFlagDao
 import com.threemail.android.data.local.entity.MessageFlagEntity
 import com.threemail.android.data.local.entity.FolderEntity
 import com.threemail.android.data.local.entity.MessageEntity
+import com.threemail.android.data.remote.MailRemote
 import com.threemail.android.domain.model.Attachment
 import com.threemail.android.domain.model.EmailAddress
 import com.threemail.android.domain.model.MailFolder
@@ -119,6 +120,22 @@ class MailRepository @Inject constructor(
                 folder.copy(id = id)
             }
         }
+    }
+
+    /**
+     * Remove local folders that are no longer present in the server's folder
+     * listing (deleted or renamed from another client), so a stale folder -
+     * and its cached messages, which the per-message reconcile can't reach
+     * because probing a vanished folder just fails - doesn't linger forever.
+     *
+     * [keepServerIds] is the set of serverIds from a SUCCESSFUL folder fetch;
+     * the empty-set guard makes a failed/empty fetch a no-op rather than a
+     * mass wipe. Returns the number of folders pruned. Called by the sync
+     * worker right after [saveFolders].
+     */
+    suspend fun pruneFolders(accountId: Long, keepServerIds: Collection<String>): Int {
+        if (keepServerIds.isEmpty()) return 0
+        return folderDao.deleteFoldersNotIn(accountId, keepServerIds.toList())
     }
 
     suspend fun getFoldersOnce(accountId: Long): List<MailFolder> =
@@ -309,6 +326,16 @@ class MailRepository @Inject constructor(
         messageDao.updateFolder(id, folderId)
     }
 
+    /**
+     * Undo an optimistic [moveMessageToFolder]: put the message back in
+     * [folderId] and restore its original server [uid] (which is still valid
+     * because the deferred server move was discarded). Keeps the reconcile
+     * sweep and by-uid fetches working after an Undo.
+     */
+    suspend fun restoreMessageToFolder(id: Long, folderId: Long, uid: Long) {
+        messageDao.restoreFolder(id, folderId, uid)
+    }
+
     suspend fun deleteMessageLocal(id: Long) {
         messageDao.deleteById(id)
     }
@@ -339,6 +366,51 @@ class MailRepository @Inject constructor(
             .map { it.id }
         if (staleIds.isNotEmpty()) messageDao.deleteByIds(staleIds)
         return staleIds.size
+    }
+
+    /**
+     * Probe [folder]'s locally-cached uids against [remote] and drop any the
+     * server no longer has (messages another client deleted). Returns the
+     * number removed, or [Result.failure] if the server probe failed - the
+     * mapping only deletes on SUCCESS, so a transient network error never
+     * reads as "everything was deleted" and never wipes the cache. Gmail/POP3
+     * fall back to the [MailRemote.listExistingMessageUids] no-op default and
+     * are left untouched.
+     *
+     * Shared by [com.threemail.android.sync.MailSyncWorker] (periodic sync) and
+     * the inbox's pull-to-refresh so BOTH sync entry points reconcile remote
+     * deletions - not just the background worker.
+     */
+    suspend fun reconcileDeletions(remote: MailRemote, folder: MailFolder): Result<Int> {
+        val cachedUids = getCachedUids(folder.id)
+        if (cachedUids.isEmpty()) return Result.success(0)
+        return remote.listExistingMessageUids(folder, cachedUids)
+            .map { existing -> reconcileFolderDeletions(folder.id, existing) }
+    }
+
+    /**
+     * Reconcile remote deletions across [folders] in one shot. Collects each
+     * folder's cached uids, hands the non-empty ones to
+     * [MailRemote.listExistingMessageUidsBatch] (IMAP probes them over a single
+     * connection instead of reconnecting per folder), then prunes the missing
+     * uids folder-by-folder. Returns the total number of messages removed.
+     *
+     * Only folders the remote actually reported back are touched: a folder it
+     * omitted (probe failed) or that had nothing cached is left intact. A total
+     * batch failure is a safe no-op (returns 0) so a dropped connection never
+     * reads as "everything was deleted". Gmail/POP3 fall back to the default
+     * batch, which reports every cached uid as still-existing (deletes nothing).
+     */
+    suspend fun reconcileDeletionsBatch(remote: MailRemote, folders: List<MailFolder>): Int {
+        val folderUids = folders.associateWith { getCachedUids(it.id) }
+            .filterValues { it.isNotEmpty() }
+        if (folderUids.isEmpty()) return 0
+        val existingByFolder = remote.listExistingMessageUidsBatch(folderUids).getOrElse { return 0 }
+        var removed = 0
+        for ((folder, existing) in existingByFolder) {
+            removed += reconcileFolderDeletions(folder.id, existing)
+        }
+        return removed
     }
 
     suspend fun updateReadStatus(id: Long, isRead: Boolean) {

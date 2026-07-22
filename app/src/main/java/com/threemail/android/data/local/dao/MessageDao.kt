@@ -119,8 +119,26 @@ interface MessageDao {
     @Query("UPDATE messages SET bodyHtml = :bodyHtml, bodyPlain = :bodyPlain, bodyPreview = :bodyPreview, attachmentsJson = :attachmentsJson WHERE id = :id")
     suspend fun updateBody(id: Long, bodyHtml: String?, bodyPlain: String?, bodyPreview: String, attachmentsJson: String)
 
-    @Query("UPDATE messages SET folderId = :folderId WHERE id = :id")
+    /**
+     * Optimistic local move: reassign the folder AND clear the server uid. The
+     * uid is per-folder in IMAP, so the source-folder uid is meaningless in the
+     * destination; zeroing it keeps the deletion-reconcile sweep (which only
+     * probes uid > 0 rows) from checking this row against the destination with a
+     * stale uid and wrongly deleting it. The row re-adopts its real destination
+     * uid on the next sync of that folder (REPLACE on the messageId unique key).
+     */
+    @Query("UPDATE messages SET folderId = :folderId, uid = 0 WHERE id = :id")
     suspend fun updateFolder(id: Long, folderId: Long)
+
+    /**
+     * Restore a message to a folder WITH a known uid - used to undo an
+     * optimistic move. Unlike [updateFolder] the uid is preserved because the
+     * message never actually left this folder on the server (the deferred move
+     * was discarded), so its original uid is still valid and must survive for
+     * the reconcile sweep and by-uid fetches.
+     */
+    @Query("UPDATE messages SET folderId = :folderId, uid = :uid WHERE id = :id")
+    suspend fun restoreFolder(id: Long, folderId: Long, uid: Long)
 
     @Query("UPDATE messages SET isRead = 1 WHERE folderId = :folderId")
     suspend fun markAllReadInFolder(folderId: Long)
