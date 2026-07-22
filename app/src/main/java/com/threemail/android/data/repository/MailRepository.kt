@@ -122,6 +122,22 @@ class MailRepository @Inject constructor(
         }
     }
 
+    /**
+     * Remove local folders that are no longer present in the server's folder
+     * listing (deleted or renamed from another client), so a stale folder -
+     * and its cached messages, which the per-message reconcile can't reach
+     * because probing a vanished folder just fails - doesn't linger forever.
+     *
+     * [keepServerIds] is the set of serverIds from a SUCCESSFUL folder fetch;
+     * the empty-set guard makes a failed/empty fetch a no-op rather than a
+     * mass wipe. Returns the number of folders pruned. Called by the sync
+     * worker right after [saveFolders].
+     */
+    suspend fun pruneFolders(accountId: Long, keepServerIds: Collection<String>): Int {
+        if (keepServerIds.isEmpty()) return 0
+        return folderDao.deleteFoldersNotIn(accountId, keepServerIds.toList())
+    }
+
     suspend fun getFoldersOnce(accountId: Long): List<MailFolder> =
         folderDao.getByAccountOnce(accountId).map { entity ->
             // One-shot variant: isFavorite defaults to false here because the

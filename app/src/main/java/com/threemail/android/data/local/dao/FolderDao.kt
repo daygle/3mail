@@ -53,6 +53,20 @@ interface FolderDao {
     @Query("DELETE FROM folders WHERE accountId = :accountId AND serverId = :serverId")
     suspend fun deleteByServerId(accountId: Long, serverId: String)
 
+    /**
+     * Delete every folder of [accountId] whose serverId is NOT in
+     * [keepServerIds] - i.e. folders that no longer exist on the server
+     * (deleted or renamed from another client). Cascades to their cached
+     * messages via the folderId FK. Returns the number of folders removed.
+     *
+     * Callers MUST pass a non-empty keep set built from a SUCCESSFUL folder
+     * fetch: an empty list makes `NOT IN ()` match every row and would wipe
+     * the account's folders. Favourite rows are intentionally left behind
+     * (the side table has no FK) so a re-created folder re-adopts its star.
+     */
+    @Query("DELETE FROM folders WHERE accountId = :accountId AND serverId NOT IN (:keepServerIds)")
+    suspend fun deleteFoldersNotIn(accountId: Long, keepServerIds: List<String>): Int
+
     /** Change a folder's full path AND its displayed leaf name (used on rename). */
     @Query("UPDATE folders SET serverId = :newServerId, name = :newName WHERE accountId = :accountId AND serverId = :oldServerId")
     suspend fun updateFolderPathAndName(accountId: Long, oldServerId: String, newServerId: String, newName: String)

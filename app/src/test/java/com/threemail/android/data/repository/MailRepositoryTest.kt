@@ -201,6 +201,45 @@ class MailRepositoryTest {
         assertEquals(2, repository.getMessagesOnce(folderId).size)
     }
 
+    @Test
+    fun `pruneFolders removes folders absent from the server and cascades their messages`() = runBlocking {
+        val keepId = db.folderDao().insert(
+            com.threemail.android.data.local.entity.FolderEntity(
+                accountId = accountId, serverId = "INBOX", name = "Inbox", type = FolderType.Inbox
+            )
+        )
+        val goneId = db.folderDao().insert(
+            com.threemail.android.data.local.entity.FolderEntity(
+                accountId = accountId, serverId = "Old", name = "Old", type = FolderType.CUSTOM
+            )
+        )
+        insertMessage(keepId, uid = 1L, messageId = "keep")
+        insertMessage(goneId, uid = 2L, messageId = "gone")
+
+        // Server still lists INBOX but not "Old".
+        val pruned = repository.pruneFolders(accountId, setOf("INBOX"))
+
+        assertEquals(1, pruned)
+        assertEquals(listOf("INBOX"), repository.getFoldersOnce(accountId).map { it.serverId })
+        // The pruned folder's cached messages cascade away; INBOX's stay.
+        assertEquals(1, repository.getFolderMessageCount(keepId))
+        assertEquals(0, repository.getFolderMessageCount(goneId))
+    }
+
+    @Test
+    fun `pruneFolders is a no-op when the keep set is empty`() = runBlocking {
+        db.folderDao().insert(
+            com.threemail.android.data.local.entity.FolderEntity(
+                accountId = accountId, serverId = "INBOX", name = "Inbox", type = FolderType.Inbox
+            )
+        )
+        // An empty keep set (e.g. a failed fetch) must never wipe the tree.
+        val pruned = repository.pruneFolders(accountId, emptySet())
+
+        assertEquals(0, pruned)
+        assertEquals(listOf("INBOX"), repository.getFoldersOnce(accountId).map { it.serverId })
+    }
+
     private suspend fun insertMessage(folderId: Long, uid: Long, messageId: String) {
         db.messageDao().insertAll(
             listOf(

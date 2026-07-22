@@ -64,6 +64,20 @@ class MailSyncWorker(
                 Log.d(TAG, "Fetched ${remoteFolders.size} folders for ${account.email}")
                 val savedFolders = mailRepository.saveFolders(remoteFolders)
 
+                // Drop local folders the server no longer lists (deleted or
+                // renamed from another client) so they don't linger with their
+                // cached messages. Guarded on a non-empty fetch so a server
+                // hiccup can never wipe the folder tree.
+                if (remoteFolders.isNotEmpty()) {
+                    val prunedFolders = mailRepository.pruneFolders(
+                        account.id,
+                        remoteFolders.mapTo(HashSet()) { it.serverId }
+                    )
+                    if (prunedFolders > 0) {
+                        Log.d(TAG, "Pruned $prunedFolders folder(s) removed on the server for ${account.email}")
+                    }
+                }
+
                 savedFolders.forEach { folder ->
                     // Deep-sync the core folders, plus any folder the user opted
                     // into IMAP push for (so an IDLE hit on it actually fetches
