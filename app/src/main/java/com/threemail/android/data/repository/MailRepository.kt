@@ -181,6 +181,32 @@ class MailRepository @Inject constructor(
         folderDao.reorderFavorites(accountId, serverIds)
     }
 
+    /**
+     * Mirror a successful server-side folder rename/move into the local cache:
+     * the folder takes [newServerId] / [newName], and each descendant shifts to
+     * its rewritten path. Favourite and hidden state follow the path so a
+     * renamed folder stays starred / hidden. Call only AFTER the remote op
+     * succeeds - this method never touches the server.
+     */
+    suspend fun applyFolderRelocation(
+        accountId: Long,
+        oldServerId: String,
+        newServerId: String,
+        newName: String,
+        descendantRewrites: List<Pair<String, String>>
+    ) {
+        folderDao.relocateFolder(accountId, oldServerId, newServerId, newName, descendantRewrites)
+    }
+
+    /**
+     * Mirror a successful server-side folder delete into the local cache by
+     * removing the folder and all its descendant rows (cached messages cascade
+     * away with them). Call only AFTER the remote delete succeeds.
+     */
+    suspend fun applyFolderDeletion(accountId: Long, serverIds: List<String>) {
+        folderDao.deleteFolderTree(accountId, serverIds)
+    }
+
     suspend fun updateFolderCursor(folderId: Long, maxUid: Long) {
         folderDao.updateSyncVersion(folderId, maxUid)
     }

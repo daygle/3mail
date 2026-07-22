@@ -94,4 +94,21 @@ interface MailRemote {
      * can invoke it uniformly.
      */
     suspend fun setSubscribed(folder: MailFolder, subscribed: Boolean): Result<Unit> = Result.success(Unit)
+
+    /**
+     * Rename (or reparent) a folder by changing its full server path from
+     * [oldServerId] to [newServerId]. IMAP's RENAME moves the folder and every
+     * descendant server-side in one command, so callers supply only the folder's
+     * own new path. The default fails: only [com.threemail.android.data.remote.imap.ImapRemote]
+     * supports structural folder edits (Gmail's labels and POP3's fixed inbox do not).
+     */
+    suspend fun renameFolder(oldServerId: String, newServerId: String): Result<Unit> =
+        Result.failure(UnsupportedOperationException("This account type does not support folder renames"))
+
+    /**
+     * Delete a folder (and its subfolders) from the server. Default fails for
+     * the same reason as [renameFolder] - IMAP only.
+     */
+    suspend fun deleteFolder(serverId: String): Result<Unit> =
+        Result.failure(UnsupportedOperationException("This account type does not support folder deletion"))
 }

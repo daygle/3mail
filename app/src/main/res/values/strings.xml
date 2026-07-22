@@ -38,7 +38,7 @@
     <string name="mark_as_unread">Mark as Unread</string>
     <string name="sync">Sync</string>
     <string name="syncing">Syncing…</string>
-    <string name="no_messages">No messages</string>
+    <string name="no_messages">No Messages</string>
     <string name="unified_inbox">Unified inbox</string>
     <string name="all_inboxes">All inboxes</string>
     <string name="mark_all_read">Mark All as Read</string>
@@ -89,7 +89,7 @@
     <string name="images_blocked_banner_title">Remote images are hidden</string>
     <string name="images_blocked_banner_subtitle">Blocked to protect your privacy and avoid email tracking.</string>
     <string name="images_blocked_banner_action">Show images</string>
-    <string name="shrink_to_fit_title">Shrink emails to fit</string>
+    <string name="shrink_to_fit_title">Shrink Email Body</string>
     <string name="shrink_to_fit_subtitle">Scale wide HTML emails down so they fit the screen instead of scrolling sideways.</string>
     <!-- Message-detail: tap the sender address to start a new email to them. -->
     <string name="compose_to_sender">New email to this address</string>
@@ -109,8 +109,29 @@
     <string name="protocol_imap_subtitle">Keeps mail and folders in sync with the server (recommended).</string>
     <string name="protocol_pop3_subtitle">Downloads inbox mail. No server folders, flags, or push.</string>
     <string name="pop3_server">POP3 server</string>
-    <string name="manage_folders_title">Manage folders</string>
+    <string name="manage_folders_title">Manage Folders</string>
     <string name="manage_folders_description">Turn a folder off to hide it from the navigation drawer. On IMAP this also unsubscribes it on the server so other apps hide it too; the folder stays on the server and keeps syncing.</string>
+    <!-- Per-row overflow: rename / move / delete a custom IMAP folder. -->
+    <string name="folder_actions_content_description">Folder actions</string>
+    <string name="folder_action_rename">Rename</string>
+    <string name="folder_action_move">Move</string>
+    <string name="folder_action_delete">Delete</string>
+    <!-- Rename dialog -->
+    <string name="rename_folder_title">Rename folder</string>
+    <string name="rename_folder_label">Folder name</string>
+    <!-- Move dialog -->
+    <string name="move_folder_title">Move folder</string>
+    <string name="move_folder_top_level">Top level (no parent)</string>
+    <!-- Delete confirmation -->
+    <string name="delete_folder_title">Delete folder?</string>
+    <string name="delete_folder_message">Delete \"%1$s\" and any subfolders from the server? This also removes their cached messages and can\'t be undone.</string>
+    <!-- Snackbar results -->
+    <string name="folder_renamed">Renamed to \"%1$s\"</string>
+    <string name="folder_moved">Moved \"%1$s\"</string>
+    <string name="folder_deleted">Deleted \"%1$s\"</string>
+    <string name="folder_op_failed">Couldn\'t update \"%1$s\" on the server</string>
+    <string name="folder_name_invalid">Enter a valid folder name</string>
+    <string name="folder_name_duplicate">A folder with that name already exists</string>
     <string name="action_undo">Undo</string>
     <string name="snackbar_archived">Archived</string>
     <string name="snackbar_deleted">Moved to Trash</string>
@@ -343,7 +364,7 @@
          "a calendar" rather than only Google. The primary action takes the
          user to Manage Calendars with the chooser dialog open so they can
          pick whichever source they have. -->
-    <string name="calendar_no_account_title">No calendars</string>
+    <string name="calendar_no_account_title">No Calendars</string>
     <string name="calendar_no_account_subtitle">Add a calendar to see your events here. 3mail supports Google calendars, CalDAV servers, and public iCal (webcal) feeds.</string>
     <string name="calendar_add_action">Add calendar</string>
     <string name="calendar_no_events_title">Nothing scheduled</string>
@@ -434,8 +455,6 @@
          auto-upgrade and explain. Tone is informational, not a warning. -->
     <string name="security_starttls_auto_upgrade">Server supports STARTTLS - upgraded automatically.</string>
 
-    <!-- Favorite folders (drawer's pinned / starred section) -->
-    <string name="favorites">Favorites</string>
     <!-- Pre-uppercased so the section header doesn't depend on locale-specific
          case folding (e.g. Turkish i, German ß). -->
     <string name="favorites_header" translatable="false">FAVORITES</string>

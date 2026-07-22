@@ -117,6 +117,64 @@ class FolderDaoTest {
         assertEquals(listOf(0, 0, 0), ordered.map { it.position })
     }
 
+    @Test
+    fun relocateFolder_rewrites_folder_descendants_and_favourite() = runBlocking {
+        val accountId = accountDao.insert(
+            AccountEntity(
+                email = "user@example.com",
+                displayName = "User",
+                accountType = AccountType.IMAP
+            )
+        )
+        // A parent with one descendant, plus a favourite on the descendant so
+        // we can prove starred state follows a rename.
+        folderDao.insert(serverId = "Work", accountId = accountId, name = "Work", type = FolderType.CUSTOM)
+        folderDao.insert(serverId = "Work.Acme", accountId = accountId, name = "Acme", type = FolderType.CUSTOM)
+        folderDao.addFavorite(FolderFavoriteEntity(accountId, "Work.Acme", position = 0))
+
+        // Rename "Work" -> "Clients": the folder itself takes the new leaf name,
+        // the descendant shifts its path prefix but keeps its name.
+        folderDao.relocateFolder(
+            accountId = accountId,
+            oldServerId = "Work",
+            newServerId = "Clients",
+            newName = "Clients",
+            descendantRewrites = listOf("Work.Acme" to "Clients.Acme")
+        )
+
+        val folders = folderDao.getByAccountOnce(accountId).associateBy { it.serverId }
+        assertEquals(setOf("Clients", "Clients.Acme"), folders.keys)
+        assertEquals("Clients", folders.getValue("Clients").name)
+        // Descendant kept its display name, only the path moved.
+        assertEquals("Acme", folders.getValue("Clients.Acme").name)
+
+        // Favourite followed the descendant to its new serverId.
+        val favourites = folderDao.getFavoritesByAccountOnce(accountId)
+        assertEquals(listOf("Clients.Acme"), favourites.map { it.serverId })
+    }
+
+    @Test
+    fun deleteFolderTree_removes_folders_and_their_favourites() = runBlocking {
+        val accountId = accountDao.insert(
+            AccountEntity(
+                email = "user@example.com",
+                displayName = "User",
+                accountType = AccountType.IMAP
+            )
+        )
+        folderDao.insert(serverId = "Work", accountId = accountId, name = "Work", type = FolderType.CUSTOM)
+        folderDao.insert(serverId = "Work.Acme", accountId = accountId, name = "Acme", type = FolderType.CUSTOM)
+        folderDao.insert(serverId = "Keep", accountId = accountId, name = "Keep", type = FolderType.CUSTOM)
+        folderDao.addFavorite(FolderFavoriteEntity(accountId, "Work.Acme", position = 0))
+
+        folderDao.deleteFolderTree(accountId, listOf("Work", "Work.Acme"))
+
+        // Only the untouched folder survives; its sibling tree and the
+        // favourite that pointed into it are gone.
+        assertEquals(listOf("Keep"), folderDao.getByAccountOnce(accountId).map { it.serverId })
+        assertEquals(emptyList<String>(), folderDao.getFavoritesByAccountOnce(accountId).map { it.serverId })
+    }
+
     private suspend fun FolderDao.insert(
         serverId: String,
         accountId: Long,

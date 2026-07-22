@@ -671,6 +671,14 @@ class SafeWebView(
         settings.javaScriptEnabled = false
         settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
         settings.domStorageEnabled = false
+        // Let the user pinch-zoom the rendered body. builtInZoomControls turns
+        // on the pinch gesture (and double-tap zoom); displayZoomControls=false
+        // suppresses the deprecated on-screen +/- overlay so only the gesture
+        // remains. Independent of the shrink-to-fit layout: the page still
+        // lays out to fit (or at native width), and the user can zoom from there.
+        settings.setSupportZoom(true)
+        settings.builtInZoomControls = true
+        settings.displayZoomControls = false
         webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(
                 view: WebView?,

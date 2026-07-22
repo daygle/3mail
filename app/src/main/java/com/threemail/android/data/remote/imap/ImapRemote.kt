@@ -59,4 +59,10 @@ class ImapRemote(private val client: ImapClient) : MailRemote {
 
     override suspend fun setSubscribed(folder: MailFolder, subscribed: Boolean): Result<Unit> =
         client.setSubscribed(folder.serverId, subscribed)
+
+    override suspend fun renameFolder(oldServerId: String, newServerId: String): Result<Unit> =
+        client.renameFolder(oldServerId, newServerId)
+
+    override suspend fun deleteFolder(serverId: String): Result<Unit> =
+        client.deleteFolder(serverId)
 }
