@@ -118,21 +118,16 @@ class FolderDrawerContentFavoritesTest {
     }
 
     /**
-     * The drag handle (the only reorder affordance) should ONLY be reachable
-     * while the user is in edit mode. Initially the section shows an "Edit"
-     * chip and NO drag handles - the user reads [icon name] with no move
-     * affordance at all. Tapping Edit reveals one drag handle per favorite
-     * at the row's right edge; tapping Done hides them again.
-     *
-     * This also locks in the decision to drop the previous explicit Move
-     * up / Move down IconButtons - if a future contributor re-adds them,
-     * the move-button counts jump from 0 to N and this test fails. The
-     * earlier complaint that "the move is duplicated" is the reason the
-     * design is single-affordance; collapsing to drag keeps a familiar
-     * Android-style reorder gesture.
+     * The reorder affordance (explicit Move up / Move down buttons) should
+     * ONLY be reachable while the user is in edit mode. Initially the section
+     * shows an "Edit" chip and NO move buttons - the user reads [icon name]
+     * with no move affordance at all. Tapping Edit reveals a Move up + Move
+     * down button per favorite at the row's right edge; tapping Done hides
+     * them again. Clicking one fires [FolderDrawerContent]'s onReorderFavorite
+     * with the new server-id order.
      */
     @Test
-    fun editing_favorites_exposes_drag_handle_right_and_hides_it_otherwise() {
+    fun editing_favorites_exposes_move_buttons_and_hides_them_otherwise() {
         val account = Account(
             id = 1L,
             email = "user@example.com",
@@ -164,28 +159,31 @@ class FolderDrawerContentFavoritesTest {
             }
         }
 
-        // Initially: Edit chip visible, no drag handles (move affordance
-        // hidden in non-edit mode), and no Move up / Move down buttons
-        // ever (single source of truth).
+        // Initially: Edit chip visible, no move buttons (reorder affordance
+        // hidden in non-edit mode).
         composeTestRule.onNodeWithText("Edit").assertIsDisplayed()
-        composeTestRule.onAllNodesWithContentDescription("Drag to reorder").assertCountEquals(0)
         composeTestRule.onAllNodesWithContentDescription("Move up").assertCountEquals(0)
         composeTestRule.onAllNodesWithContentDescription("Move down").assertCountEquals(0)
         assertEquals(0, reorderCalls.size)
 
-        // Enter edit mode: one drag handle per favorite (3 -> 3 handles).
+        // Enter edit mode: one Move up + one Move down per favorite. The end
+        // rows' buttons render disabled but are still present in the tree, so
+        // all three of each show up.
         composeTestRule.onNodeWithText("Edit").performClick()
         composeTestRule.onNodeWithText("Done").assertIsDisplayed()
-        composeTestRule.onAllNodesWithContentDescription("Drag to reorder").assertCountEquals(3)
-        // Even in edit mode, no explicit up / down buttons - drag is the
-        // single reorder affordance.
-        composeTestRule.onAllNodesWithContentDescription("Move up").assertCountEquals(0)
-        composeTestRule.onAllNodesWithContentDescription("Move down").assertCountEquals(0)
+        composeTestRule.onAllNodesWithContentDescription("Move up").assertCountEquals(3)
+        composeTestRule.onAllNodesWithContentDescription("Move down").assertCountEquals(3)
 
-        // Exit edit mode: drag handles vanish, Edit chip returns.
+        // Move the first favourite (Inbox) down: the new order swaps Inbox and
+        // Sent, so the persisted server-id list is [Sent, INBOX, Archive].
+        composeTestRule.onAllNodesWithContentDescription("Move down")[0].performClick()
+        assertEquals(1, reorderCalls.size)
+        assertEquals(listOf("Sent", "INBOX", "Archive"), reorderCalls.first())
+
+        // Exit edit mode: move buttons vanish, Edit chip returns.
         composeTestRule.onNodeWithText("Done").performClick()
         composeTestRule.onNodeWithText("Edit").assertIsDisplayed()
-        composeTestRule.onAllNodesWithContentDescription("Drag to reorder").assertCountEquals(0)
-        assertEquals(0, reorderCalls.size)
+        composeTestRule.onAllNodesWithContentDescription("Move up").assertCountEquals(0)
+        composeTestRule.onAllNodesWithContentDescription("Move down").assertCountEquals(0)
     }
 }
