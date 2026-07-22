@@ -28,13 +28,13 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Draw
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.CircularProgressIndicator
@@ -248,38 +248,61 @@ fun AccountSettingsScreen(
                         }
                     }
 
-                    // Drill-in rows for the heavier sections; each opens its own
-                    // focused sub-page instead of stacking on this scroll.
+                    // Each heavier section is its own icon'd card (matching the
+                    // global settings layout) whose single row drills into a
+                    // focused sub-page. Availability follows the account type:
+                    // server/folder-roles/push are IMAP-or-POP3 concepts, so
+                    // they're hidden for Gmail (OAuth + REST folders).
                     SettingsGroup(
-                        title = stringResource(R.string.account_settings_manage_section),
-                        icon = Icons.Default.Tune
+                        title = stringResource(R.string.identities_section),
+                        icon = Icons.Default.AlternateEmail
                     ) {
                         SettingsRow(
-                            title = stringResource(R.string.identities_section),
+                            title = stringResource(R.string.account_manage_identities_subtitle),
                             onClick = onOpenIdentities
                         )
-                        if (account.accountType != AccountType.GMAIL) {
-                            CardDivider()
+                    }
+
+                    if (account.accountType != AccountType.GMAIL) {
+                        SettingsGroup(
+                            title = stringResource(R.string.account_settings_server_section),
+                            icon = Icons.Default.Dns
+                        ) {
                             SettingsRow(
-                                title = stringResource(R.string.account_settings_server_section),
+                                title = stringResource(R.string.account_manage_server_subtitle),
                                 onClick = onOpenServer
                             )
                         }
-                        if (account.accountType == AccountType.IMAP) {
-                            CardDivider()
+                    }
+
+                    if (account.accountType == AccountType.IMAP) {
+                        SettingsGroup(
+                            title = stringResource(R.string.account_folder_roles_section),
+                            icon = Icons.Default.Folder
+                        ) {
                             SettingsRow(
-                                title = stringResource(R.string.account_folder_roles_section),
+                                title = stringResource(R.string.account_manage_folder_roles_subtitle),
                                 onClick = onOpenFolderRoles
                             )
-                            CardDivider()
+                        }
+
+                        SettingsGroup(
+                            title = stringResource(R.string.account_push_label),
+                            icon = Icons.Default.Bolt
+                        ) {
                             SettingsRow(
-                                title = stringResource(R.string.account_push_label),
+                                title = stringResource(R.string.account_manage_push_subtitle),
                                 onClick = onOpenPush
                             )
                         }
-                        CardDivider()
+                    }
+
+                    SettingsGroup(
+                        title = stringResource(R.string.pgp_keys_section),
+                        icon = Icons.Default.Key
+                    ) {
                         SettingsRow(
-                            title = stringResource(R.string.pgp_keys_section),
+                            title = stringResource(R.string.account_manage_pgp_subtitle),
                             onClick = onOpenPgp
                         )
                     }
