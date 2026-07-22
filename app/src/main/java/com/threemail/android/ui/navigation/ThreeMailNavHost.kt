@@ -258,7 +258,6 @@ fun ThreeMailNavHost(navController: NavHostController) {
                         navController.navigate(Screen.ManageCalendars.route)
                     }
                 },
-                onAddAccount = { navController.navigate(Screen.AddAccount.route) },
                 bottomBar = bottomBar
             )
         }
@@ -291,6 +290,7 @@ fun ThreeMailNavHost(navController: NavHostController) {
             ManageCalendarsScreen(
                 viewModel = hiltViewModel(),
                 autoAdd = autoAdd,
+                onAddAccount = { navController.navigate(Screen.AddAccount.route) },
                 onNavigateBack = { navController.popBackStack() }
             )
         }

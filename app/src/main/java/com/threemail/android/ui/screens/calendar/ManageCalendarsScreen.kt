@@ -77,6 +77,7 @@ fun ManageCalendarsScreen(
      * the existing FAB still opening the chooser manually if they want it.
      */
     autoAdd: Boolean = false,
+    onAddAccount: () -> Unit,
     onNavigateBack: () -> Unit
 ) {
     val rowsByAccount by viewModel.rowsByAccount.collectAsState()
@@ -187,6 +188,7 @@ fun ManageCalendarsScreen(
         AddCalendarChooserDialog(
             hasGoogleAccount = activeAccount != null,
             onDismiss = { showAddChooser = false },
+            onAddAccount = onAddAccount,
             onPickGoogleSubscribe = {
                 showAddChooser = false; showSubscribeDialog = true
             },
@@ -529,6 +531,7 @@ private fun EmptyCalendarsState(onRefresh: () -> Unit, modifier: Modifier = Modi
 private fun AddCalendarChooserDialog(
     hasGoogleAccount: Boolean,
     onDismiss: () -> Unit,
+    onAddAccount: () -> Unit,
     onPickGoogleSubscribe: () -> Unit,
     onPickGoogleCreate: () -> Unit,
     onPickIcs: () -> Unit,
@@ -559,12 +562,15 @@ private fun AddCalendarChooserDialog(
                         Text(stringResource(R.string.manage_calendars_add_choice_google_create))
                     }
                 } else {
-                    Text(
-                        text = stringResource(R.string.manage_calendars_add_google_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
+                    TextButton(
+                        onClick = {
+                            onDismiss()
+                            onAddAccount()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(stringResource(R.string.sign_in_with_google))
+                    }
                 }
             }
         },

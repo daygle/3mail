@@ -30,7 +30,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -78,7 +77,6 @@ fun CalendarScreen(
      * (Google / CalDAV / webcal/ICS).
      */
     onNavigateToManageCalendars: (Boolean) -> Unit = {},
-    onAddAccount: () -> Unit = {},
     bottomBar: @Composable () -> Unit = {}
 ) {
     val selectedMonth by viewModel.selectedMonth.collectAsState()
@@ -182,12 +180,7 @@ fun CalendarScreen(
                     title = stringResource(R.string.calendar_no_account_title),
                     subtitle = stringResource(R.string.calendar_no_account_subtitle),
                     actionLabel = stringResource(R.string.calendar_add_action),
-                    onAction = { onNavigateToManageCalendars(true) },
-                    secondary = {
-                        TextButton(onClick = onAddAccount) {
-                            Text(stringResource(R.string.sign_in_with_google))
-                        }
-                    }
+                    onAction = { onNavigateToManageCalendars(true) }
                 )
             }
             return@Scaffold

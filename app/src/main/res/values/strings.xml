@@ -364,9 +364,9 @@
          "a calendar" rather than only Google. The primary action takes the
          user to Manage Calendars with the chooser dialog open so they can
          pick whichever source they have. -->
-    <string name="calendar_no_account_title">No Calendars</string>
-    <string name="calendar_no_account_subtitle">Add a calendar to see your events here. 3mail supports Google calendars, CalDAV servers, and public iCal (webcal) feeds.</string>
-    <string name="calendar_add_action">Add calendar</string>
+    <string name="calendar_no_account_title">No Calendars Found</string>
+    <string name="calendar_no_account_subtitle">Connect your Google, CalDAV, or iCal feeds to manage your schedule directly in 3mail.</string>
+    <string name="calendar_add_action">Add Calendar</string>
     <string name="calendar_no_events_title">Nothing scheduled</string>
     <string name="calendar_no_events_subtitle">Tap New event to add one.</string>
     <string name="calendar_prev_month">Previous month</string>
@@ -408,7 +408,7 @@
     <string name="manage_calendars_create_action">Create</string>
     <string name="manage_calendars_other_section">Other Calendars</string>
     <string name="manage_calendars_remove_source">Remove calendar</string>
-    <string name="manage_calendars_add_choice_ics">Subscribe to Internet Calendar (ICS)</string>
+    <string name="manage_calendars_add_choice_ics">Internet Calendar (.ics / webcal)</string>
     <string name="manage_calendars_add_choice_google_subscribe">Add URL to Google Account</string>
     <string name="manage_calendars_add_choice_google_create">Create New Google Calendar</string>
     <string name="manage_calendars_add_google_hint">Sign in with a Google account to create or subscribe to Google calendars.</string>
@@ -418,7 +418,7 @@
     <string name="calendar_source_event_from">From %1$s (read-only)</string>
     <string name="calendar_source_event_readonly">From a read-only subscribed calendar.</string>
     <string name="close">Close</string>
-    <string name="manage_calendars_add_choice_caldav">Connect CalDAV Calendar</string>
+    <string name="manage_calendars_add_choice_caldav">CalDAV Server (Nextcloud, iCloud, etc.)</string>
     <string name="manage_calendars_caldav_title">Connect CalDAV Calendar</string>
     <string name="manage_calendars_caldav_subtitle">Works with Nextcloud, Fastmail, iCloud and other CalDAV servers. Enter your server address and sign-in details — use an app password if your provider issues them.</string>
     <string name="manage_calendars_caldav_url_label">Server URL</string>
