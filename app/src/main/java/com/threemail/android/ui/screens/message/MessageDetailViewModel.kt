@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
@@ -183,7 +184,13 @@ class MessageDetailViewModel @Inject constructor(
         // waiting for the first Settings emit to round-trip the DataStore.
         viewModelScope.launch {
             settingsRepository.settings.collect { settings ->
-                _uiState.value = _uiState.value.copy(loadImagesSetting = settings.loadImages)
+                // Atomic CAS: DataStore's first emission runs on Dispatchers.IO
+                // and races the Room-driven `onMessageLoaded` write that lands
+                // `UiState.message`. A non-atomic read-modify-write here can
+                // clobber the freshly loaded message, which is what was
+                // deadlocking `MessageDetailViewModelTest.setUp` waiting for
+                // `uiState.message` to land.
+                _uiState.update { it.copy(loadImagesSetting = settings.loadImages) }
             }
         }
         // Bootstrap: load the message the nav route asked for. If the route
