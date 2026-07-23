@@ -97,13 +97,27 @@ fun InboxScreen(
     onNavigateToSearch: () -> Unit,
     onNavigateToAccounts: () -> Unit,
     onNavigateToSettings: () -> Unit,
-    onNavigateToMessage: (Long) -> Unit,
+    /**
+     * Thread the source message + folder context into the detail screen so
+     * its horizontal swipe-pager can be mounted. The screen needs (a) the
+     * starting message id, (b) the source folder id (or sentinel `-1L` to
+     * opt out of the pager), and (c) whether the source view was the
+     * cross-account unified inbox (whose swipe-pager spans every account's
+     * inbox rather than one folder).
+     */
+    onNavigateToMessage: (messageId: Long, folderId: Long, unified: Boolean) -> Unit,
     onNavigateToAddAccount: () -> Unit,
     onNavigateToManageFolders: () -> Unit = {},
     onNavigateToAccountSettings: (Long) -> Unit = {},
     bottomBar: @Composable () -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
+    // Captured once per recomposition into a stable local so the per-row
+    // onClick lambda can also use the source view's mode (folder vs.
+    // cross-account unified inbox) without re-reading state inside the
+    // lambda - that would force a fresh allocation on every recomposition
+    // and the lambda would also capture a moving reference.
+    val unifiedInboxActive = state.unifiedInbox
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -378,9 +392,8 @@ fun InboxScreen(
                                             onClick = {
                                                 if (state.selectionMode) {
                                                     viewModel.toggleSelection(message)
-                                                } else {
-                                                    viewModel.markAsRead(message, true)
-                                                    onNavigateToMessage(message.id)
+                                                } else {                    viewModel.markAsRead(message, true)
+                    onNavigateToMessage(message.id, message.folderId, unifiedInboxActive)
                                                 }
                                             },
                                             onLongClick = { viewModel.toggleSelection(message) }

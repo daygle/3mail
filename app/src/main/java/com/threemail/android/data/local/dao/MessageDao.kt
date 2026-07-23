@@ -68,6 +68,30 @@ interface MessageDao {
     fun observeUnifiedInboxWithFlags(): Flow<List<MessageWithFlags>>
 
     /**
+     * Lightweight id-only projection of the per-folder observer. Used by the
+     * message-detail screen to drive its swipe pager so the surrounding UI
+     * (top/bottom bars, dialogs, move picker) only needs to know the ordered
+     * list of local ids, while each page body is loaded on demand by the
+     * ViewModel. Keeps the pager's reactive recomposition cheap when the
+     * folder has hundreds of cached messages.
+     */
+    @Query("SELECT id FROM messages WHERE folderId = :folderId ORDER BY date DESC")
+    fun observeIdsByFolder(folderId: Long): Flow<List<Long>>
+
+    /**
+     * Id-only projection of [observeUnifiedInbox] for the same reason as
+     * [observeIdsByFolder]: the swipe pager only needs to know "what's next
+     * / what's previous" by id, not the full entity.
+     */
+    @Query(
+        "SELECT m.id FROM messages m " +
+            "JOIN folders f ON m.folderId = f.id " +
+            "WHERE f.type = 'Inbox' " +
+            "ORDER BY m.date DESC"
+    )
+    fun observeUnifiedInboxIds(): Flow<List<Long>>
+
+    /**
      * Reactive, unbounded cross-account unified inbox: every message in a
      * folder of type INBOX, newest first, aggregated across all accounts via
      * a JOIN on `folders`. Same reactivity guarantees as [observeByFolder];

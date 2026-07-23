@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -70,6 +72,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -92,8 +95,11 @@ import com.threemail.android.data.settings.AfterDeleteNavigation
 import com.threemail.android.data.settings.TopBarItemId
 import com.threemail.android.ui.screens.settings.SettingsViewModel
 import com.threemail.android.domain.model.Attachment
+import com.threemail.android.domain.model.MailMessage
 import com.threemail.android.ui.components.LoadingIndicator
 import com.threemail.android.ui.theme.avatarColorFor
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import java.io.File
 
 /**
@@ -104,18 +110,32 @@ import java.io.File
  */
 private const val IMAGE_BASE_URL = "https://email.invalid/"
 
+/**
+ * How many adjacent pages to keep composed off-screen on either side of the
+ * current page. Bumping this past 1 keeps an extra WebView alive (twice the
+ * memory per extra page) so swipes feel instant for the user's most likely
+ * next step; the prefetch in `LaunchedEffect(pagerState)` separately warms
+ * the body fetch so the page is hydrated by the time it scrolls in.
+ */
+private const val PAGER_BEYOND_BOUNDS = 1
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MessageDetailScreen(
     viewModel: MessageDetailViewModel,
     onNavigateBack: () -> Unit,
     /**
-     * Invoked after a successful delete when the user's "After delete"
-     * setting is [AfterDeleteNavigation.NEXT_MESSAGE] AND the VM resolved a
-     * next-older message in the same folder. The host implementation pops
-     * the current detail entry off the back stack before navigating so back
-     * from the next screen returns to whatever was before the original
-     * (typically inbox or search) rather than the just-deleted message.
+     * Invoked after a successful delete in **single-message** mode (deep
+     * links from Search / notifications, which don't carry folder context)
+     * when the user's "After delete" setting is [AfterDeleteNavigation.NEXT_MESSAGE]
+     * AND the VM resolved a next-older message in the same folder. The host
+     * implementation pops the current detail entry off the back stack before
+     * navigating so back from the next screen returns to whatever was before
+     * the original (typically search) rather than the just-deleted message.
+     *
+     * **Pager mode overrides this path**: in pager mode the delete advances
+     * by an in-screen `animateScrollToPage` so the user can keep swiping
+     * through their inbox without growing the back stack on every delete.
      */
     onNavigateToNext: (Long) -> Unit = {},
     onReply: (Long) -> Unit,
@@ -126,6 +146,8 @@ fun MessageDetailScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val message = state.message
+    val ids by viewModel.adjacentIds.collectAsState()
+    val selectedId by viewModel.selectedId.collectAsState()
     val context = LocalContext.current
     // Resolved here because stringResource is @Composable and can't be called
     // from inside the file-open LaunchedEffect coroutine below.
@@ -148,19 +170,78 @@ fun MessageDetailScreen(
     var showMoveDialog by remember { mutableStateOf(false) }
     var showHeaders by remember { mutableStateOf(false) }
 
-    // Post-delete navigation honours the user's "After delete" preference:
-    //   - RETURN_TO_LIST (default): pop back to whatever opened detail.
-    //   - NEXT_MESSAGE: advance to the pre-resolved next-older message in
-    //     the same folder; falls back to RETURN_TO_LIST when there isn't one
-    //     (e.g. last message in a folder, or the resolver query failed).
-    // Re-runs on any of [state.isDeleted | appSettings.afterDeleteNavigation
-    // | state.nextMessageId] changing so flipping the setting while sitting
-    // on a deleted-then-pending state fires the right path.
-    LaunchedEffect(state.isDeleted, appSettings.afterDeleteNavigation, state.nextMessageId) {
+    // Pager wiring (only meaningful when the nav route passed folder context
+    // -- ids stays empty in single-message deep-link mode, and the body
+    // renders without a HorizontalPager below).
+    val pagerMode = ids.isNotEmpty()
+    val initialPage = remember(ids) {
+        ids.indexOf(selectedId).let { if (it >= 0) it else 0 }
+    }
+    // Only mount the pager when we have at least one adjacent id beyond the
+    // current selection; a 1-page "swipe pager" would be a worse UX than
+    // the static Column (no swipe affordance, but the binding is predictable).
+    val pagerState = if (pagerMode && ids.size > 1) {
+        rememberPagerState(initialPage = initialPage) { ids.size }
+    } else {
+        null
+    }
+
+    // Forward user-driven pager scrolls into the ViewModel so the body
+    // (folder list, mark-read, body fetch, decryption, move targets) re-
+    // hydrates for the new page. We only fire when the page index actually
+    // changes AND the matching id differs from the VM's currently selected
+    // one - that last check prevents the loop where the VM swap reacts by
+    // emitting an updated ids list, which would re-derive the same currentPage
+    // and re-call selectMessage with the same id.
+    if (pagerState != null) {
+        LaunchedEffect(pagerState, ids) {
+            snapshotFlow { pagerState.currentPage to pagerState.isScrollInProgress }
+                .filter { (_, scrolling) -> !scrolling }
+                .distinctUntilChanged()
+                .collect { (page, _) ->
+                    val targetId = ids.getOrNull(page) ?: return@collect
+                    if (targetId != selectedId) viewModel.selectMessage(targetId)
+                }
+        }
+        // Prefetch the bodies of the two pages flanking the user's likely
+        // next swipe so `beyondBoundsPageCount = 1` doesn't have to wait
+        // for a 200ms remote fetch when the user lands on the new page.
+        LaunchedEffect(pagerState, ids) {
+            snapshotFlow { pagerState.currentPage }
+                .distinctUntilChanged()
+                .collect { page ->
+                    ids.getOrNull(page + 1)?.let(viewModel::ensureLoaded)
+                    ids.getOrNull(page - 1)?.let(viewModel::ensureLoaded)
+                }
+        }
+    }
+
+    // Post-delete navigation honours the user's "After delete" preference. In
+    // pager mode we drive the advance via `pagerState.animateScrollToPage` so
+    // the back stack stays at one entry; in single-message mode we fall
+    // through to the host's pop+navigate codepath as before.
+    LaunchedEffect(state.isDeleted, appSettings.afterDeleteNavigation) {
         if (!state.isDeleted) return@LaunchedEffect
-        val goToNext = appSettings.afterDeleteNavigation == AfterDeleteNavigation.NEXT_MESSAGE &&
+        val advanceInline = pagerState != null &&
+            appSettings.afterDeleteNavigation == AfterDeleteNavigation.NEXT_MESSAGE &&
             state.nextMessageId != null
-        if (goToNext) state.nextMessageId?.let(onNavigateToNext) else onNavigateBack()
+        if (advanceInline) {
+            val nextIdx = ids.indexOf(state.nextMessageId)
+            if (nextIdx >= 0 && pagerState != null) {
+                pagerState.animateScrollToPage(nextIdx)
+            } else {
+                // The next id isn't in our scope (e.g. it just got filtered
+                // out for some reason) - graceful fallback to back-out.
+                onNavigateBack()
+            }
+            _ = // intentionally do nothing more; the LaunchedEffect on
+                // snapshotFlow above will pick up the new currentPage and
+                // call selectMessage for us.
+        } else {
+            val goToNext = appSettings.afterDeleteNavigation == AfterDeleteNavigation.NEXT_MESSAGE &&
+                state.nextMessageId != null
+            if (goToNext) state.nextMessageId?.let(onNavigateToNext) else onNavigateBack()
+        }
     }
 
     // OpenKeychain passphrase prompt for decryption.
@@ -340,9 +421,6 @@ fun MessageDetailScreen(
                                 showHeaders = true
                             }
                         )
-                        // Items the user has hidden from the bar. Surfaced here
-                        // so the actions remain reachable; the row labels and
-                        // icons match the inline variant for parity.
                         val anyHidden =
                             isHidden(TopBarItemId.DETAIL_MARK_UNREAD) ||
                                 isHidden(TopBarItemId.DETAIL_ARCHIVE) ||
@@ -380,10 +458,6 @@ fun MessageDetailScreen(
                                 }
                             )
                         }
-                        // Bottom-bar actions the user has hidden. Surfaced here
-                        // so Reply / Reply all / Forward stay reachable when
-                        // taken off the bottom bar. Gated on message != null
-                        // since they navigate using the message id.
                         val anyBottomHidden = message != null && (
                             isHidden(TopBarItemId.DETAIL_REPLY) ||
                                 isHidden(TopBarItemId.DETAIL_REPLY_ALL) ||
@@ -465,137 +539,181 @@ fun MessageDetailScreen(
             }
         }
     ) { padding ->
-        when {
-            state.isLoading -> LoadingIndicator()
-            message == null -> Text("Message not found", modifier = Modifier.padding(padding))
-            else -> {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                        .verticalScroll(rememberScrollState())
-                        .padding(16.dp)
-                ) {
-                    Text(text = message.subject, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        val sender = message.from.firstOrNull()
-                        val label = sender?.name?.takeIf { it.isNotBlank() } ?: sender?.address ?: "?"
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .background(avatarColorFor(sender?.address ?: label), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(label.first().uppercaseChar().toString(), color = Color.White, style = MaterialTheme.typography.titleMedium)
-                        }
-                        Spacer(Modifier.size(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            // The sender's raw address, tappable to start a new
-                            // email to them. Shown even when a display name is
-                            // present so the actual address is always visible.
-                            val senderAddress = sender?.address?.takeIf { it.isNotBlank() }
-                            if (senderAddress != null) {
-                                Text(
-                                    text = senderAddress,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier
-                                        .clickable { onComposeTo(senderAddress) }
-                                        .semantics {
-                                            contentDescription = composeToSenderLabel
-                                        }
-                                )
-                            }
-                            Text(
-                                text = "to ${message.to.joinToString { it.name.ifBlank { it.address } }}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-                    HorizontalDivider()
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    if (message.attachments.isNotEmpty()) {
-                        AttachmentRow(
-                            attachments = message.attachments,
-                            downloading = state.downloadingAttachment,
-                            onClick = { viewModel.downloadAttachment(it) }
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                    }
-
-                    if (state.isEncrypted) {
-                        EncryptionBanner(
-                            signature = state.signatureStatus,
-                            decrypting = state.isDecrypting
-                        )
-                        Spacer(Modifier.height(12.dp))
-                    }
-
-                    when {
-                        state.isLoadingBody -> {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                CircularProgressIndicator(modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.size(8.dp))
-                                Text(stringResource(R.string.loading_message), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                        // Encrypted: show the decrypted plaintext once available.
-                        state.isEncrypted && state.decryptedBody != null -> Text(
-                            text = state.decryptedBody!!,
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                        state.isEncrypted && state.isDecrypting -> {
-                            Text(
-                                text = stringResource(R.string.decrypting),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        state.isEncrypted -> {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                state.pgpError?.let {
-                                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
-                                }
-                                OutlinedButton(onClick = { viewModel.decrypt() }) {
-                                    Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(Modifier.size(6.dp))
-                                    Text(stringResource(R.string.decrypt))
-                                }
-                            }
-                        }
-                        !message.bodyHtml.isNullOrBlank() -> {
-                            // Blocking remote images must NOT hide the message
-                            // body. When images are blocked we show the banner
-                            // ABOVE the body and still render the HTML - the
-                            // WebView blocks only the remote image loads
-                            // (blockNetworkImage), so text and layout come
-                            // through and just the images are withheld until the
-                            // user taps "Show images".
-                            if (!showImages) {
-                                ImagesBlockedBanner(onShowOnce = viewModel::showImagesForThisMessage)
-                                Spacer(modifier = Modifier.height(8.dp))
-                            }
-                            HtmlEmailContent(
-                                html = message.bodyHtml!!,
-                                loadImages = showImages,
-                                shrinkToFit = appSettings.shrinkEmailToFit,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                        else -> Text(
-                            text = message.bodyPlain ?: message.bodyPreview,
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(24.dp))
-                }
+        val body: @Composable (MailMessage?) -> Unit = { bodyMessage ->
+            when {
+                state.isLoading && bodyMessage == null -> LoadingIndicator()
+                bodyMessage == null -> Text("Message not found", modifier = Modifier.padding(padding))
+                else -> MessageBody(
+                    message = bodyMessage,
+                    showingImages = showImages,
+                    shrinkToFit = appSettings.shrinkEmailToFit,
+                    state = state,
+                    onReply = { onReply(bodyMessage.id) },
+                    onReplyAll = { onReplyAll(bodyMessage.id) },
+                    onForward = { onForward(bodyMessage.id) },
+                    onComposeTo = onComposeTo,
+                    viewModel = viewModel,
+                    modifier = Modifier.padding(padding)
+                )
             }
         }
+        if (pagerState != null) {
+            HorizontalPager(
+                state = pagerState,
+                beyondBoundsPageCount = PAGER_BEYOND_BOUNDS,
+                modifier = Modifier.fillMaxSize()
+            ) { page ->
+                // We mount one full message-body Column per page. Until
+                // `viewModel.selectMessage(targetId)` re-fires in reaction to
+                // the snapshotFlow collector above, `state.message` may still
+                // hold the previous message; we render the new page's body
+                // using whatever `state.message` currently is, even if it's
+                // the previous one (the LaunchedEffect below flips it as
+                // soon as the new page is hydrated).
+                val pageId = ids.getOrNull(page) ?: return@HorizontalPager
+                // Avoid an infinite splash while a freshly swiped page is
+                // loading its body; show the previous body until ready.
+                body(state.message.takeIf { it?.id == pageId })
+            }
+        } else {
+            // Single-message (deep-link) path: identical to the pre-pager
+            // behaviour - one Column, no swipe, back goes to the caller.
+            body(message)
+        }
+    }
+}
+
+/**
+ * The bulk of the per-message UI - subject, sender/recipients, attachment
+ * row, PGP banner, decrypted body / HTML body / plain text. Pulled out so
+ * the pager can mount one instance per page without duplicating the entire
+ * body of [MessageDetailScreen].
+ */
+@Composable
+private fun MessageBody(
+    message: MailMessage,
+    showingImages: Boolean,
+    shrinkToFit: Boolean,
+    state: MessageDetailViewModel.UiState,
+    onReply: () -> Unit,
+    onReplyAll: () -> Unit,
+    onForward: () -> Unit,
+    onComposeTo: (String) -> Unit,
+    viewModel: MessageDetailViewModel,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp)
+    ) {
+        Text(text = message.subject, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(16.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val sender = message.from.firstOrNull()
+            val label = sender?.name?.takeIf { it.isNotBlank() } ?: sender?.address ?: "?"
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .background(avatarColorFor(sender?.address ?: label), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(label.first().uppercaseChar().toString(), color = Color.White, style = MaterialTheme.typography.titleMedium)
+            }
+            Spacer(Modifier.size(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                val senderAddress = sender?.address?.takeIf { it.isNotBlank() }
+                if (senderAddress != null) {
+                    Text(
+                        text = senderAddress,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .clickable { onComposeTo(senderAddress) }
+                            .semantics {
+                                contentDescription = "compose_to_sender"
+                            }
+                    )
+                }
+                Text(
+                    text = "to ${message.to.joinToString { it.name.ifBlank { it.address } }}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        HorizontalDivider()
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (message.attachments.isNotEmpty()) {
+            AttachmentRow(
+                attachments = message.attachments,
+                downloading = state.downloadingAttachment,
+                onClick = { viewModel.downloadAttachment(it) }
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        if (state.isEncrypted) {
+            EncryptionBanner(
+                signature = state.signatureStatus,
+                decrypting = state.isDecrypting
+            )
+            Spacer(Modifier.height(12.dp))
+        }
+
+        when {
+            state.isLoadingBody -> {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.size(8.dp))
+                    Text(stringResource(R.string.loading_message), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            state.isEncrypted && state.decryptedBody != null -> Text(
+                text = state.decryptedBody!!,
+                style = MaterialTheme.typography.bodyLarge
+            )
+            state.isEncrypted && state.isDecrypting -> {
+                Text(
+                    text = stringResource(R.string.decrypting),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            state.isEncrypted -> {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    state.pgpError?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+                    }
+                    OutlinedButton(onClick = { viewModel.decrypt() }) {
+                        Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.size(6.dp))
+                        Text(stringResource(R.string.decrypt))
+                    }
+                }
+            }
+            !message.bodyHtml.isNullOrBlank() -> {
+                if (!showingImages) {
+                    ImagesBlockedBanner(onShowOnce = viewModel::showImagesForThisMessage)
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                HtmlEmailContent(
+                    html = message.bodyHtml!!,
+                    loadImages = showingImages,
+                    shrinkToFit = shrinkToFit,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            else -> Text(
+                text = message.bodyPlain ?: message.bodyPreview,
+                style = MaterialTheme.typography.bodyLarge
+            )
+        }
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
@@ -610,19 +728,13 @@ private fun formatHeaderDate(epochMillis: Long): String =
 /**
  * A WebView locked down to render HTML mail bodies safely.
  *
- * - JavaScript is explicitly disabled (lint-safe: we set to false, the safe direction).
+ * - JavaScript is explicitly disabled.
  * - File and content access are disabled.
  * - Mixed content is blocked.
  * - DOM storage is disabled.
  * - Remote image loads are blocked until user explicitly enables them.
  * - Link taps are intercepted and routed to the system browser via [launchExternal].
- *
- * Extends [WebView] directly (rather than wrapping one) so it slots into
- * [AndroidView]'s `reified T : View` factory without losing the [loadHtml] helper.
  */
-// Only ever instantiated programmatically via AndroidView's factory - it is
-// never inflated from XML, so the (Context, AttributeSet) constructors lint
-// asks for would be dead code.
 @Suppress("ViewConstructor")
 class SafeWebView(
     context: android.content.Context,
@@ -631,12 +743,6 @@ class SafeWebView(
         runCatching { context.startActivity(intent) }
     }
 ) : WebView(context) {
-    /**
-     * Whether to allow remote images (and the trackers behind them) to load.
-     * The setter pushes the change into WebSettings immediately so a flag
-     * flip in Compose takes effect on the next reload; the parent AndroidView
-     * is keyed to re-call `loadHtml` after each flip.
-     */
     var loadImages: Boolean = false
         set(value) {
             field = value
@@ -644,22 +750,11 @@ class SafeWebView(
             settings.blockNetworkImage = !value
         }
 
-    /**
-     * When true, lay the page out at a wide viewport and zoom the whole
-     * thing out so it fits the screen width (the classic "shrink to fit"
-     * behaviour) instead of letting a fixed-width newsletter overflow
-     * horizontally. When false, render at the content's native width with
-     * sideways scroll.
-     */
     var shrinkToFit: Boolean = true
         set(value) {
             field = value
             settings.useWideViewPort = value
             settings.loadWithOverviewMode = value
-            // TEXT_AUTOSIZING boosts font sizes as the page is zoomed out to
-            // fit, so a wide fixed-layout email shrinks to the screen width
-            // without the body text becoming unreadably small; NORMAL renders
-            // at native scale when shrink-to-fit is off.
             settings.layoutAlgorithm = if (value) {
                 android.webkit.WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING
             } else {
@@ -671,11 +766,6 @@ class SafeWebView(
         settings.javaScriptEnabled = false
         settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
         settings.domStorageEnabled = false
-        // Let the user pinch-zoom the rendered body. builtInZoomControls turns
-        // on the pinch gesture (and double-tap zoom); displayZoomControls=false
-        // suppresses the deprecated on-screen +/- overlay so only the gesture
-        // remains. Independent of the shrink-to-fit layout: the page still
-        // lays out to fit (or at native width), and the user can zoom from there.
         settings.setSupportZoom(true)
         settings.builtInZoomControls = true
         settings.displayZoomControls = false
@@ -688,61 +778,22 @@ class SafeWebView(
                 if (target.scheme == "http" || target.scheme == "https" || target.scheme == "mailto") {
                     launchExternal(target)
                 }
-                return true // never navigate the WebView itself
+                return true
             }
         }
-        // Defense-in-depth: pin the privacy posture through the setter so the
-        // WebSettings match the named flag at the earliest observable construction
-        // point. The Kotlin property initializer writes the backing field directly
-        // and bypasses this custom setter, so we route the default through
-        // `loadImages = false` here rather than relying on the parent AndroidView
-        // to invoke the setter from its factory/update blocks.
         loadImages = false
-        // Same reasoning: route the shrink-to-fit default through its setter so
-        // useWideViewPort/loadWithOverviewMode are applied on first paint.
         shrinkToFit = true
     }
 
     fun loadHtml(html: String) {
-        // A stable synthetic origin lets remote <img src> URLs resolve when
-        // the user has toggled images on; with blockNetworkImage=true the
-        // fetch is still blocked, but the request carries a real origin
-        // instead of the bare-null origin that loadDataWithBaseURL(null, ...)
-        // would produce, which some mail servers reject outright.
         loadDataWithBaseURL(IMAGE_BASE_URL, html, "text/html", "utf-8", null)
     }
 }
 
-// Material 3 chrome heights. Lift to constants rather than inline literals
-// so the cap below stays readable; [TopAppBarDefaults.TopAppBarHeight] is
-// 64.dp and the bottom action row lands in the same ballpark via its
-// own vertical padding + button height.
 private val TopBarHeight = 64.dp
 private val BottomBarHeight = 64.dp
-// Inner Column padding (horizontal = 0 vertical = 16.dp) on the host, so
-// the body's effective vertical budget is screenHeightDp minus top, minus
-// bottom, minus the 16.dp padding on either side.
 private val BodyPaddingHeight = 32.dp
 
-/**
- * Compose-hosted [WebView] that destroys itself when the composable leaves the
- * composition. Without this, navigating away from [MessageDetailScreen] would
- * leak the WebView (and its surface + CookieManager + JS bridge handles).
- *
- * The WebView's height is capped to the device's visible body area
- * (screenHeightDp minus the top app bar, the bottom action row, and the
- * host Column's vertical padding). Without the cap, [AndroidView] lets
- * the WebView size itself to its full intrinsic content height, which
- * for long emails - newsletter blocks, deeply nested quoted replies,
- * image-heavy marketing mail - runs thousands of dp. Two practical
- * problems fall out of that: the WebView physically extends past the
- * screen and pushes the body past the visible viewport, and on devices
- * where hardware-accelerated Views top out around the 8192px texture
- * limit, the rendering can leave blank space at the bottom and break
- * touch dispatch into the bottom action bar. The cap fixes both. The
- * WebView still owns its own vertical scroll, so body content taller
- * than the cap stays reachable via in-WebView pan.
- */
 @Composable
 private fun HtmlEmailContent(
     html: String,
@@ -750,9 +801,6 @@ private fun HtmlEmailContent(
     shrinkToFit: Boolean,
     modifier: Modifier = Modifier
 ) {
-    // Cap the WebView height to the window's container height (rather than the
-    // whole screen) so it behaves in split-screen/multi-window - see lint's
-    // ConfigurationScreenWidthHeight check.
     val containerHeightPx = LocalWindowInfo.current.containerSize.height
     val bodyHeightCap = with(LocalDensity.current) { containerHeightPx.toDp() } -
         TopBarHeight - BottomBarHeight - BodyPaddingHeight
@@ -768,9 +816,6 @@ private fun HtmlEmailContent(
             }
         },
         update = {
-            // Push the toggles into WebSettings and force a fresh load so
-            // images that were blocked on first paint now resolve and a
-            // shrink-to-fit change re-lays-out the page.
             it.loadImages = loadImages
             it.shrinkToFit = shrinkToFit
             it.loadHtml(html)
@@ -789,10 +834,6 @@ private fun HtmlEmailContent(
     }
 }
 
-/**
- * A small banner shown above an encrypted message body summarizing its PGP
- * state: encrypted, plus the signature verification result once decrypted.
- */
 @Composable
 private fun EncryptionBanner(signature: SignatureStatus?, decrypting: Boolean) {
     val (text, color) = when {
@@ -824,12 +865,6 @@ private fun EncryptionBanner(signature: SignatureStatus?, decrypting: Boolean) {
     }
 }
 
-/**
- * Banner shown above an HTML body when remote images are blocked. The single
- * "Show images" action is a one-shot: it flips the per-message override on
- * this view-model instance and never persists, so re-opening the same email
- * later re-asks. The global toggle lives in Settings.
- */
 @Composable
 private fun ImagesBlockedBanner(onShowOnce: () -> Unit) {
     Surface(

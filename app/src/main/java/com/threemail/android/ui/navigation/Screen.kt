@@ -14,8 +14,30 @@ sealed class Screen(val route: String) {
             "compose?mode=$mode&refId=${refId ?: -1L}&to=${android.net.Uri.encode(to)}"
     }
 
-    data object MessageDetail : Screen("message/{messageId}") {
-        fun createRoute(messageId: Long): String = "message/$messageId"
+    /**
+     * Single-message detail surface that, when [folderId] >= 0 (or [unified]
+     * is true), ALSO hosts a horizontal [androidx.compose.foundation.pager.HorizontalPager]
+     * over that folder's entire message list - so swiping left/right steps
+     * through the next-older / next-newer message without leaving the screen.
+     *
+     * Both query-style args are optional and default to "no pager":
+     *   - `folderId = -1` (default) AND `unified = false` (default) ->
+     *     legacy single-message mode used by deep links from Search and
+     *     notifications, where the caller doesn't know which folder the
+     *     message came from (and a cross-account context is meaningless).
+     *   - Otherwise the screen reads the matching reactive observer from the
+     *     repository and reveals adjacent messages as swipe targets.
+     *
+     * Back-button semantics: a single detail-screen entry stays on the back
+     * stack regardless of how many swipes the user performs inside it, so
+     * "back" always returns to the screen that opened detail (inbox or
+     * search). The post-delete "advance to next message" preference still
+     * works; in pager mode it animates within the pager instead of popping
+     * + pushing a new entry, keeping the back stack clean.
+     */
+    data object MessageDetail : Screen("message/{messageId}?folderId={folderId}&unified={unified}") {
+        fun createRoute(messageId: Long, folderId: Long = -1L, unified: Boolean = false): String =
+            "message/$messageId?folderId=$folderId&unified=$unified"
     }
 
     data object Search : Screen("search")

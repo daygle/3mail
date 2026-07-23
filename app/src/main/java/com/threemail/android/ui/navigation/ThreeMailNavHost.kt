@@ -64,8 +64,10 @@ fun ThreeMailNavHost(navController: NavHostController) {
                 onNavigateToSearch = { navController.navigate(Screen.Search.route) },
                 onNavigateToAccounts = { navController.navigate(Screen.Accounts.route) },
                 onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
-                onNavigateToMessage = { messageId ->
-                    navController.navigate(Screen.MessageDetail.createRoute(messageId))
+                onNavigateToMessage = { messageId, folderId, unified ->
+                    navController.navigate(
+                        Screen.MessageDetail.createRoute(messageId, folderId, unified)
+                    )
                 },
                 onNavigateToAddAccount = { navController.navigate(Screen.AddAccount.route) },
                 onNavigateToManageFolders = { navController.navigate(Screen.ManageFolders.route) },
@@ -90,11 +92,25 @@ fun ThreeMailNavHost(navController: NavHostController) {
         }
         composable(
             route = Screen.MessageDetail.route,
-            arguments = listOf(navArgument("messageId") { type = NavType.LongType })
+            arguments = listOf(
+                navArgument("messageId") { type = NavType.LongType },
+                // Both are optional and default to "no pager" - deep links from
+                // Search / notifications leave them at the defaults and get the
+                // single-message detail view, while inbox callers pass the
+                // folder/unified context they already have so the swipe pager
+                // can be mounted. See [Screen.MessageDetail] for the contract.
+                navArgument("folderId") { type = NavType.LongType; defaultValue = -1L },
+                navArgument("unified") { type = NavType.BoolType; defaultValue = false }
+            )
         ) {
             MessageDetailScreen(
                 viewModel = hiltViewModel(),
                 onNavigateBack = { navController.popBackStack() },
+                // Kept for the non-pager fallback (Search / notification deep
+                // links); pager-mode deletes animate to the next page inside
+                // the same screen instance instead of pushing a new entry, so
+                // the back stack is uncluttered regardless of how many messages
+                // the user wipes through in a triage burst.
                 onNavigateToNext = { nextId ->
                     navController.popBackStack()
                     navController.navigate(Screen.MessageDetail.createRoute(nextId))

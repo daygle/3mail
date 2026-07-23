@@ -22,11 +22,39 @@ import com.threemail.android.util.MailText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
 
+/**
+ * ViewModel that powers [MessageDetailScreen]. Two operating modes share
+ * one VM instance:
+ *
+ *  * **Pager mode** - the nav route passed a `folderId` (or `unified=true`).
+ *    The VM exposes [adjacentIds]: a reactive list of every message id in
+ *    that scope; the screen wraps the body in a [androidx.compose.foundation.pager.HorizontalPager]
+ *    keyed off those ids. The user swipes between messages without leaving
+ *    the screen, and changes to any page call [selectMessage], which re-runs
+ *    the per-message load path (folder list, mark-read, body fetch, PGP,
+ *    next-resolve) for the new id.
+ *
+ *  * **Single-message mode** - the nav route omitted folder context (deep
+ *    links from Search / notifications). [adjacentIds] stays empty, the
+ *    screen renders a non-pager detail, and the existing pop+navigate
+ *    `onNavigateToNext` codepath stays in charge of advancing after a
+ *    destructive action.
+ *
+ * Both modes keep the same UiState surface that the screen already binds to
+ * (top bar, dialogs, bottom reply/reply-all/forward row, etc. all read
+ * [UiState.message]) - they only differ in how the *body* is wrapped.
+ */
 @HiltViewModel
 class MessageDetailViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -51,7 +79,7 @@ class MessageDetailViewModel @Inject constructor(
          *   - [moveToFolder]     (user-picked target from the move picker)
          *   - [markSpam]         (Spam / Junk)
          * The screen's LaunchedEffect watches this flag, not any single kind,
-         * and consults [appSettings.afterDeleteNavigation] for the user's
+         * and consults `appSettings.afterDeleteNavigation` for the user's
          * preference. Renaming this field would break every call site; the
          * honest path is to keep the historical name and document the
          * semantic broadening rather than rename. If a future contributor
@@ -62,11 +90,11 @@ class MessageDetailViewModel @Inject constructor(
         val isDeleted: Boolean = false,
         /**
          * The next-older message in the same folder as the currently-open
-         * one, resolved once at load time so the screen can advance to it
-         * after a delete without re-querying the DB. Null when the user is
-         * on the oldest message in the folder, when the folder is empty,
-         * or when the resolver query failed - in all those cases the
-         * screen falls back to popping back to the list.
+         * one, resolved when the VM has a folder context (pager mode) so the
+         * screen can advance to it after a delete without re-querying the DB.
+         * Null when the user is on the oldest message in the folder, when
+         * the folder is empty, or when the resolver query failed - in all
+         * those cases the screen falls back to popping back to the list.
          */
         val nextMessageId: Long? = null,
         val downloadingAttachment: String? = null,
@@ -102,13 +130,53 @@ class MessageDetailViewModel @Inject constructor(
         /** Full raw RFC 5322 header block, fetched on demand for the headers viewer. */
         val rawHeaders: String? = null,
         val isLoadingHeaders: Boolean = false,
-        val headersError: String? = null
+        val headersError: String? = null,
+        /**
+         * Worst-case visibility blip on a page boundary. Set while a freshly
+         * selected message is being hydrated (body fetch, mark-read, decrypt,
+         * folder list) so the screen can swap from `state.message == null`
+         * "loading" to actually showing the previous body until the new one
+         * is ready, instead of flashing a stale content. Cleared as soon as
+         * the new message lands in [UiState.message].
+         */
+        val isHydrating: Boolean = false
     )
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState
 
-    private val messageId: Long = savedStateHandle.get<Long>("messageId") ?: 0L
+    // Resolved once from the nav route - both default to "missing folder
+    // context" so deep links from Search / notifications safely fall into
+    // the non-pager single-message mode.
+    private val startMessageId: Long = savedStateHandle.get<Long>("messageId") ?: 0L
+    private val pagerFolderId: Long = savedStateHandle.get<Long>("folderId")?.takeIf { it >= 0L } ?: 0L
+    private val pagerUnified: Boolean = savedStateHandle.get<Boolean>("unified") == true
+    private val hasPagerScope: Boolean = pagerUnified || pagerFolderId > 0L
+
+    /**
+     * Reactive ordered list of message ids the screen can swipe through.
+     * Empty when the route didn't pass folder context, which is the signal
+     * for the screen to render the non-pager single-message view.
+     */
+    val adjacentIds: StateFlow<List<Long>> = mailRepository
+        .observeMessageIds(
+            folderId = pagerFolderId.takeIf { it > 0L },
+            unified = pagerUnified
+        )
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList()
+        )
+
+    /**
+     * The id whose body is currently mounted in the screen. The Compose
+     * pager drives this via [selectMessage]; the VM uses it both to know
+     * which message to hydrate and to compute [UiState.nextMessageId] for
+     * pager-mode post-delete advance.
+     */
+    private val _selectedId = MutableStateFlow(startMessageId)
+    val selectedId: StateFlow<Long> = _selectedId.asStateFlow()
 
     init {
         // Mirror the global "load images" preference into UiState so the
@@ -119,34 +187,172 @@ class MessageDetailViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(loadImagesSetting = settings.loadImages)
             }
         }
-        loadMessage(messageId)
+        // Bootstrap: load the message the nav route asked for. If the route
+        // also specifies a folder (pager scope) switch to that folder here so
+        // [loadFolders] resolves the account's full folder list with the
+        // right accountId even when the very first emission of adjacentIds
+        // races the message load.
+        loadMessage(startMessageId)
+        if (hasPagerScope) {
+            viewModelScope.launch {
+                adjacentIds
+                    .map { ids ->
+                        if (ids.isEmpty()) null
+                        else ids.indexOf(_selectedId.value).let { if (it >= 0) it + 1 else null }
+                    }
+                    .distinctUntilChanged()
+                    .collect { nextIdx ->
+                        _uiState.value = _uiState.value.copy(
+                            nextMessageId = nextIdx?.let { idx ->
+                                adjacentIds.value.getOrNull(idx)
+                            }
+                        )
+                    }
+            }
+        } else {
+            // Single-message deep-link path keeps the historical pre-resolved
+            // nextMessageId so the existing pop+navigate codepath stays
+            // available when the user only has one message to navigate to.
+            viewModelScope.launch {
+                combine(_uiState, _selectedId) { state, id -> state to id }
+                    .collect { (state, id) ->
+                        val folderId = state.message?.folderId ?: return@collect
+                        resolveNextMessageId(folderId, id)
+                    }
+            }
+        }
     }
 
-    private fun loadMessage(messageId: Long) {
+    /**
+     * Switch the pager to a new page. Idempotent: calling with the already-
+     * selected id is a no-op. Re-runs the per-message load path so body,
+     * attachments, mark-read, decryption, and folder resolution all get
+     * refreshed for the freshly mounted page - loading bleed from one
+     * message into another would be far worse than a brief re-hydration.
+     */
+    fun selectMessage(id: Long) {
+        if (id == _selectedId.value && _uiState.value.message?.id == id) return
+        _selectedId.value = id
+        // Reset transient per-message fields immediately so the screen can
+        // show a clean state for the new page; the load below races to fill
+        // them back in.
+        _uiState.value = _uiState.value.copy(
+            message = _uiState.value.message?.takeIf { it.id == id },
+            isLoading = id > 0L,
+            isLoadingBody = false,
+            isDeleted = false,
+            nextMessageId = null,
+            moveTargets = _uiState.value.moveTargets,
+            spamAvailable = _uiState.value.spamAvailable,
+            isEncrypted = false,
+            isDecrypting = false,
+            decryptedBody = null,
+            signatureStatus = null,
+            pgpUserAction = null,
+            pgpError = null,
+            // One-shot "Show images" override is per-message by design -
+            // re-entering a message that has already shown images starts
+            // with images blocked again unless the global default allows.
+            imagesShownForThisMessage = false,
+            rawHeaders = null,
+            isLoadingHeaders = false,
+            headersError = null,
+            isHydrating = id > 0L && _uiState.value.message?.id != id,
+            error = null
+        )
+        if (id > 0L) loadMessage(id)
+    }
+
+    /**
+     * Best-effort pre-load of an adjacent message so its body, mark-read
+     * flag, and decryption state are ready by the time the user swipes
+     * onto it. Errors are swallowed; the worst case is the user lands on a
+     * page that briefly shows "loading" while it hydrates.
+     */
+    fun ensureLoaded(id: Long) {
+        if (id == _selectedId.value) return
+        // Tag the load so a parallel [selectMessage] to the same id doesn't
+        // double-fire; we just look the message up and stash it in a small
+        // prefetch cache the per-page body composable can pick from.
+        viewModelScope.launch {
+            runCatching {
+                val message = mailRepository.getMessageById(id) ?: return@runCatching
+                _prefetchedIds.value = _prefetchedIds.value + id
+                _prefetchedMessages.value = _prefetchedMessages.value + (id to message)
+            }
+        }
+    }
+
+    /**
+     * Try to consume a prefetched body for [id] from the prefetch cache.
+     * Returns null when nothing is cached - the caller is expected to fall
+     * through to a normal load via [selectMessage] in that case.
+     */
+    fun takePrefetch(id: Long): MailMessage? {
+        val msg = _prefetchedMessages.value[id] ?: return null
+        _prefetchedIds.value = _prefetchedIds.value - id
+        _prefetchedMessages.value = _prefetchedMessages.value - id
+        return msg
+    }
+
+    private val _prefetchedIds = MutableStateFlow<Set<Long>>(emptySet())
+    private val _prefetchedMessages = MutableStateFlow<Map<Long, MailMessage>>(emptyMap())
+
+    private fun loadMessage(messageId: Long, prefetched: MailMessage? = null) {
+        if (messageId <= 0L) {
+            _uiState.value = _uiState.value.copy(isLoading = false, isHydrating = false)
+            return
+        }
+        if (prefetched != null) {
+            // Caller already has the entity - skip the suspend roundtrip.
+            onMessageLoaded(prefetched)
+            return
+        }
         _uiState.value = _uiState.value.copy(isLoading = true)
         viewModelScope.launch {
             try {
-                val message = mailRepository.getMessageById(messageId)
-                _uiState.value = UiState(message = message, isLoading = false)
+                val message = takePrefetch(messageId) ?: mailRepository.getMessageById(messageId)
+                _uiState.value = _uiState.value.copy(isLoading = message == null, isHydrating = false)
                 message?.let {
-                    loadFolders(it)
-                    // Mark read locally + on the server the first time it is opened.
-                    if (!it.isRead) mailActions.setRead(it, true)
-                    if (it.bodyHtml.isNullOrBlank() && it.bodyPlain.isNullOrBlank()) {
-                        fetchBody(it)
-                    } else {
-                        maybeDecrypt(it)
-                    }
-                    // Resolve the post-delete "go to next" target now so the
-                    // screen's LaunchedEffect fires instantly on a delete
-                    // tap without a fresh DB roundtrip. Best-effort: a
-                    // thrown exception leaves `nextMessageId` null, which
-                    // the screen treats as "fall back to list".
-                    resolveNextMessageId(it.folderId, messageId)
+                    onMessageLoaded(it)
                 }
             } catch (e: Exception) {
-                _uiState.value = UiState(error = e.message, isLoading = false)
+                _uiState.value = _uiState.value.copy(isLoading = false, isHydrating = false, error = e.message)
             }
+        }
+    }
+
+    /**
+     * One-shot hydrate sequence run after a message id lands. Split out from
+     * [loadMessage] so the prefetched path and the cold-load path share the
+     * exact same downstream side-effects (folder list, mark-read, body,
+     * decrypt, delete-state reset).
+     */
+    private suspend fun onMessageLoaded(message: MailMessage) {
+        // Mark the new message loaded in UiState; clear the hydrating flag
+        // so the screen stops showing the previous body as a placeholder.
+        _uiState.value = _uiState.value.copy(
+            message = message,
+            isLoading = false,
+            isHydrating = false,
+            error = null
+        )
+        loadFolders(message)
+        if (!message.isRead) {
+            // Local + remote flip; safe to fire-await since both are quick
+            // and the previous message's read-state is no longer relevant.
+            runCatching { mailActions.setRead(message, true) }
+            _uiState.value = _uiState.value.copy(message = message.copy(isRead = true))
+        }
+        if (message.bodyHtml.isNullOrBlank() && message.bodyPlain.isNullOrBlank()) {
+            fetchBody(message)
+        } else {
+            maybeDecrypt(message)
+        }
+        if (!hasPagerScope) {
+            // Single-message mode keeps the legacy resolve; pager mode
+            // gets nextMessageId reactively from [adjacentIds] in init.
+            resolveNextMessageId(message.folderId, message.id)
         }
     }
 

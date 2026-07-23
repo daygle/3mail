@@ -265,6 +265,21 @@ class MailRepository @Inject constructor(
      *
      * O(n) over the folder; cheap for the typical synced-window size.
      */
+    /**
+     * Lightweight, reactive id-only feed for a single folder (or, when
+     * [unified] is true, the cross-account unified inbox), newest-first.
+     * Backs the swipe pager in the message-detail screen so the per-page
+     * ViewModel only has to load the body of the message the user is
+     * actually looking at. Returns an empty flow when neither scope is
+     * supplied, so deep-link callers (Search / notifications) opt out
+     * cleanly and end up with the non-pager detail view.
+     */
+    fun observeMessageIds(folderId: Long? = null, unified: Boolean = false): Flow<List<Long>> = when {
+        unified -> messageDao.observeUnifiedInboxIds()
+        folderId != null -> messageDao.observeIdsByFolder(folderId)
+        else -> flowOf(emptyList())
+    }
+
     suspend fun findNextMessageIdInFolder(folderId: Long, currentMessageId: Long): Long? {
         val messages = getMessagesOnce(folderId).sortedByDescending { it.date }
         val index = messages.indexOfFirst { it.id == currentMessageId }
