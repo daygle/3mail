@@ -93,7 +93,7 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // -- Appearance --
-            SettingsGroup(title = "Appearance", icon = Icons.Default.Palette) {
+            SettingsGroup(title = stringResource(R.string.theme_label), icon = Icons.Default.Palette) {
                 SettingsRow(
                     title = stringResource(R.string.theme_label),
                     value = themeLabel(settings.themeMode),
@@ -105,6 +105,57 @@ fun SettingsScreen(
                     subtitle = stringResource(R.string.dynamic_color_subtitle),
                     checked = settings.useDynamicColor,
                     onCheckedChange = viewModel::setDynamicColor
+                )
+            }
+
+            // -- Inbox & Reading --
+            SettingsGroup(title = stringResource(R.string.display_section), icon = Icons.Default.Tune) {
+                SettingsRow(
+                    title = stringResource(R.string.density_label),
+                    value = stringResource(densityLabel(settings.messageDensity)),
+                    onClick = { dialog = SettingsDialog.Density }
+                )
+                CardDivider()
+                SettingsRow(
+                    title = stringResource(R.string.preview_lines_label),
+                    value = previewLinesLabel(settings.previewLines),
+                    onClick = { dialog = SettingsDialog.PreviewLines }
+                )
+                CardDivider()
+                SettingsRow(
+                    title = stringResource(R.string.swipe_right_label),
+                    value = stringResource(swipeActionLabel(settings.swipeRightAction)),
+                    onClick = { dialog = SettingsDialog.SwipeRight }
+                )
+                CardDivider()
+                SettingsRow(
+                    title = stringResource(R.string.swipe_left_label),
+                    value = stringResource(swipeActionLabel(settings.swipeLeftAction)),
+                    onClick = { dialog = SettingsDialog.SwipeLeft }
+                )
+                CardDivider()
+                SettingsRow(
+                    title = stringResource(R.string.reading_after_delete_row_title),
+                    subtitle = stringResource(R.string.reading_after_delete_subtitle),
+                    value = stringResource(afterDeleteLabel(settings.afterDeleteNavigation)),
+                    onClick = { dialog = SettingsDialog.AfterAction }
+                )
+            }
+
+            // -- Delivery & Sync --
+            SettingsGroup(title = stringResource(R.string.sync_section), icon = Icons.Default.Sync) {
+                SettingsRow(
+                    title = stringResource(R.string.default_check_frequency_title),
+                    subtitle = stringResource(R.string.default_check_frequency_subtitle),
+                    value = frequencyLabel(settings.syncIntervalMinutes),
+                    onClick = { dialog = SettingsDialog.SyncFrequency }
+                )
+                CardDivider()
+                SettingsSwitchRow(
+                    title = stringResource(R.string.new_mail_notifications_title),
+                    subtitle = stringResource(R.string.new_mail_notifications_subtitle),
+                    checked = settings.notificationsEnabled,
+                    onCheckedChange = viewModel::setNotificationsEnabled
                 )
             }
 
@@ -125,64 +176,7 @@ fun SettingsScreen(
                 )
             }
 
-            // -- Sync --
-            SettingsGroup(title = stringResource(R.string.sync_section), icon = Icons.Default.Sync) {
-                SettingsRow(
-                    title = stringResource(R.string.default_check_frequency_title),
-                    subtitle = stringResource(R.string.default_check_frequency_subtitle),
-                    value = frequencyLabel(settings.syncIntervalMinutes),
-                    onClick = { dialog = SettingsDialog.SyncFrequency }
-                )
-            }
-
-            // -- Message list --
-            SettingsGroup(title = stringResource(R.string.display_section), icon = Icons.Default.Tune) {
-                SettingsRow(
-                    title = stringResource(R.string.swipe_right_label),
-                    value = stringResource(swipeActionLabel(settings.swipeRightAction)),
-                    onClick = { dialog = SettingsDialog.SwipeRight }
-                )
-                CardDivider()
-                SettingsRow(
-                    title = stringResource(R.string.swipe_left_label),
-                    value = stringResource(swipeActionLabel(settings.swipeLeftAction)),
-                    onClick = { dialog = SettingsDialog.SwipeLeft }
-                )
-                CardDivider()
-                SettingsRow(
-                    title = stringResource(R.string.density_label),
-                    value = stringResource(densityLabel(settings.messageDensity)),
-                    onClick = { dialog = SettingsDialog.Density }
-                )
-                CardDivider()
-                SettingsRow(
-                    title = stringResource(R.string.preview_lines_label),
-                    value = previewLinesLabel(settings.previewLines),
-                    onClick = { dialog = SettingsDialog.PreviewLines }
-                )
-            }
-
-            // -- Notifications --
-            SettingsGroup(title = stringResource(R.string.notifications_section), icon = Icons.Default.Notifications) {
-                SettingsSwitchRow(
-                    title = stringResource(R.string.new_mail_notifications_title),
-                    subtitle = stringResource(R.string.new_mail_notifications_subtitle),
-                    checked = settings.notificationsEnabled,
-                    onCheckedChange = viewModel::setNotificationsEnabled
-                )
-            }
-
-            // -- After Action --
-            SettingsGroup(title = stringResource(R.string.reading_after_delete_section), icon = Icons.Default.Bolt) {
-                SettingsRow(
-                    title = stringResource(R.string.reading_after_delete_row_title),
-                    subtitle = stringResource(R.string.reading_after_delete_subtitle),
-                    value = stringResource(afterDeleteLabel(settings.afterDeleteNavigation)),
-                    onClick = { dialog = SettingsDialog.AfterAction }
-                )
-            }
-
-            // -- Trash --
+            // -- Maintenance --
             SettingsGroup(title = stringResource(R.string.trash_settings_section), icon = Icons.Default.DeleteSweep) {
                 SettingsContentRow {
                     Text(
@@ -205,10 +199,7 @@ fun SettingsScreen(
                     checked = settings.emptyTrashOnQuit,
                     onCheckedChange = viewModel::setEmptyTrashOnQuit
                 )
-            }
-
-            // Tappable deep-link into the Top-Bar Customisation screen.
-            SettingsGroup(title = stringResource(R.string.top_bar_settings_section), icon = Icons.Default.Tune) {
+                CardDivider()
                 SettingsRow(
                     title = stringResource(R.string.top_bar_settings_title),
                     subtitle = stringResource(R.string.top_bar_settings_subtitle),

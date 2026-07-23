@@ -51,7 +51,7 @@
     </plurals>
     <string name="clear_selection">Clear selection</string>
     <string name="pull_to_refresh_hint">Pull down to refresh</string>
-    <string name="display_section">Message List</string>
+    <string name="display_section">Inbox &amp; Reading</string>
     <string name="swipe_right_label">Swipe Right Action</string>
     <string name="swipe_left_label">Swipe Left Action</string>
     <string name="density_label">List Density</string>
@@ -85,7 +85,7 @@
          shown above HTML bodies when the global toggle is off. -->
     <string name="images_section_title">Privacy</string>
     <string name="images_setting_label">Always Load Remote Images</string>
-    <string name="images_setting_subtitle">Reveals pixel trackers and your IP to senders. Off by default.</string>
+    <string name="images_setting_subtitle">Reveals pixel trackers and your IP address to senders. Recommended to keep off.</string>
     <string name="images_blocked_banner_title">Remote images are hidden</string>
     <string name="images_blocked_banner_subtitle">Blocked to protect your privacy and avoid email tracking.</string>
     <string name="images_blocked_banner_action">Show images</string>
@@ -215,8 +215,8 @@
          stored preference and SettingsRepository contracts stay stable
          across the schema-name widening; display text is the only thing
          that changes for the user. -->
-    <string name="reading_after_delete_section">After Action</string>
-    <string name="reading_after_delete_subtitle">What happens after you delete, archive, move, or mark-as-spam a message you\'re reading.</string>
+    <string name="reading_after_delete_section">After Moving/Deleting</string>
+    <string name="reading_after_delete_subtitle">Action to take after you delete or move a message you are currently reading.</string>
     <string name="reading_after_delete_row_title">After Delete or Archive</string>
     <string name="reading_after_delete_return_to_list">Return to inbox</string>
     <string name="reading_after_delete_next_message">Open next message</string>
@@ -262,8 +262,8 @@
     <!-- Per-account settings -->
     <string name="account_settings_title">Account Settings</string>
     <string name="account_settings_general">General</string>
-    <string name="account_settings_display_name_subtitle">The name shown on mail you send from this account.</string>
-    <string name="account_settings_signature_section">Signature</string>
+    <string name="account_settings_display_name_subtitle">The name recipients see when you send mail from this account.</string>
+    <string name="account_settings_signature_section">Composing</string>
     <string name="account_settings_signature_label">Signature for This Account</string>
     <string name="account_settings_signature_placeholder">e.g. Sent from my phone</string>
     <string name="account_settings_signature_hint">Appended to new mail from this account. Leave blank to omit a signature.</string>
@@ -309,7 +309,7 @@
 
     <!-- Per-account folder-role overrides -->
     <string name="account_folder_roles_section">Folder Roles</string>
-    <string name="account_folder_roles_description">Pick which server folders hold incoming mail, sent mail, drafts, trash, spam, and archives. Automatic detects the folder by its name; it is set automatically when the account is added.</string>
+    <string name="account_folder_roles_description">Pick which server folders are used for sent mail, drafts, trash, spam, and archives. \'Automatic\' detects folders by name when the account is first added.</string>
     <string name="account_folder_role_auto_detected">Auto-detected</string>
     <string name="account_folder_role_automatic">Automatic</string>
     <string name="account_folder_role_automatic_named">Automatic (%1$s)</string>
@@ -327,7 +327,7 @@
     <string name="pgp_keys_section">OpenPGP Keys</string>
     <string name="pgp_keys_description">Mail is encrypted automatically when every recipient\'s key is known. Keys arrive via Autocrypt headers and Web Key Directory lookups, or can be imported below.</string>
     <string name="pgp_own_key_title">Your Key Fingerprint</string>
-    <string name="pgp_own_key_subtitle">Compare this out-of-band so contacts can verify mail signed by this account.</string>
+    <string name="pgp_own_key_subtitle">Share this fingerprint so contacts can verify your signed messages.</string>
     <string name="pgp_export_wkd_button">Export Public Key (WKD)</string>
     <string name="pgp_export_wkd_hint">Saves the binary key file for uploading to your domain\'s Web Key Directory (.well-known/openpgpkey/hu/).</string>
     <string name="pgp_peer_keys_title">Contact Keys</string>

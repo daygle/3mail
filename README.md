@@ -3,8 +3,8 @@
 A modern, full-featured Android mail client supporting IMAP (push), Gmail (OAuth2), and POP3, with a built-in Google Calendar tab.
 
 [![Android CI](https://github.com/daygle/3mail/actions/workflows/android.yml/badge.svg)](https://github.com/daygle/3mail/actions/workflows/android.yml)
-[![Platform: Android 8.0+](https://img.shields.io/badge/platform-Android%208.0%2B-3DDC84?logo=android&logoColor=white)](https://developer.android.com/about/versions/8.0)
-[![Min SDK 26](https://img.shields.io/badge/minSdk-26-3DDC84)](https://developer.android.com/about/versions/8.0)
+[![Platform: Android 12+](https://img.shields.io/badge/platform-Android%2012%2B-3DDC84?logo=android&logoColor=white)](https://developer.android.com/about/versions/12)
+[![Min SDK 31](https://img.shields.io/badge/minSdk-31-3DDC84)](https://developer.android.com/about/versions/12)
 [![Target SDK 35](https://img.shields.io/badge/targetSdk-35-3DDC84)](https://developer.android.com/about/versions/15)
 [![License: MIT](https://img.shields.io/github/license/daygle/3mail)](LICENSE)
 
@@ -15,11 +15,12 @@ A modern, full-featured Android mail client supporting IMAP (push), Gmail (OAuth
 - **Unified inbox**: an all-accounts inbox view (drawer entry when more than one account is configured) backed by a reactive cross-account query over every INBOX folder.
 - **Multi-select triage**: long-press to enter selection mode, then batch archive / delete / mark read-unread / select-all from a contextual app bar; plus a mark-all-read action and Material 3 pull-to-refresh.
 - **Configurable swipe & density**: pick the left/right swipe action (none / archive / delete / read-unread), message-list density (comfortable / compact), and body-preview line count in Settings.
+- **Domain icons & custom colors**: mail accounts automatically fetch their provider's icon (favicon) based on the domain. Users can also set a **custom background color** for each account to visually distinguish them at a glance across the side drawer, account list, and calendar.
 - **Send-as identities**: multiple sender aliases per account with per-identity signatures, chosen from the composer's From selector; plus optional read-receipt (Disposition-Notification-To) requests.
 - **Folder drawer & visibility**: tap a folder to select and instantly auto-sync its contents, or long-press to add / remove it from favourites via a small dropdown menu. A Manage folders screen hides folders from the drawer while keeping them synced.
 - **OpenPGP encryption (in-app, Bouncy Castle-backed)**: no OpenKeychain dependency - the app runs its own crypto. Each account gets an Ed25519 (sign) + X25519 (encrypt) keyring generated lazily on first use ([`data/crypto/PgpEngine.kt`](app/src/main/java/com/threemail/android/data/crypto/PgpEngine.kt)), stored in the app's private files dir with the wrap passphrase recorded via the Android Keystore-backed `CredentialStore`. Outgoing mail is opportunistically encrypted by `SendMailWorker` in **strict all-or-nothing mode**: recipient keys resolve from the per-account Autocrypt peer-key cache first, then **WKD** (Web Key Directory) lookups; when *every* recipient resolves, the full inner MIME tree (body + attachments + inline images) is signed, encrypted, and wrapped in an RFC 3156 `multipart/encrypted` envelope (`protocol="application/pgp-encrypted"`) - otherwise the send falls back to plaintext so no recipient is locked out. Every outgoing message (IMAP/Gmail) advertises an **Autocrypt** header (RFC 8180), and inbound `Autocrypt`/`Autocrypt-Gossip` headers are learned into the per-account peer-key cache during IMAP sync (`AutocryptLearner`). The message view decrypts inline-armoured and PGP/MIME bodies and surfaces signature status; rows sent encrypted carry a lock badge that survives re-sync.
 - **Native Gmail sync**: Gmail REST API for labels-as-folders, server-side threads, and label-based read; IMAP/SMTP for everything else.
-- **Modern UI**: Material 3 + Jetpack Compose with dynamic color (Material You), light/dark/system themes, sender avatars, swipe-to-archive/delete, and a folder navigation drawer.
+- **Modern UI**: Material 3 + Jetpack Compose with dynamic color (Material You), light/dark/system themes, sender avatars, swipe-to-archive/delete, and a folder navigation drawer. All labels use consistent **Title Case** for a professional look.
 - **Full message reading**: HTML bodies rendered in a `WebView` (remote images blocked by default), plain-text fallback, and on-demand body fetch.
 - **Compose, reply, reply-all, and forward** with quoting and `Re:`/`Fwd:` handling.
 - **Rich-text compose**: bold / italic / lists / links toolbar, **inline images** sent as `multipart/related` with `cid:` references and `Content-Disposition: inline`, and the body encoded as multipart/alternative (plain + HTML).
@@ -36,22 +37,22 @@ A modern, full-featured Android mail client supporting IMAP (push), Gmail (OAuth
 - **Incremental background sync**: `MailSyncWorker` with UID pagination for IMAP and `internalDate` cursor for Gmail.
 - **Encrypted credential storage** via direct **Android Keystore** (AES-256/GCM, 12-byte IV, per-account AAD) over a base64-encoded `SharedPreferences` file (`threemail_credentials_v2`), replacing the deprecated `androidx.security.crypto.EncryptedSharedPreferences` (see [`data/security/CredentialStore.kt`](app/src/main/java/com/threemail/android/data/security/CredentialStore.kt)). The incoming and outgoing passwords are held in separate slots, each with its own AAD, so an SMTP password distinct from the IMAP one is stored independently.
 - **Per-account signature**, sync frequency, push, notifications, theme, and **Empty trash on launch / quit** (server-first `EXPUNGE` then local Room prune, dispatched through WorkManager so it survives process death on background).
-- **Per-account settings**: each account has its own settings screen (open it from the Accounts list) for a per-account **signature** (blank = no signature on outgoing mail), a **mail-check frequency** override (a dedicated periodic `MailSyncWorker` per account; "Default" follows the app-wide interval), and per-account **sync**, **notifications**, and IMAP **push** toggles. The settings pages are built from a shared Material 3 grouped-card component set (`ui/components/SettingsComponents.kt`).
+- **Personalized settings**: re-organized settings hierarchy in both **Global** and **Account** settings. Common tasks like Composing, Sync, and Notifications are prioritized, while technical maintenance (Server Settings) is conveniently grouped at the bottom.
 - **Independent incoming/outgoing servers**: the fetching (IMAP/POP3) and sending (SMTP) servers are configured separately, each with its own **host**, **port**, **connection security** (SSL/TLS, STARTTLS, or none), and **login username + password** - so a provider whose submission credentials or TLS mode differ from fetching works out of the box. Blank outgoing credentials fall back to the incoming ones (the common case where both are the same). Editable on the Add Account flow and the per-account **Server Settings** page, which probes the server before saving.
 - **Launcher badge** counter for unread mail.
 
 ## Tech Stack
 
-- **Kotlin** 2.3.10 + **Jetpack Compose** (Compose BOM 2026.06.01)
+- **Kotlin** 2.4.10 + **Jetpack Compose** (Compose BOM 2026.06.01)
 - **Hilt** 2.60.1 for dependency injection. Note: `androidx.hilt:hilt-work` is intentionally **not** used - see [`sync/ThreeMailWorkerFactory.kt`](app/src/main/java/com/threemail/android/sync/ThreeMailWorkerFactory.kt) for the manual `WorkerFactory` dispatch that replaces `@HiltWorker` under KSP2.
-- **Room** 2.8.4 (local database at schema version 21; migrations `MIGRATION_4_5` … `MIGRATION_20_21` in [`Migrations.kt`](app/src/main/java/com/threemail/android/data/local/migrations/Migrations.kt)). Schema JSON export is currently disabled (see note in `app/build.gradle.kts`) - so `app/schemas/` holds the last exported versions, 5-7, rather than the live schema.
+- **Room** 2.8.4 (local database at schema version 26; migrations `MIGRATION_4_5` … `MIGRATION_25_26` in [`Migrations.kt`](app/src/main/java/com/threemail/android/data/local/migrations/Migrations.kt)). Schema JSON export is currently disabled (see note in `app/build.gradle.kts`) - so `app/schemas/` holds the last exported versions, 5-7, rather than the live schema.
 - **Bouncy Castle** 1.85 (`bcpg-jdk18on` + `bcprov-jdk18on`) for the in-app OpenPGP path (key generation, PGP/MIME sign+encrypt, decrypt+verify)
 - **WorkManager** 2.11.2 for background sync (manual worker dispatch via `ThreeMailWorkerFactory`)
 - **DataStore** 1.2.1 (preferences)
 - **JavaMail (`android-mail`)** 1.6.8 + Apache Commons Net 3.13.0 for IMAP / SMTP
 - **Google Sign-In** via **Credential Manager** + **Google Identity Services** (`com.google.android.libraries.identity.googleid`) for the Gmail / Calendar OAuth2 flow
 - **Gmail REST API** + **Google Calendar API** for Gmail/Calendar features
-- **Coil** 2.7.0 for Compose image loading (avatars, attachments)
+- **Coil** 3.5.0 for Compose image loading (avatars, attachments)
 - **Direct Android Keystore** (`AES/GCM/NoPadding` with 256-bit key + per-email AAD) + base64-encoded `SharedPreferences` for credential storage. Replaces the deprecated `androidx.security.crypto.EncryptedSharedPreferences` - see [`data/security/CredentialStore.kt`](app/src/main/java/com/threemail/android/data/security/CredentialStore.kt).
 - **JUnit 4** + **Robolectric** 4.16.1 + **kotlinx-coroutines-test** for JVM unit tests
 - **Android Gradle Plugin** 9.3.0, Gradle 9.6.1, Java 17, KSP 2.3.10
@@ -59,14 +60,14 @@ A modern, full-featured Android mail client supporting IMAP (push), Gmail (OAuth
 ## Setup
 
 1. **Android Studio**: open the project (latest stable recommended).
-2. **Android SDK levels** (set in `app/build.gradle.kts`): `minSdk = 26` (Android 8.0), `targetSdk = 35` (Android 15), `compileSdk = 37` (compileSdk is decoupled from targetSdk - several AAR metadata entries in the dependency tree require `minCompileSdk ≥ 36`, but `targetSdk` stays at 35 so runtime behaviour is unchanged).
+2. **Android SDK levels** (set in `app/build.gradle.kts`): `minSdk = 31` (Android 12), `targetSdk = 35` (Android 15), `compileSdk = 37` (compileSdk is decoupled from targetSdk - several AAR metadata entries in the dependency tree require `minCompileSdk ≥ 36`, but `targetSdk` stays at 35 so runtime behaviour is unchanged).
 3. **Gradle wrapper**: `gradle-wrapper.jar` and `gradle-wrapper.properties` are committed; CI pins Gradle **9.6.1** to match.
 4. **OAuth Web Client ID**: replace `YOUR_WEB_CLIENT_ID` in `app/src/main/res/values/strings.xml` with your OAuth 2.0 Web Client ID from the [Google Cloud Console](https://console.cloud.google.com/). Required for Gmail sign-in and the Google Calendar API.
 5. **Build**: `./gradlew assembleDebug` (or run from Android Studio). JVM unit tests: `./gradlew testDebugUnitTest`. Android lint: `./gradlew lintDebug`. Instrumented Compose UI tests (needs a device or emulator): `./gradlew connectedDebugAndroidTest`.
 
 ## Architecture
 
-- `data/local` - Room database (schema v21), DAOs, entities, and `Migrations.kt` (live migrations `MIGRATION_4_5` … `MIGRATION_20_21`). Last exported schema JSON under `app/schemas/` (versions 5-7); export is currently disabled, see the comment in `app/build.gradle.kts`.
+- `data/local` - Room database (schema v26), DAOs, entities, and `Migrations.kt` (live migrations `MIGRATION_4_5` … `MIGRATION_25_26`). Last exported schema JSON under `app/schemas/` (versions 5-7); export is currently disabled, see the comment in `app/build.gradle.kts`.
 - `data/remote/imap` - JavaMail-backed IMAP client (`ImapClient`, `ImapClientFactory`, `ImapRemote`).
 - `data/remote/pop3` - JavaMail-backed POP3 client (`Pop3Client`, `Pop3Remote`); shared MIME walking in `data/remote/MimeParsing.kt`.
 - `data/remote/gmail` - Gmail REST API client, OAuth helper, recoverable-auth handling.
@@ -118,12 +119,6 @@ The fix, [`sync/ThreeMailWorkerFactory.kt`](app/src/main/java/com/threemail/andr
 - Enables KVM on the runner, then boots a hardware-accelerated API 34 x86_64 emulator via `reactivecircus/android-emulator-runner@v2`
 - `./gradlew connectedDebugAndroidTest --stacktrace` runs the instrumented Compose UI smoke suite (`app/src/androidTest/java/com/threemail/android/ui/InboxSettingsTitleCaseDeviceTest.kt`)
 - Uploads the connected-test report as a workflow artifact
-
-## Next Steps
-
-- ~~CI emulator job for Compose UI tests~~ **Done**: Compose UI coverage now runs at two layers - the full Robolectric label-audit suite (`app/src/test/java/com/threemail/android/ui/InboxSettingsTitleCaseTest.kt`) in `testDebugUnitTest` on every PR, plus an on-device smoke suite (`app/src/androidTest/java/com/threemail/android/ui/InboxSettingsTitleCaseDeviceTest.kt`) run by the `android-test` emulator job (`connectedDebugAndroidTest`) on pushes to `main`.
-- ~~Future hardening for the in-app OpenPGP path~~ **Done**: the BC-backed `OpenPgpController`/`PgpEngine` pipeline is live - PGP/MIME `multipart/encrypted` wraps the full inner MIME tree (`protocol="application/pgp-encrypted"`), Autocrypt header exchange (RFC 8180) runs in both directions with the per-peer key cache in the Room `accounts` table (`peerKeysJson` - chosen over DataStore so the cache rides the account row's lifecycle), and WKD recipient-key discovery (advanced + direct methods) feeds `signAndEncrypt` real recipient keys. Round-trip coverage lives in `app/src/test/.../crypto/PgpEngineRoundTripTest.kt`.
-- ~~Remaining OpenPGP niceties~~ **Done**: peer signatures now verify against the cached Autocrypt keys on decrypt (unknown signers still report "key missing"); per-account settings gained an **OpenPGP Keys** section - own-key fingerprint display, cached contact keys with fingerprints + removal, and manual key import (armoured or raw base64, validated before storing, and authoritative over Autocrypt-learned entries); and the account's public key can be **exported in WKD layout** (binary key, zbase32 `hu/` filename) for upload to the domain's `.well-known/openpgpkey/` directory - actual serving requires domain control, which is out of a mail client's hands.
 
 ## License
 

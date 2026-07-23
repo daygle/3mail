@@ -75,7 +75,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import androidx.compose.ui.graphics.toArgb
 import com.threemail.android.ui.theme.AvatarColors
 import com.threemail.android.ui.theme.appTopBarColors
 import com.threemail.android.R
@@ -169,11 +168,12 @@ fun AccountSettingsScreen(
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Ordered top-to-bottom the way a user sets an account up and
-                    // returns to it: who the account is (General, Identities),
-                    // how it connects (Server), how it behaves (Mail Checking,
-                    // Notifications), then the less-touched sections (Signature,
-                    // Folder Roles, Calendar, encryption keys).
+                    // Reordered top-to-bottom for better flow:
+                    // 1. Profile (Name, Color)
+                    // 2. Composing (Signature, Identities)
+                    // 3. Sync & Notifications (Delivery settings)
+                    // 4. Organization (Folder Roles, Calendar)
+                    // 5. Security & Maintenance (PGP, Server Settings)
 
                     SettingsGroup(
                         title = stringResource(R.string.account_settings_general),
@@ -240,41 +240,32 @@ fun AccountSettingsScreen(
                         }
                     }
 
+                    // -- Composing (Signature & Identities) --
                     SettingsGroup(
-                        title = stringResource(R.string.identities_section),
-                        icon = Icons.Default.AlternateEmail
+                        title = stringResource(R.string.account_settings_signature_section),
+                        icon = Icons.Default.Draw
                     ) {
+                        SettingsContentRow {
+                            OutlinedTextField(
+                                value = account.signature,
+                                onValueChange = viewModel::setSignature,
+                                label = { Text(stringResource(R.string.account_settings_signature_label)) },
+                                placeholder = { Text(stringResource(R.string.account_settings_signature_placeholder)) },
+                                supportingText = {
+                                    Text(stringResource(R.string.account_settings_signature_hint))
+                                },
+                                minLines = 3,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        CardDivider()
                         SettingsRow(
                             title = stringResource(R.string.account_manage_identities_subtitle),
                             onClick = onOpenIdentities
                         )
                     }
 
-                    // Server settings: incoming and outgoing each get their own
-                    // drill-in row inside this one Server Settings card. IMAP/POP3
-                    // only - Gmail uses OAuth and fixed hosts.
-                    if (account.accountType != AccountType.GMAIL) {
-                        SettingsGroup(
-                            title = stringResource(R.string.account_settings_server_section),
-                            icon = Icons.Default.Dns
-                        ) {
-                            SettingsRow(
-                                title = stringResource(R.string.account_incoming_server_section),
-                                subtitle = stringResource(R.string.account_manage_incoming_server_subtitle),
-                                onClick = onOpenIncomingServer
-                            )
-                            CardDivider()
-                            SettingsRow(
-                                title = stringResource(R.string.account_outgoing_server_section),
-                                subtitle = stringResource(R.string.account_manage_outgoing_server_subtitle),
-                                onClick = onOpenOutgoingServer
-                            )
-                        }
-                    }
-
-                    // Mail Checking: sync toggle + frequency, plus (for IMAP) the
-                    // Push drill-in - push is part of how often/how instantly mail
-                    // arrives, so it lives with the other checking controls.
+                    // -- Sync & Notifications --
                     SettingsGroup(
                         title = stringResource(R.string.account_settings_sync_section),
                         icon = Icons.Default.Sync
@@ -317,25 +308,7 @@ fun AccountSettingsScreen(
                         )
                     }
 
-                    SettingsGroup(
-                        title = stringResource(R.string.account_settings_signature_section),
-                        icon = Icons.Default.Draw
-                    ) {
-                        SettingsContentRow {
-                            OutlinedTextField(
-                                value = account.signature,
-                                onValueChange = viewModel::setSignature,
-                                label = { Text(stringResource(R.string.account_settings_signature_label)) },
-                                placeholder = { Text(stringResource(R.string.account_settings_signature_placeholder)) },
-                                supportingText = {
-                                    Text(stringResource(R.string.account_settings_signature_hint))
-                                },
-                                minLines = 3,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-
+                    // -- Organization (Folders & Calendar) --
                     if (account.accountType == AccountType.IMAP) {
                         SettingsGroup(
                             title = stringResource(R.string.account_folder_roles_section),
@@ -348,9 +321,6 @@ fun AccountSettingsScreen(
                         }
                     }
 
-                    // Calendar sync is Google-only: the Calendar tab is backed by
-                    // the Google Calendar API and reads accounts where this flag is
-                    // set, so the toggle is meaningless for IMAP/POP3 accounts.
                     if (account.accountType == AccountType.GMAIL) {
                         SettingsGroup(
                             title = stringResource(R.string.account_settings_calendar_section),
@@ -365,6 +335,7 @@ fun AccountSettingsScreen(
                         }
                     }
 
+                    // -- Security & Advanced --
                     SettingsGroup(
                         title = stringResource(R.string.pgp_keys_section),
                         icon = Icons.Default.Key
@@ -373,6 +344,25 @@ fun AccountSettingsScreen(
                             title = stringResource(R.string.account_manage_pgp_subtitle),
                             onClick = onOpenPgp
                         )
+                    }
+
+                    if (account.accountType != AccountType.GMAIL) {
+                        SettingsGroup(
+                            title = stringResource(R.string.account_settings_server_section),
+                            icon = Icons.Default.Dns
+                        ) {
+                            SettingsRow(
+                                title = stringResource(R.string.account_incoming_server_section),
+                                subtitle = stringResource(R.string.account_manage_incoming_server_subtitle),
+                                onClick = onOpenIncomingServer
+                            )
+                            CardDivider()
+                            SettingsRow(
+                                title = stringResource(R.string.account_outgoing_server_section),
+                                subtitle = stringResource(R.string.account_manage_outgoing_server_subtitle),
+                                onClick = onOpenOutgoingServer
+                            )
+                        }
                     }
                 }
             }
