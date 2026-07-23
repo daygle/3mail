@@ -267,7 +267,7 @@
     <string name="account_settings_signature_label">Signature for This Account</string>
     <string name="account_settings_signature_placeholder">e.g. Sent from my phone</string>
     <string name="account_settings_signature_hint">Appended to new mail from this account. Leave blank to omit a signature.</string>
-    <string name="account_settings_sync_section">Mail Checking</string>
+    <string name="account_settings_sync_section">Delivery</string>
     <string name="account_settings_sync_enabled_title">Sync This Account</string>
     <string name="account_settings_sync_enabled_subtitle">Fetch new mail for this account in the background.</string>
     <string name="account_settings_frequency_title">Check Frequency</string>

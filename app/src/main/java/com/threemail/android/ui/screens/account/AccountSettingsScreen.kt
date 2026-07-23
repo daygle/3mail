@@ -265,7 +265,7 @@ fun AccountSettingsScreen(
                         )
                     }
 
-                    // -- Sync & Notifications --
+                    // -- Delivery (Sync & Notifications) --
                     SettingsGroup(
                         title = stringResource(R.string.account_settings_sync_section),
                         icon = Icons.Default.Sync
@@ -294,12 +294,7 @@ fun AccountSettingsScreen(
                                 onClick = onOpenPush
                             )
                         }
-                    }
-
-                    SettingsGroup(
-                        title = stringResource(R.string.account_settings_notifications_section),
-                        icon = Icons.Default.Notifications
-                    ) {
+                        CardDivider()
                         SettingsSwitchRow(
                             title = stringResource(R.string.account_settings_notifications_title),
                             subtitle = stringResource(R.string.account_settings_notifications_subtitle),
@@ -309,29 +304,28 @@ fun AccountSettingsScreen(
                     }
 
                     // -- Organization (Folders & Calendar) --
-                    if (account.accountType == AccountType.IMAP) {
+                    if (account.accountType == AccountType.IMAP || account.accountType == AccountType.GMAIL) {
                         SettingsGroup(
                             title = stringResource(R.string.account_folder_roles_section),
                             icon = Icons.Default.Folder
                         ) {
-                            SettingsRow(
-                                title = stringResource(R.string.account_manage_folder_roles_subtitle),
-                                onClick = onOpenFolderRoles
-                            )
-                        }
-                    }
-
-                    if (account.accountType == AccountType.GMAIL) {
-                        SettingsGroup(
-                            title = stringResource(R.string.account_settings_calendar_section),
-                            icon = Icons.Default.CalendarMonth
-                        ) {
-                            SettingsSwitchRow(
-                                title = stringResource(R.string.account_settings_calendar_title),
-                                subtitle = stringResource(R.string.account_settings_calendar_subtitle),
-                                checked = account.calendarSyncEnabled,
-                                onCheckedChange = viewModel::setCalendarSyncEnabled
-                            )
+                            if (account.accountType == AccountType.IMAP) {
+                                SettingsRow(
+                                    title = stringResource(R.string.account_manage_folder_roles_subtitle),
+                                    onClick = onOpenFolderRoles
+                                )
+                            }
+                            if (account.accountType == AccountType.IMAP && account.accountType == AccountType.GMAIL) {
+                                CardDivider()
+                            }
+                            if (account.accountType == AccountType.GMAIL) {
+                                SettingsSwitchRow(
+                                    title = stringResource(R.string.account_settings_calendar_title),
+                                    subtitle = stringResource(R.string.account_settings_calendar_subtitle),
+                                    checked = account.calendarSyncEnabled,
+                                    onCheckedChange = viewModel::setCalendarSyncEnabled
+                                )
+                            }
                         }
                     }
 
