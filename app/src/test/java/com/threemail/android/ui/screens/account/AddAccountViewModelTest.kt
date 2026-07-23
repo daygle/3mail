@@ -230,6 +230,7 @@ class AddAccountViewModelTest {
         override suspend fun setIdentitiesJson(id: Long, identitiesJson: String) {}
         override suspend fun setFolderRolesJson(id: Long, folderRolesJson: String) {}
         override suspend fun setPushFoldersJson(id: Long, pushFoldersJson: String) {}
+        override suspend fun setAccountColor(id: Long, color: Int?) {}
         override suspend fun setConnectionSettings(
             id: Long,
             incomingServer: String?,

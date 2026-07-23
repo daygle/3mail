@@ -140,6 +140,12 @@ fun SettingsScreen(
                     value = stringResource(afterDeleteLabel(settings.afterDeleteNavigation)),
                     onClick = { dialog = SettingsDialog.AfterAction }
                 )
+                CardDivider()
+                SettingsRow(
+                    title = stringResource(R.string.top_bar_settings_title),
+                    subtitle = stringResource(R.string.top_bar_settings_subtitle),
+                    onClick = onNavigateToTopBarSettings
+                )
             }
 
             // -- Delivery & Sync --
@@ -198,12 +204,6 @@ fun SettingsScreen(
                     subtitle = stringResource(R.string.empty_trash_on_quit_subtitle),
                     checked = settings.emptyTrashOnQuit,
                     onCheckedChange = viewModel::setEmptyTrashOnQuit
-                )
-                CardDivider()
-                SettingsRow(
-                    title = stringResource(R.string.top_bar_settings_title),
-                    subtitle = stringResource(R.string.top_bar_settings_subtitle),
-                    onClick = onNavigateToTopBarSettings
                 )
             }
         }
