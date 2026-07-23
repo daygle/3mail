@@ -259,7 +259,7 @@ class GmailRemote(
     }
 
     private fun labelType(labelId: String): FolderType = when (labelId.uppercase()) {
-        "INBOX" -> FolderType.Inbox
+        "INBOX" -> FolderType.INBOX
         "SENT" -> FolderType.SENT
         "DRAFT" -> FolderType.DRAFTS
         "TRASH" -> FolderType.TRASH

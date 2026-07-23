@@ -145,7 +145,7 @@ class MailActionsTest {
         // `getMoveTargetFolders()`, but defending the underlying action
         // makes the contract explicit and protects any future caller that
         // forgets to filter.
-        val sameFolder = mailFolder(id = inboxId, name = "Inbox", type = FolderType.Inbox)
+        val sameFolder = mailFolder(id = inboxId, name = "Inbox", type = FolderType.INBOX)
         val msgs = listOf(mailMessage(id = 10L))
 
         mailActions.moveBatch(msgs, sameFolder)
@@ -185,7 +185,7 @@ class MailActionsTest {
                 accountId = accountId,
                 serverId = "INBOX",
                 name = "Inbox",
-                type = FolderType.Inbox
+                type = FolderType.INBOX
             )
         )
         db.folderDao().insert(

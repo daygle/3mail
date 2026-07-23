@@ -122,7 +122,7 @@ class InboxViewModel @Inject constructor(
     ) { accounts, folders, messages, selectedAccount, selectedFolder ->
         val account = selectedAccount ?: accounts.firstOrNull()
         val folder = selectedFolder
-            ?: folders.firstOrNull { it.type == FolderType.Inbox }
+            ?: folders.firstOrNull { it.type == FolderType.INBOX }
             ?: folders.firstOrNull()
         UiState(
             accounts = accounts,
@@ -175,7 +175,7 @@ class InboxViewModel @Inject constructor(
             runCatching {
             foldersFlow.collect { folders ->
                 if (_selectedFolder.value == null && folders.isNotEmpty()) {
-                    _selectedFolder.value = folders.firstOrNull { it.type == FolderType.Inbox } ?: folders.first()
+                    _selectedFolder.value = folders.firstOrNull { it.type == FolderType.INBOX } ?: folders.first()
                 }
             }
             }.onFailure { e ->
@@ -338,7 +338,7 @@ class InboxViewModel @Inject constructor(
         val accounts = accountsFlow.value
         for (account in accounts) {
             val folders = mailRepository.getFoldersOnce(account.id)
-            val inbox = folders.firstOrNull { it.type == FolderType.Inbox } ?: continue
+            val inbox = folders.firstOrNull { it.type == FolderType.INBOX } ?: continue
             try {
                 val remote = mailRemoteFactory.create(account)
                 val fetch = remote.fetchMessages(inbox, syncCursorFor(inbox), limit = 100).getOrThrow()

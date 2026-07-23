@@ -581,7 +581,7 @@ internal fun PushSection(
                 )
             }
             val extraFolders = state.folders.filter {
-                it.type != FolderType.Inbox
+                it.type != FolderType.INBOX
             }
             if (extraFolders.isEmpty()) {
                 SettingsContentRow {
@@ -1240,7 +1240,7 @@ private fun accountFrequencyLabel(minutes: Long, defaultMinutes: Long): String =
 
 /** Roles exposed in the per-account picker, in display order. */
 private val FOLDER_ROLES = listOf(
-    FolderType.Inbox,
+    FolderType.INBOX,
     FolderType.SENT,
     FolderType.DRAFTS,
     FolderType.TRASH,
@@ -1249,7 +1249,7 @@ private val FOLDER_ROLES = listOf(
 )
 
 private fun FolderType.displayNameRes(): Int = when (this) {
-    FolderType.Inbox -> R.string.account_folder_role_inbox
+    FolderType.INBOX -> R.string.account_folder_role_inbox
     FolderType.SENT -> R.string.account_folder_role_sent
     FolderType.DRAFTS -> R.string.account_folder_role_drafts
     FolderType.TRASH -> R.string.account_folder_role_trash

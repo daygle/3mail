@@ -260,7 +260,7 @@ class MessageDaoTest {
                 accountId = accountIdOne,
                 serverId = "INBOX",
                 name = "Inbox",
-                type = FolderType.Inbox
+                type = FolderType.INBOX
             )
         )
         db.folderDao().insert(
@@ -269,7 +269,7 @@ class MessageDaoTest {
                 accountId = accountIdTwo,
                 serverId = "INBOX",
                 name = "Inbox",
-                type = FolderType.Inbox
+                type = FolderType.INBOX
             )
         )
     }

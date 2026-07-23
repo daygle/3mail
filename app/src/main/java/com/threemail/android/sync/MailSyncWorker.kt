@@ -107,7 +107,7 @@ class MailSyncWorker(
                         // once). We snapshot the folder's known server-ids before
                         // the upsert; the messages whose messageId wasn't present
                         // and that arrive unread are the ones worth a notification.
-                        val isNotifyFolder = folder.type == FolderType.Inbox ||
+                        val isNotifyFolder = folder.type == FolderType.INBOX ||
                             folder.serverId in account.pushFolders
                         val shouldNotify = isNotifyFolder &&
                             account.notificationsEnabled &&
@@ -134,7 +134,7 @@ class MailSyncWorker(
                         // MOVED folders; failures here are logged but
                         // never abort the sync - a missing key just means
                         // we fall back to WKD on the next compose.
-                        if (folder.type == FolderType.Inbox) {
+                        if (folder.type == FolderType.INBOX) {
                             val newUids = toSave.mapNotNull { it.uid.takeIf { uid -> uid > 0L } }
                             if (newUids.isNotEmpty()) {
                                 val outcome = autocrLearner
@@ -190,6 +190,6 @@ class MailSyncWorker(
 
     companion object {
         private const val TAG = "MailSyncWorker"
-        private val SYNCED_FOLDERS = setOf(FolderType.Inbox, FolderType.SENT, FolderType.DRAFTS)
+        private val SYNCED_FOLDERS = setOf(FolderType.INBOX, FolderType.SENT, FolderType.DRAFTS)
     }
 }

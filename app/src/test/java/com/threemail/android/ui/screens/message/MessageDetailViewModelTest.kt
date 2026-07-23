@@ -286,7 +286,7 @@ class MessageDetailViewModelTest {
         )
         db.folderDao().insert(FolderEntity(
             id = inboxId, accountId = accountId, serverId = "INBOX",
-            name = "Inbox", type = FolderType.Inbox
+            name = "Inbox", type = FolderType.INBOX
         ))
         db.folderDao().insert(FolderEntity(
             id = archiveId, accountId = accountId, serverId = "Archive",

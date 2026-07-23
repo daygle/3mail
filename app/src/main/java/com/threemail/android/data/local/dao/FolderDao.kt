@@ -32,6 +32,26 @@ interface FolderDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(folders: List<FolderEntity>): List<Long>
 
+    @Transaction
+    suspend fun upsertFolders(folders: List<FolderEntity>): List<FolderEntity> {
+        return folders.map { folder ->
+            val existing = getByServerId(folder.accountId, folder.serverId)
+            if (existing != null) {
+                val merged = folder.copy(
+                    id = existing.id,
+                    syncVersion = existing.syncVersion,
+                    unreadCount = existing.unreadCount,
+                    isHidden = existing.isHidden
+                )
+                update(merged)
+                merged
+            } else {
+                val id = insert(folder)
+                folder.copy(id = id)
+            }
+        }
+    }
+
     @Update
     suspend fun update(folder: FolderEntity)
 

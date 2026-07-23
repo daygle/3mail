@@ -253,7 +253,7 @@ class InboxViewModelTest {
                     accountId = seededAccountId,
                     serverId = "INBOX",
                     name = "Inbox",
-                    type = FolderType.Inbox
+                    type = FolderType.INBOX
                 )
             )
             db.folderDao().insert(

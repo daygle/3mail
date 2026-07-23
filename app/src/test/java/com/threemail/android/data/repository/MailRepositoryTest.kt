@@ -163,10 +163,10 @@ class MailRepositoryTest {
     fun `reconcileDeletions drops messages the server no longer has`() = runBlocking {
         val folderId = db.folderDao().insert(
             com.threemail.android.data.local.entity.FolderEntity(
-                accountId = accountId, serverId = "INBOX", name = "Inbox", type = FolderType.Inbox
+                accountId = accountId, serverId = "INBOX", name = "Inbox", type = FolderType.INBOX
             )
         )
-        val folder = MailFolder(id = folderId, accountId = accountId, serverId = "INBOX", name = "Inbox", type = FolderType.Inbox)
+        val folder = MailFolder(id = folderId, accountId = accountId, serverId = "INBOX", name = "Inbox", type = FolderType.INBOX)
         insertMessage(folderId, uid = 10L, messageId = "a")
         insertMessage(folderId, uid = 20L, messageId = "b") // this one was deleted elsewhere
         insertMessage(folderId, uid = 30L, messageId = "c")
@@ -186,10 +186,10 @@ class MailRepositoryTest {
     fun `reconcileDeletions never wipes the cache when the server probe fails`() = runBlocking {
         val folderId = db.folderDao().insert(
             com.threemail.android.data.local.entity.FolderEntity(
-                accountId = accountId, serverId = "INBOX", name = "Inbox", type = FolderType.Inbox
+                accountId = accountId, serverId = "INBOX", name = "Inbox", type = FolderType.INBOX
             )
         )
-        val folder = MailFolder(id = folderId, accountId = accountId, serverId = "INBOX", name = "Inbox", type = FolderType.Inbox)
+        val folder = MailFolder(id = folderId, accountId = accountId, serverId = "INBOX", name = "Inbox", type = FolderType.INBOX)
         insertMessage(folderId, uid = 10L, messageId = "a")
         insertMessage(folderId, uid = 20L, messageId = "b")
 
@@ -205,7 +205,7 @@ class MailRepositoryTest {
     fun `pruneFolders removes folders absent from the server and cascades their messages`() = runBlocking {
         val keepId = db.folderDao().insert(
             com.threemail.android.data.local.entity.FolderEntity(
-                accountId = accountId, serverId = "INBOX", name = "Inbox", type = FolderType.Inbox
+                accountId = accountId, serverId = "INBOX", name = "Inbox", type = FolderType.INBOX
             )
         )
         val goneId = db.folderDao().insert(
@@ -230,7 +230,7 @@ class MailRepositoryTest {
     fun `pruneFolders is a no-op when the keep set is empty`() = runBlocking {
         db.folderDao().insert(
             com.threemail.android.data.local.entity.FolderEntity(
-                accountId = accountId, serverId = "INBOX", name = "Inbox", type = FolderType.Inbox
+                accountId = accountId, serverId = "INBOX", name = "Inbox", type = FolderType.INBOX
             )
         )
         // An empty keep set (e.g. a failed fetch) must never wipe the tree.
@@ -259,7 +259,7 @@ class MailRepositoryTest {
 
     @Test
     fun `reconcileDeletionsBatch reconciles multiple folders in one pass`() = runBlocking {
-        val inboxId = insertFolder("INBOX", FolderType.Inbox)
+        val inboxId = insertFolder("INBOX", FolderType.INBOX)
         val workId = insertFolder("Work", FolderType.CUSTOM)
         insertMessage(inboxId, uid = 10L, messageId = "i-keep")
         insertMessage(inboxId, uid = 20L, messageId = "i-gone")
@@ -284,7 +284,7 @@ class MailRepositoryTest {
 
     @Test
     fun `reconcileDeletionsBatch leaves a folder untouched when its probe fails`() = runBlocking {
-        val inboxId = insertFolder("INBOX", FolderType.Inbox)
+        val inboxId = insertFolder("INBOX", FolderType.INBOX)
         val workId = insertFolder("Work", FolderType.CUSTOM)
         insertMessage(inboxId, uid = 10L, messageId = "i-keep")
         insertMessage(inboxId, uid = 20L, messageId = "i-gone")
@@ -309,7 +309,7 @@ class MailRepositoryTest {
 
     @Test
     fun `moving a message clears its uid so the destination reconcile leaves it alone`() = runBlocking {
-        val inboxId = insertFolder("INBOX", FolderType.Inbox)
+        val inboxId = insertFolder("INBOX", FolderType.INBOX)
         val archiveId = insertFolder("Archive", FolderType.ARCHIVE)
         insertMessage(inboxId, uid = 100L, messageId = "m")
         val msgId = repository.getMessagesOnce(inboxId).single().id
@@ -333,7 +333,7 @@ class MailRepositoryTest {
 
     @Test
     fun `restoreMessageToFolder puts the message back with its original uid`() = runBlocking {
-        val inboxId = insertFolder("INBOX", FolderType.Inbox)
+        val inboxId = insertFolder("INBOX", FolderType.INBOX)
         val archiveId = insertFolder("Archive", FolderType.ARCHIVE)
         insertMessage(inboxId, uid = 100L, messageId = "m")
         val msgId = repository.getMessagesOnce(inboxId).single().id

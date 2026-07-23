@@ -78,15 +78,10 @@ interface MessageDao {
     @Query("SELECT id FROM messages WHERE folderId = :folderId ORDER BY date DESC")
     fun observeIdsByFolder(folderId: Long): Flow<List<Long>>
 
-    /**
-     * Id-only projection of [observeUnifiedInbox] for the same reason as
-     * [observeIdsByFolder]: the swipe pager only needs to know "what's next
-     * / what's previous" by id, not the full entity.
-     */
     @Query(
         "SELECT m.id FROM messages m " +
             "JOIN folders f ON m.folderId = f.id " +
-            "WHERE f.type = 'Inbox' " +
+            "WHERE f.type IN ('Inbox', 'INBOX') " +
             "ORDER BY m.date DESC"
     )
     fun observeUnifiedInboxIds(): Flow<List<Long>>
@@ -100,7 +95,7 @@ interface MessageDao {
     @Query(
         "SELECT m.* FROM messages m " +
             "JOIN folders f ON m.folderId = f.id " +
-            "WHERE f.type = 'Inbox' " +
+            "WHERE f.type IN ('Inbox', 'INBOX') " +
             "ORDER BY m.date DESC"
     )
     fun observeUnifiedInbox(): Flow<List<MessageEntity>>
@@ -213,7 +208,7 @@ interface MessageDao {
     @Query(
         "SELECT COUNT(*) FROM messages m " +
             "JOIN folders f ON m.folderId = f.id " +
-            "WHERE f.type = 'Inbox' AND m.isRead = 0"
+            "WHERE f.type IN ('Inbox', 'INBOX') AND m.isRead = 0"
     )
     fun observeTotalUnreadAcrossInboxes(): Flow<Int>
 }

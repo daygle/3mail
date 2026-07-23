@@ -16,7 +16,7 @@ import com.threemail.android.domain.model.FolderType
 class FolderTypeConverter {
     @TypeConverter
     fun toFolderType(value: String): FolderType = when (value) {
-        "INBOX" -> FolderType.Inbox
+        "INBOX", "Inbox" -> FolderType.INBOX
         else -> FolderType.valueOf(value)
     }
 

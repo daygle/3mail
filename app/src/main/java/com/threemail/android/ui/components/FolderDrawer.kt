@@ -971,7 +971,7 @@ private fun FooterItem(
 // Spam rows that the rest of the app already renders with a type-specific
 // glyph.
 internal fun iconFor(type: FolderType): ImageVector = when (type) {
-    FolderType.Inbox -> Icons.Default.Inbox
+    FolderType.INBOX -> Icons.Default.Inbox
     FolderType.SENT -> Icons.AutoMirrored.Filled.Send
     FolderType.DRAFTS -> Icons.Default.Drafts
     FolderType.TRASH -> Icons.Default.Delete

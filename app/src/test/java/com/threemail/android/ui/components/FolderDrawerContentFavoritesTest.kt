@@ -59,7 +59,7 @@ class FolderDrawerContentFavoritesTest {
                 accountId = 1L,
                 serverId = "INBOX",
                 name = "Inbox",
-                type = FolderType.Inbox,
+                type = FolderType.INBOX,
                 isFavorite = true
             ),
             MailFolder(
@@ -135,7 +135,7 @@ class FolderDrawerContentFavoritesTest {
             accountType = AccountType.IMAP
         )
         val folders = listOf(
-            MailFolder(1L, 1L, "INBOX", "Inbox", FolderType.Inbox, isFavorite = true),
+            MailFolder(1L, 1L, "INBOX", "Inbox", FolderType.INBOX, isFavorite = true),
             MailFolder(2L, 1L, "Sent", "Sent", FolderType.SENT, isFavorite = true),
             MailFolder(3L, 1L, "Archive", "Archive", FolderType.ARCHIVE, isFavorite = true)
         )

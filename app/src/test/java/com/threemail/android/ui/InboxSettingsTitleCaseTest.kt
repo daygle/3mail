@@ -269,7 +269,7 @@ private fun FakeFolderRoleSectionHost(accountType: AccountType) {
         FolderType.entries.forEach { type ->
             androidx.compose.material3.Text(
                 when (type) {
-                    FolderType.Inbox -> "Inbox"
+                    FolderType.INBOX -> "Inbox"
                     else -> type.name
                 }
             )

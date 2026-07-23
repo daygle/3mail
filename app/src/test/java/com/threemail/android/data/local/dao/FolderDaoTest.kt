@@ -67,8 +67,8 @@ class FolderDaoTest {
         // can find via getByServerId are sufficient; type doesn't matter
         // for the favourites path.
         folderDao.insert(serverId = "A", accountId = accountId, name = "Archives A", type = FolderType.ARCHIVE)
-        folderDao.insert(serverId = "B", accountId = accountId, name = "Bills B", type = FolderType.Inbox)
-        folderDao.insert(serverId = "C", accountId = accountId, name = "Colleagues C", type = FolderType.Inbox)
+        folderDao.insert(serverId = "B", accountId = accountId, name = "Bills B", type = FolderType.INBOX)
+        folderDao.insert(serverId = "C", accountId = accountId, name = "Colleagues C", type = FolderType.INBOX)
 
         // Star all three; insert in order so rowid==1,2,3 (FIFO).
         folderDao.addFavorite(FolderFavoriteEntity(accountId, "A", position = 0))
@@ -100,9 +100,9 @@ class FolderDaoTest {
                 accountType = AccountType.IMAP
             )
         )
-        folderDao.insert(serverId = "A", accountId = accountId, name = "X", type = FolderType.Inbox)
-        folderDao.insert(serverId = "B", accountId = accountId, name = "Y", type = FolderType.Inbox)
-        folderDao.insert(serverId = "C", accountId = accountId, name = "Z", type = FolderType.Inbox)
+        folderDao.insert(serverId = "A", accountId = accountId, name = "X", type = FolderType.INBOX)
+        folderDao.insert(serverId = "B", accountId = accountId, name = "Y", type = FolderType.INBOX)
+        folderDao.insert(serverId = "C", accountId = accountId, name = "Z", type = FolderType.INBOX)
 
         // Reverse insert order: C first, then B, then A. With rows that
         // all land at position=0 (inserting via the path that does not
