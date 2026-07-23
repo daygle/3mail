@@ -230,7 +230,7 @@ fun MessageDetailScreen(
             state.nextMessageId != null
         if (advanceInline) {
             val nextIdx = ids.indexOf(state.nextMessageId)
-            if (nextIdx >= 0 && pagerState != null) {
+            if (nextIdx >= 0) {
                 pagerState.animateScrollToPage(nextIdx)
             } else {
                 // The next id isn't in our scope (e.g. it just got filtered

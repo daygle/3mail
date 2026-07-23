@@ -178,6 +178,9 @@ class MessageDetailViewModel @Inject constructor(
     private val _selectedId = MutableStateFlow(startMessageId)
     val selectedId: StateFlow<Long> = _selectedId.asStateFlow()
 
+    private val _prefetchedIds = MutableStateFlow<Set<Long>>(emptySet())
+    private val _prefetchedMessages = MutableStateFlow<Map<Long, MailMessage>>(emptyMap())
+
     init {
         // Mirror the global "load images" preference into UiState so the
         // banner can flip on the very first frame after navigation without
@@ -208,11 +211,11 @@ class MessageDetailViewModel @Inject constructor(
                     }
                     .distinctUntilChanged()
                     .collect { nextIdx ->
-                        _uiState.value = _uiState.value.copy(
+                        _uiState.update { it.copy(
                             nextMessageId = nextIdx?.let { idx ->
                                 adjacentIds.value.getOrNull(idx)
                             }
-                        )
+                        ) }
                     }
             }
         }
@@ -237,30 +240,32 @@ class MessageDetailViewModel @Inject constructor(
         // Reset transient per-message fields immediately so the screen can
         // show a clean state for the new page; the load below races to fill
         // them back in.
-        _uiState.value = _uiState.value.copy(
-            message = _uiState.value.message?.takeIf { it.id == id },
-            isLoading = id > 0L,
-            isLoadingBody = false,
-            isDeleted = false,
-            nextMessageId = null,
-            moveTargets = _uiState.value.moveTargets,
-            spamAvailable = _uiState.value.spamAvailable,
-            isEncrypted = false,
-            isDecrypting = false,
-            decryptedBody = null,
-            signatureStatus = null,
-            pgpUserAction = null,
-            pgpError = null,
-            // One-shot "Show images" override is per-message by design -
-            // re-entering a message that has already shown images starts
-            // with images blocked again unless the global default allows.
-            imagesShownForThisMessage = false,
-            rawHeaders = null,
-            isLoadingHeaders = false,
-            headersError = null,
-            isHydrating = id > 0L && _uiState.value.message?.id != id,
-            error = null
-        )
+        _uiState.update { state ->
+            state.copy(
+                message = state.message?.takeIf { it.id == id },
+                isLoading = id > 0L,
+                isLoadingBody = false,
+                isDeleted = false,
+                nextMessageId = null,
+                moveTargets = state.moveTargets,
+                spamAvailable = state.spamAvailable,
+                isEncrypted = false,
+                isDecrypting = false,
+                decryptedBody = null,
+                signatureStatus = null,
+                pgpUserAction = null,
+                pgpError = null,
+                // One-shot "Show images" override is per-message by design -
+                // re-entering a message that has already shown images starts
+                // with images blocked again unless the global default allows.
+                imagesShownForThisMessage = false,
+                rawHeaders = null,
+                isLoadingHeaders = false,
+                headersError = null,
+                isHydrating = id > 0L && state.message?.id != id,
+                error = null
+            )
+        }
         if (id > 0L) loadMessage(id)
     }
 
@@ -278,8 +283,8 @@ class MessageDetailViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching {
                 val message = mailRepository.getMessageById(id) ?: return@runCatching
-                _prefetchedIds.value = _prefetchedIds.value + id
-                _prefetchedMessages.value = _prefetchedMessages.value + (id to message)
+                _prefetchedIds.update { it + id }
+                _prefetchedMessages.update { it + (id to message) }
             }
         }
     }
@@ -291,54 +296,50 @@ class MessageDetailViewModel @Inject constructor(
      */
     fun takePrefetch(id: Long): MailMessage? {
         val msg = _prefetchedMessages.value[id] ?: return null
-        _prefetchedIds.value = _prefetchedIds.value - id
-        _prefetchedMessages.value = _prefetchedMessages.value - id
+        _prefetchedIds.update { it - id }
+        _prefetchedMessages.update { it - id }
         return msg
     }
 
-    private val _prefetchedIds = MutableStateFlow<Set<Long>>(emptySet())
-    private val _prefetchedMessages = MutableStateFlow<Map<Long, MailMessage>>(emptyMap())
+
 
     private fun loadMessage(messageId: Long) {
         if (messageId <= 0L) {
-            _uiState.value = _uiState.value.copy(isLoading = false, isHydrating = false)
+            _uiState.update { it.copy(isLoading = false, isHydrating = false) }
             return
         }
-        _uiState.value = _uiState.value.copy(isLoading = true)
+        _uiState.update { it.copy(isLoading = true) }
         viewModelScope.launch {
             try {
-                val message = takePrefetch(messageId) ?: mailRepository.getMessageById(messageId)
-                _uiState.value = _uiState.value.copy(isLoading = message == null, isHydrating = false)
+                val prefetched = takePrefetch(messageId)
+                val message = prefetched ?: mailRepository.getMessageById(messageId)
+                _uiState.update { it.copy(isLoading = message == null, isHydrating = false) }
                 message?.let {
                     onMessageLoaded(it)
                 }
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(isLoading = false, isHydrating = false, error = e.message)
+                _uiState.update { it.copy(isLoading = false, isHydrating = false, error = e.message) }
             }
         }
     }
 
-    /**
-     * One-shot hydrate sequence run after a message id lands. Split out from
-     * [loadMessage] so the prefetched path and the cold-load path share the
-     * exact same downstream side-effects (folder list, mark-read, body,
-     * decrypt, delete-state reset).
-     */
     private suspend fun onMessageLoaded(message: MailMessage) {
         // Mark the new message loaded in UiState; clear the hydrating flag
         // so the screen stops showing the previous body as a placeholder.
-        _uiState.value = _uiState.value.copy(
-            message = message,
-            isLoading = false,
-            isHydrating = false,
-            error = null
-        )
+        _uiState.update {
+            it.copy(
+                message = message,
+                isLoading = false,
+                isHydrating = false,
+                error = null
+            )
+        }
         loadFolders(message)
         if (!message.isRead) {
             // Local + remote flip; safe to fire-await since both are quick
             // and the previous message's read-state is no longer relevant.
             runCatching { mailActions.setRead(message, true) }
-            _uiState.value = _uiState.value.copy(message = message.copy(isRead = true))
+            _uiState.update { it.copy(message = message.copy(isRead = true)) }
         }
         if (message.bodyHtml.isNullOrBlank() && message.bodyPlain.isNullOrBlank()) {
             fetchBody(message)
@@ -356,7 +357,7 @@ class MessageDetailViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val next = mailRepository.findNextMessageIdInFolder(folderId, currentMessageId)
-                _uiState.value = _uiState.value.copy(nextMessageId = next)
+                _uiState.update { it.copy(nextMessageId = next) }
             } catch (_: Exception) {
                 // Swallowed: screen treats a null nextMessageId as
                 // "return to list" regardless of the user's preference.
@@ -365,13 +366,13 @@ class MessageDetailViewModel @Inject constructor(
     }
 
     private fun fetchBody(message: MailMessage) {
-        _uiState.value = _uiState.value.copy(isLoadingBody = true)
+        _uiState.update { it.copy(isLoadingBody = true) }
         viewModelScope.launch {
             try {
                 val account = accountRepository.getAccountById(message.accountId)
                 val folder = mailRepository.getFolderById(message.folderId)
                 if (account == null || folder == null) {
-                    _uiState.value = _uiState.value.copy(isLoadingBody = false)
+                    _uiState.update { it.copy(isLoadingBody = false) }
                     return@launch
                 }
                 val remote = mailRemoteFactory.create(account)
@@ -385,13 +386,13 @@ class MessageDetailViewModel @Inject constructor(
                         bodyPreview = preview,
                         attachments = body.attachments
                     )
-                    _uiState.value = _uiState.value.copy(message = updated, isLoadingBody = false)
+                    _uiState.update { it.copy(message = updated, isLoadingBody = false) }
                     maybeDecrypt(updated)
-                }.onFailure {
-                    _uiState.value = _uiState.value.copy(isLoadingBody = false, error = it.message)
+                }.onFailure { error ->
+                    _uiState.update { it.copy(isLoadingBody = false, error = error.message) }
                 }
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(isLoadingBody = false, error = e.message)
+                _uiState.update { it.copy(isLoadingBody = false, error = e.message) }
             }
         }
     }
@@ -405,40 +406,40 @@ class MessageDetailViewModel @Inject constructor(
     /** If the body is an inline PGP block, flag it and kick off decryption. */
     private fun maybeDecrypt(message: MailMessage) {
         if (!PgpText.isEncrypted(pgpText(message))) return
-        _uiState.value = _uiState.value.copy(isEncrypted = true)
+        _uiState.update { it.copy(isEncrypted = true) }
         decrypt()
     }
 
     fun decrypt() {
         val message = _uiState.value.message ?: return
         val armored = PgpText.extractArmored(pgpText(message))
-        _uiState.value = _uiState.value.copy(isDecrypting = true, pgpError = null, pgpUserAction = null)
+        _uiState.update { it.copy(isDecrypting = true, pgpError = null, pgpUserAction = null) }
         viewModelScope.launch {
             when (val result = openPgpController.decryptAndVerify(armored.toByteArray())) {
-                is PgpResult.Success -> _uiState.value = _uiState.value.copy(
+                is PgpResult.Success -> _uiState.update { it.copy(
                     isDecrypting = false,
                     decryptedBody = String(result.data),
                     signatureStatus = result.signature
-                )
-                is PgpResult.NeedUserInteraction -> _uiState.value = _uiState.value.copy(
+                ) }
+                is PgpResult.NeedUserInteraction -> _uiState.update { it.copy(
                     isDecrypting = false,
                     pgpUserAction = result.pendingIntent
-                )
-                is PgpResult.Error -> _uiState.value = _uiState.value.copy(
+                ) }
+                is PgpResult.Error -> _uiState.update { it.copy(
                     isDecrypting = false,
                     pgpError = result.message
-                )
-                PgpResult.Unavailable -> _uiState.value = _uiState.value.copy(
+                ) }
+                PgpResult.Unavailable -> _uiState.update { it.copy(
                     isDecrypting = false,
                     pgpError = "Install OpenKeychain to decrypt this message"
-                )
+                ) }
             }
         }
     }
 
     /** Called after the OpenKeychain passphrase intent returns; retries decryption. */
     fun onPgpUserActionResult() {
-        _uiState.value = _uiState.value.copy(pgpUserAction = null)
+        _uiState.update { it.copy(pgpUserAction = null) }
         decrypt()
     }
 
@@ -447,7 +448,7 @@ class MessageDetailViewModel @Inject constructor(
         viewModelScope.launch {
             val newRead = !message.isRead
             mailActions.setRead(message, newRead)
-            _uiState.value = _uiState.value.copy(message = message.copy(isRead = newRead))
+            _uiState.update { it.copy(message = message.copy(isRead = newRead)) }
         }
     }
 
@@ -457,17 +458,19 @@ class MessageDetailViewModel @Inject constructor(
      */
     private suspend fun loadFolders(message: MailMessage) {
         val folders = mailRepository.getFoldersOnce(message.accountId)
-        _uiState.value = _uiState.value.copy(
-            moveTargets = folders.filter { it.id != message.folderId },
-            spamAvailable = folders.any { it.type == FolderType.SPAM && it.id != message.folderId }
-        )
+        _uiState.update {
+            it.copy(
+                moveTargets = folders.filter { it.id != message.folderId },
+                spamAvailable = folders.any { it.type == FolderType.SPAM && it.id != message.folderId }
+            )
+        }
     }
 
     fun delete() {
         val message = _uiState.value.message ?: return
         viewModelScope.launch {
             mailActions.deleteWithUndo(message)
-            _uiState.value = _uiState.value.copy(isDeleted = true)
+            _uiState.update { it.copy(isDeleted = true) }
         }
     }
 
@@ -475,7 +478,7 @@ class MessageDetailViewModel @Inject constructor(
         val message = _uiState.value.message ?: return
         viewModelScope.launch {
             mailActions.archiveWithUndo(message)
-            _uiState.value = _uiState.value.copy(isDeleted = true)
+            _uiState.update { it.copy(isDeleted = true) }
         }
     }
 
@@ -484,7 +487,7 @@ class MessageDetailViewModel @Inject constructor(
         val message = _uiState.value.message ?: return
         viewModelScope.launch {
             mailActions.moveWithUndo(message, target)
-            _uiState.value = _uiState.value.copy(isDeleted = true)
+            _uiState.update { it.copy(isDeleted = true) }
         }
     }
 
@@ -493,19 +496,19 @@ class MessageDetailViewModel @Inject constructor(
         val message = _uiState.value.message ?: return
         viewModelScope.launch {
             mailActions.markSpamWithUndo(message)
-            _uiState.value = _uiState.value.copy(isDeleted = true)
+            _uiState.update { it.copy(isDeleted = true) }
         }
     }
 
     fun downloadAttachment(attachment: Attachment) {
         val message = _uiState.value.message ?: return
-        _uiState.value = _uiState.value.copy(downloadingAttachment = attachment.fileName, error = null)
+        _uiState.update { it.copy(downloadingAttachment = attachment.fileName, error = null) }
         viewModelScope.launch {
             try {
                 val account = accountRepository.getAccountById(message.accountId)
                 val folder = mailRepository.getFolderById(message.folderId)
                 if (account == null || folder == null) {
-                    _uiState.value = _uiState.value.copy(downloadingAttachment = null, error = "Unable to locate message")
+                    _uiState.update { it.copy(downloadingAttachment = null, error = "Unable to locate message") }
                     return@launch
                 }
                 val destDir = File(context.cacheDir, "attachments").apply { mkdirs() }
@@ -513,19 +516,19 @@ class MessageDetailViewModel @Inject constructor(
                 val remote = mailRemoteFactory.create(account)
                 remote.downloadAttachment(folder, message, attachment, destFile)
                     .onSuccess { file ->
-                        _uiState.value = _uiState.value.copy(downloadingAttachment = null, openFile = file)
+                        _uiState.update { it.copy(downloadingAttachment = null, openFile = file) }
                     }
-                    .onFailure {
-                        _uiState.value = _uiState.value.copy(downloadingAttachment = null, error = it.message)
+                    .onFailure { error ->
+                        _uiState.update { it.copy(downloadingAttachment = null, error = error.message) }
                     }
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(downloadingAttachment = null, error = e.message)
+                _uiState.update { it.copy(downloadingAttachment = null, error = e.message) }
             }
         }
     }
 
     fun onFileOpened() {
-        _uiState.value = _uiState.value.copy(openFile = null)
+        _uiState.update { it.copy(openFile = null) }
     }
 
     /**
@@ -535,36 +538,35 @@ class MessageDetailViewModel @Inject constructor(
      */
     fun loadHeaders() {
         val message = _uiState.value.message ?: return
-        val state = _uiState.value
-        if (state.rawHeaders != null || state.isLoadingHeaders) return
-        _uiState.value = state.copy(isLoadingHeaders = true, headersError = null)
+        if (_uiState.value.rawHeaders != null || _uiState.value.isLoadingHeaders) return
+        _uiState.update { it.copy(isLoadingHeaders = true, headersError = null) }
         viewModelScope.launch {
             try {
                 val account = accountRepository.getAccountById(message.accountId)
                 val folder = mailRepository.getFolderById(message.folderId)
                 if (account == null || folder == null) {
-                    _uiState.value = _uiState.value.copy(
+                    _uiState.update { it.copy(
                         isLoadingHeaders = false,
                         headersError = "Unable to locate message"
-                    )
+                    ) }
                     return@launch
                 }
                 val remote = mailRemoteFactory.create(account)
                 remote.fetchRawHeaders(folder, message)
                     .onSuccess { headers ->
-                        _uiState.value = _uiState.value.copy(
+                        _uiState.update { it.copy(
                             isLoadingHeaders = false,
                             rawHeaders = headers
-                        )
+                        ) }
                     }
-                    .onFailure {
-                        _uiState.value = _uiState.value.copy(
+                    .onFailure { error ->
+                        _uiState.update { it.copy(
                             isLoadingHeaders = false,
-                            headersError = it.message
-                        )
+                            headersError = error.message
+                        ) }
                     }
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(isLoadingHeaders = false, headersError = e.message)
+                _uiState.update { it.copy(isLoadingHeaders = false, headersError = e.message) }
             }
         }
     }
@@ -576,6 +578,6 @@ class MessageDetailViewModel @Inject constructor(
      * inbox activity (rotation, brief backgrounding) but not screen leave.
      */
     fun showImagesForThisMessage() {
-        _uiState.value = _uiState.value.copy(imagesShownForThisMessage = true)
+        _uiState.update { it.copy(imagesShownForThisMessage = true) }
     }
 }
