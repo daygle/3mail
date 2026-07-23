@@ -1,9 +1,17 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.androidx.room)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
     alias(libs.plugins.kotlin.compose)
+}
+
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(localPropertiesFile.inputStream())
 }
 
 configure<com.android.build.api.dsl.ApplicationExtension> {
@@ -26,6 +34,9 @@ configure<com.android.build.api.dsl.ApplicationExtension> {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        val webClientId = localProperties.getProperty("google.web_client_id") ?: "YOUR_WEB_CLIENT_ID"
+        resValue("string", "default_web_client_id", webClientId)
     }
 
     buildTypes {
@@ -43,6 +54,7 @@ configure<com.android.build.api.dsl.ApplicationExtension> {
     }
     buildFeatures {
         compose = true
+        resValues = true
     }
     testOptions {
         unitTests {

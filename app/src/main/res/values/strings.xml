@@ -193,7 +193,6 @@
     <string name="headers_title">Message headers</string>
     <string name="headers_close">Close</string>
     <string name="headers_loading">Fetching headers…</string>
-    <string name="default_web_client_id" translatable="false">YOUR_WEB_CLIENT_ID</string>
 
     <!-- Trash policy settings -->
     <string name="trash_settings_section">Trash</string>
