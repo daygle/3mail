@@ -111,13 +111,16 @@ import java.io.File
 private const val IMAGE_BASE_URL = "https://email.invalid/"
 
 /**
- * How many adjacent pages to keep composed off-screen on either side of the
- * current page. Bumping this past 1 keeps an extra WebView alive (twice the
- * memory per extra page) so swipes feel instant for the user's most likely
- * next step; the prefetch in `LaunchedEffect(pagerState)` separately warms
- * the body fetch so the page is hydrated by the time it scrolls in.
+ * Prefetch radius: how many pages on either side of the current page the
+ * VM warms via `ensureLoaded(id)` so the body of the next swipe target is
+ * already in the per-page VM cache by the time the user lands on it.
+ * The prefetch covers the user's most likely next step; we don't pass
+ * `beyondBoundsPageCount` to the [HorizontalPager] itself because that
+ * overload isn't on the Compose BOM pinned by this module, and the ViewModel
+ * prefetch is the cheaper mechanism anyway (no extra WebView kept alive on
+ * top of the current one).
  */
-private const val PAGER_BEYOND_BOUNDS = 1
+private const val PAGER_PREFETCH_RADIUS = 1
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -234,9 +237,9 @@ fun MessageDetailScreen(
                 // out for some reason) - graceful fallback to back-out.
                 onNavigateBack()
             }
-            _ = // intentionally do nothing more; the LaunchedEffect on
-                // snapshotFlow above will pick up the new currentPage and
-                // call selectMessage for us.
+            // The `snapshotFlow(pagerState.currentPage)` collector below
+            // picks up the new page and calls selectMessage for us, so no
+            // further work is needed in this branch.
         } else {
             val goToNext = appSettings.afterDeleteNavigation == AfterDeleteNavigation.NEXT_MESSAGE &&
                 state.nextMessageId != null
@@ -560,7 +563,6 @@ fun MessageDetailScreen(
         if (pagerState != null) {
             HorizontalPager(
                 state = pagerState,
-                beyondBoundsPageCount = PAGER_BEYOND_BOUNDS,
                 modifier = Modifier.fillMaxSize()
             ) { page ->
                 // We mount one full message-body Column per page. Until

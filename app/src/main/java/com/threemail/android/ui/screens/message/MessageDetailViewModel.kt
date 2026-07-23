@@ -298,14 +298,9 @@ class MessageDetailViewModel @Inject constructor(
     private val _prefetchedIds = MutableStateFlow<Set<Long>>(emptySet())
     private val _prefetchedMessages = MutableStateFlow<Map<Long, MailMessage>>(emptyMap())
 
-    private fun loadMessage(messageId: Long, prefetched: MailMessage? = null) {
+    private fun loadMessage(messageId: Long) {
         if (messageId <= 0L) {
             _uiState.value = _uiState.value.copy(isLoading = false, isHydrating = false)
-            return
-        }
-        if (prefetched != null) {
-            // Caller already has the entity - skip the suspend roundtrip.
-            onMessageLoaded(prefetched)
             return
         }
         _uiState.value = _uiState.value.copy(isLoading = true)
