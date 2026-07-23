@@ -25,7 +25,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -209,18 +208,13 @@ class MessageDetailViewModel @Inject constructor(
                         )
                     }
             }
-        } else {
-            // Single-message deep-link path keeps the historical pre-resolved
-            // nextMessageId so the existing pop+navigate codepath stays
-            // available when the user only has one message to navigate to.
-            viewModelScope.launch {
-                combine(_uiState, _selectedId) { state, id -> state to id }
-                    .collect { (state, id) ->
-                        val folderId = state.message?.folderId ?: return@collect
-                        resolveNextMessageId(folderId, id)
-                    }
-            }
         }
+        // Single-message mode resolves [UiState.nextMessageId] from
+        // [onMessageLoaded]'s tail call below - no init-side collector is
+        // needed and adding one (e.g. a `combine(_uiState, _selectedId)`)
+        // re-entrantly fires off extra `resolveNextMessageId` Room queries
+        // under UnconfinedTestDispatcher that can deadlock the test setup
+        // and never let `uiState.message` land.
     }
 
     /**
