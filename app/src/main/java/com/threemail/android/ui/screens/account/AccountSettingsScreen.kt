@@ -443,7 +443,7 @@ internal fun IdentitiesSection(
         SettingsContentRow {
             Text(
                 text = stringResource(R.string.identities_description),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -501,7 +501,7 @@ internal fun FolderRolesSection(
         SettingsContentRow {
             Text(
                 text = stringResource(R.string.account_folder_roles_description),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -581,7 +581,7 @@ internal fun PushSection(
                 )
                 Text(
                     text = stringResource(R.string.account_push_folders_subtitle),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp)
                 )
@@ -593,7 +593,7 @@ internal fun PushSection(
                 SettingsContentRow {
                     Text(
                         text = stringResource(R.string.account_push_folders_empty),
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -707,7 +707,7 @@ internal fun IncomingServerSection(
             )
             Text(
                 text = stringResource(R.string.account_connection_security_hint),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             ConnectionStatusAndSaveButton(
@@ -793,7 +793,7 @@ internal fun OutgoingServerSection(
             )
             Text(
                 text = stringResource(R.string.outgoing_credentials_hint),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             ConnectionSecurityChips(
@@ -803,7 +803,7 @@ internal fun OutgoingServerSection(
             )
             Text(
                 text = stringResource(R.string.account_outgoing_security_hint),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             ConnectionStatusAndSaveButton(
@@ -988,7 +988,7 @@ internal fun PgpKeysSection(
         SettingsContentRow {
             Text(
                 text = stringResource(R.string.pgp_keys_description),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -1006,7 +1006,7 @@ internal fun PgpKeysSection(
             )
             Text(
                 text = stringResource(R.string.pgp_own_key_subtitle),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp)
             )
@@ -1019,7 +1019,7 @@ internal fun PgpKeysSection(
             }
             Text(
                 text = stringResource(R.string.pgp_export_wkd_hint),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp)
             )

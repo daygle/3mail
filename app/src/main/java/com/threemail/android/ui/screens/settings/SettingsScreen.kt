@@ -187,7 +187,7 @@ fun SettingsScreen(
                 SettingsContentRow {
                     Text(
                         text = stringResource(R.string.trash_settings_description),
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
