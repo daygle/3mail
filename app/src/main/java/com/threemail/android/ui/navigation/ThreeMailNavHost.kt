@@ -136,13 +136,16 @@ fun ThreeMailNavHost(navController: NavHostController) {
                 navArgument("folderId") { type = NavType.LongType },
                 navArgument("unified") { type = NavType.BoolType; defaultValue = false }
             )
-        ) {
+        ) { entry ->
             // Keep the master pane attached to the original Inbox nav entry.
             // Otherwise the adaptive destination creates a second InboxViewModel
             // that performs its own sync and can disagree with the list the user
             // just selected. BoxWithConstraints also reacts to fold/unfold and
             // freeform-window resizing while this destination is already open.
-            val inboxEntry = remember(navController) {
+            // Key the lookup on this destination's NavBackStackEntry (per the
+            // UnrememberedGetBackStackEntry lint rule) rather than the
+            // NavHostController, so the remembered entry follows the back stack.
+            val inboxEntry = remember(entry) {
                 navController.getBackStackEntry(Screen.Inbox.route)
             }
             val inboxViewModel: InboxViewModel = hiltViewModel(inboxEntry)
