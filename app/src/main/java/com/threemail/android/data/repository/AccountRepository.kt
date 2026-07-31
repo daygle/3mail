@@ -36,9 +36,6 @@ open class AccountRepository @Inject constructor(
     suspend fun getAccountById(id: Long): Account? =
         accountDao.getById(id)?.toDomain()
 
-    suspend fun getAccountByEmail(email: String): Account? =
-        accountDao.getByEmail(email)?.toDomain()
-
     open suspend fun addAccount(account: Account): Long {
         // Persist the passwords in the encrypted credential store, not the
         // database. The outgoing password is stored separately; a null/blank

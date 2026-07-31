@@ -3,7 +3,6 @@ package com.threemail.android.data.repository
 import com.threemail.android.data.local.dao.FolderDao
 import com.threemail.android.data.local.dao.MessageDao
 import com.threemail.android.data.local.dao.MessageFlagDao
-import com.threemail.android.data.local.entity.MessageFlagEntity
 import com.threemail.android.data.local.entity.FolderEntity
 import com.threemail.android.data.local.entity.MessageEntity
 import com.threemail.android.data.remote.MailRemote
@@ -27,20 +26,6 @@ class MailRepository @Inject constructor(
     private val messageDao: MessageDao,
     private val messageFlagDao: MessageFlagDao
 ) {
-
-    /**
-     * Index of (`accountId`, `messageId`) -> `MessageFlagEntity` built
-     * from a flag-list snapshot. Reactive flows call this per emission
-     * and merge it into the toDomain mapper so a flag row written after
-     * the message re-fetches reflects in the very next emission.
-     *
-     * Key collision is impossible: the (accountId, messageId) pair is
-     * the composite primary key on [MessageFlagEntity] so each flag is
-     * unique.
-     */
-    private fun flagsByMessageId(flags: List<MessageFlagEntity>): Map<Long, Map<String, MessageFlagEntity>> =
-        flags.groupBy { it.accountId }
-            .mapValues { entry -> entry.value.associateBy { it.messageId } }
 
     /**
      * Look up the `isEncrypted` flag synchronously for a single
@@ -79,14 +64,6 @@ class MailRepository @Inject constructor(
                 )
             }
         }
-
-    suspend fun getFolderByServerId(accountId: Long, serverId: String): MailFolder? {
-        val entity = folderDao.getByServerId(accountId, serverId) ?: return null
-        // Read a one-shot snapshot so a single-row lookup doesn't silently
-        // return isFavorite=false when the folder is actually starred.
-        val favoriteIds = folderDao.getFavoritesByAccountOnce(accountId).mapTo(HashSet()) { it.serverId }
-        return entity.toDomain(isFavorite = entity.serverId in favoriteIds)
-    }
 
     suspend fun saveFolders(folders: List<MailFolder>): List<MailFolder> {
         val entities = folders.map { it.toEntity() }
@@ -212,15 +189,6 @@ class MailRepository @Inject constructor(
         folderDao.setHidden(folderId, isHidden)
     }
 
-    fun getMessages(folderId: Long): Flow<List<MailMessage>> =
-        combine(messageDao.getByFolder(folderId), messageFlagDao.observeAll()) { list, flags ->
-            val indexed = flagsByMessageId(flags)
-            list.map { entity ->
-                val flag = indexed[entity.accountId]?.get(entity.messageId)
-                entity.toDomain(isEncrypted = flag?.isEncrypted ?: false)
-            }
-        }
-
     suspend fun getMessageById(id: Long): MailMessage? {
         val entity = messageDao.getById(id) ?: return null
         val isEncrypted = isEncryptedFor(entity.accountId, entity.messageId)
@@ -266,15 +234,6 @@ class MailRepository @Inject constructor(
         else messages[index + 1].id
     }
 
-    fun getThread(accountId: Long, threadId: String): Flow<List<MailMessage>> =
-        combine(messageDao.getByThread(accountId, threadId), messageFlagDao.observeAll()) { list, flags ->
-            val indexed = flagsByMessageId(flags)
-            list.map { entity ->
-                val flag = indexed[entity.accountId]?.get(entity.messageId)
-                entity.toDomain(isEncrypted = flag?.isEncrypted ?: false)
-            }
-        }
-
     /**
      * Reactive feed of a single folder. Room re-emits on every mutation so
      * the inbox reflects sync, swipe, and batch actions live. Intentionally
@@ -300,9 +259,6 @@ class MailRepository @Inject constructor(
                 entity.toDomain(isEncrypted = isEncrypted ?: false)
             }
         }
-
-    suspend fun getMaxUid(folderId: Long): Long =
-        messageDao.getMaxUid(folderId) ?: 0L
 
     /** Number of messages currently cached locally for [folderId]. */
     suspend fun getFolderMessageCount(folderId: Long): Int =
@@ -409,10 +365,6 @@ class MailRepository @Inject constructor(
 
     suspend fun updateReadStatus(id: Long, isRead: Boolean) {
         messageDao.updateReadStatus(id, isRead)
-    }
-
-    suspend fun updateStarred(id: Long, isStarred: Boolean) {
-        messageDao.updateStarred(id, isStarred)
     }
 
     fun searchMessages(query: String): Flow<List<MailMessage>> {

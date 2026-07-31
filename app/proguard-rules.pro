@@ -5,16 +5,9 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
-
 # Uncomment this to preserve the line number information for
 # debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+-keepattributes SourceFile,LineNumberTable
 
 # If you keep the line number table, uncomment this to
 # hide the original source file name.
@@ -23,10 +16,9 @@
 # ---------------------------------------------------------------------------
 # Keep rules for release builds (R8 / minification).
 #
-# Minification is currently OFF (isMinifyEnabled = false) - see
-# app/build.gradle.kts. These rules are staged so that enabling R8 for release
-# doesn't strip the reflection-heavy mail/Google libraries and crash at
-# runtime. Verify on a device once minification is turned on.
+# Minification is ON (isMinifyEnabled = true) - see app/build.gradle.kts.
+# These rules ensure that reflection-heavy libraries and dynamically-loaded
+# classes survive the optimization pass.
 # ---------------------------------------------------------------------------
 
 # JavaMail (android-mail) resolves providers and MIME handlers reflectively via
@@ -49,5 +41,23 @@
 -dontwarn com.google.api.client.**
 -dontwarn com.google.api.services.**
 
-# GSON / model classes referenced reflectively by the Google HTTP client.
+# Bouncy Castle - OpenPGP implementation. The PgpEngine uses reflection to
+# locate providers and packet parsers. Ed25519/X25519 support requires BC's
+# JCE provider to remain intact.
+-keep class org.bouncycastle.** { *; }
+-dontwarn org.bouncycastle.**
+
+# WorkManager Workers. Since we use a manual ThreeMailWorkerFactory, R8 must
+# not strip the Worker classes themselves or the factory won't be able to
+# resolve their names at runtime.
+-keep class com.threemail.android.sync.*Worker { *; }
+
+# General reflection safety: retain annotations and signatures used by
+# Dagger/Hilt, Room, and the Google HTTP client.
 -keepattributes Signature, *Annotation*, EnclosingMethod, InnerClasses
+
+# Suppress warnings for missing classes that are part of the standard Java
+# library but are not available (or needed) on Android. These are typically
+# referenced by transitive dependencies like Apache HttpClient.
+-dontwarn javax.naming.**
+-dontwarn org.ietf.jgss.**

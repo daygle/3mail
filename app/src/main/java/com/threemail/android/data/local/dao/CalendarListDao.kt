@@ -44,6 +44,9 @@ interface CalendarListDao {
     )
     fun observeByAccount(accountId: Long): Flow<List<CalendarEntryEntity>>
 
+    @Query("SELECT * FROM calendars WHERE accountId = :accountId")
+    suspend fun getByAccountOnce(accountId: Long): List<CalendarEntryEntity>
+
     /**
      * For calendar-fetch scoping: returns the calendar ids the user has
      * marked visible for [accountId]. Used by [CalendarSyncWorker] /

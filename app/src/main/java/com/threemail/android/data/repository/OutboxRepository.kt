@@ -5,7 +5,6 @@ import com.threemail.android.data.local.entity.OutboxMessageEntity
 import com.threemail.android.data.remote.OutgoingMessage
 import com.threemail.android.domain.model.Attachment
 import com.threemail.android.domain.model.EmailAddress
-import kotlinx.coroutines.flow.Flow
 import org.json.JSONArray
 import org.json.JSONObject
 import javax.inject.Inject
@@ -54,8 +53,6 @@ class OutboxRepository @Inject constructor(
         )
 
     suspend fun pending(): List<OutboxEntry> = outboxDao.getAll().map { it.toEntry() }
-
-    fun observeCount(): Flow<Int> = outboxDao.observeCount()
 
     suspend fun delete(id: Long) = outboxDao.deleteById(id)
 

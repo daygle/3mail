@@ -16,7 +16,6 @@
     <string name="add_account_setup_title">Set up %1$s</string>
     <string name="add_account_app_password_hint">This provider needs an app-specific password, not your normal login password.</string>
     <string name="add_account_credentials">Account</string>
-    <string name="add_account_server_section">Server</string>
     <string name="add_account_incoming_section">Incoming server</string>
     <string name="add_account_outgoing_section">Outgoing server</string>
     <string name="add_account_connecting">Connecting…</string>
@@ -73,7 +72,6 @@
     <string name="dynamic_color_title">Dynamic Color</string>
     <string name="dynamic_color_subtitle">Match your wallpaper (Android 12+).</string>
     <string name="sync_section">Sync</string>
-    <string name="notifications_section">Notifications</string>
     <string name="new_mail_notifications_title">New Mail Notifications</string>
     <string name="new_mail_notifications_subtitle">Notify me when new mail arrives.</string>
     <string name="default_check_frequency_title">Default Check Frequency</string>
@@ -271,7 +269,6 @@
     <string name="account_settings_sync_enabled_subtitle">Fetch new mail for this account in the background.</string>
     <string name="account_settings_frequency_title">Check Frequency</string>
     <string name="account_settings_frequency_default">Default (%1$s)</string>
-    <string name="account_settings_notifications_section">Notifications</string>
     <string name="account_settings_notifications_title">New Mail Notifications</string>
     <string name="account_settings_notifications_subtitle">Notify me about new mail on this account.</string>
 
@@ -287,12 +284,10 @@
     <string name="account_settings_open">Open Settings</string>
     <string name="account_color_label">Account Color</string>
     <string name="account_color_default">Default</string>
-    <string name="account_settings_calendar_section">Calendar</string>
     <string name="account_settings_calendar_title">Sync Google Calendar</string>
     <string name="account_settings_calendar_subtitle">Show this account\'s events in the Calendar tab.</string>
 
     <!-- Drill-in "Manage" group linking to the heavier sub-pages -->
-    <string name="account_settings_manage_section">Manage</string>
     <string name="account_settings_server_section">Server Settings</string>
     <!-- Split incoming/outgoing server drill-in pages -->
     <string name="account_incoming_server_section">Incoming Server</string>
@@ -412,7 +407,6 @@
     <string name="manage_calendars_add_choice_ics">Internet Calendar (.ics / webcal)</string>
     <string name="manage_calendars_add_choice_google_subscribe">Add URL to Google Account</string>
     <string name="manage_calendars_add_choice_google_create">Create New Google Calendar</string>
-    <string name="manage_calendars_add_google_hint">Sign in with a Google account to create or subscribe to Google calendars.</string>
     <string name="manage_calendars_add_ics_title">Subscribe to Internet Calendar</string>
     <string name="manage_calendars_add_ics_subtitle">Paste an iCal (.ics) or webcal link — holiday feeds, sports fixtures, or a shared calendar\'s public link. Subscribed calendars are read-only.</string>
     <string name="manage_calendars_add_ics_name_label">Name (Optional)</string>
@@ -444,7 +438,6 @@
     <string name="account_list">Account List</string>
 
     <!-- Security picker on Add Account -->
-    <string name="security">Security</string>
     <string name="security_none">None</string>
     <string name="security_starttls">STARTTLS</string>
     <string name="security_ssl_tls">SSL/TLS</string>
@@ -491,7 +484,6 @@
          Settings -> Top Bar. Each toggle hides one IconButton in a
          specific screen's TopAppBar; the action moves into the bar's
          "MoreVert" overflow so it stays reachable. -->
-    <string name="top_bar_settings_section">Top Bar</string>
     <string name="top_bar_settings_title">Customise Top Bar</string>
     <string name="top_bar_settings_subtitle">Choose which actions appear in each screen\'s top bar. Hidden actions still appear in the overflow menu, so nothing disappears.</string>
     <string name="top_bar_settings_inbox_header">Inbox</string>

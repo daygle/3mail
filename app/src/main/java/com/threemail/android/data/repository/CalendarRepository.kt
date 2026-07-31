@@ -19,7 +19,6 @@ import com.threemail.android.domain.model.CalendarEvent
 import com.threemail.android.domain.model.CalendarEventStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -64,35 +63,29 @@ class CalendarRepository @Inject constructor(
      * Server-first: pulls Google's `calendarList().list()` for [Account],
      * upserts every row into the local `calendars` table preserving the
      * user's `isSelected` flag (i.e. a re-sync doesn't unilaterally hide
-     * what the user clicked visible). Idempotent: only mirrors the
-     * remote snapshot minus no-longer-listed ids.
+     * what the user clicked visible). Mirrors the remote snapshot: rows
+     * no longer in the Google list are pruned.
      */
     suspend fun syncCalendarList(account: Account) {
         val entries = apiClient.listCalendars(account.email)
         val now = System.currentTimeMillis()
         val mapped = entries.map { it.toEntity(accountId = account.id, lastSyncedAt = now) }
+
         // Preserve isSelected across refresh: if our local Room row for
-        // this (accountId, calendarId) currently has isSelected=0, keep it.
-        val existingFlags = listDao
-            .getSelectedCalendarIdsByAccount(account.id) // (throws if nothing returns — empty flow otherwise; see below for full fetch)
-        // We need a per-id read; using the full observe flow would re-emit
-        // for every insert. Instead read via a one-shot query:
-        // (we expose it via a dedicated DAO method below).
-        // For now: pull a snapshot via existing observers then merge.
+        // this (accountId, calendarId) already exists, carry its flag
+        // forward so the user's last explicit hide/show choice wins.
+        val existing = listDao.getByAccountOnce(account.id).associateBy { it.calendarId }
         val preserved = mapped.map { incoming ->
-            // If the existing local entry had a different isSelected,
-            // carry it forward (Google's remote `selected` is the "default
-            // visible" after a fresh server-side change; we want the user's
-            // LAST explicit click to win).
-            // We re-read from listDao here:
-            incoming.copy(isSelected = incoming.isSelected)
+            val local = existing[incoming.calendarId]
+            if (local != null) incoming.copy(isSelected = local.isSelected)
+            else incoming
         }
-        // The above is a placeholder for "preserve local isSelected"; the
-        // pre-sync wipe below is what's actually wrong when running the
-        // sync a second time. Implementation note: read existing rows
-        // before insertAll so we keep flags the user just flipped.
-        // Track issue: TODO replace with explicit pre-read.
-        if (mapped.isNotEmpty()) listDao.insertAll(preserved)
+
+        if (mapped.isNotEmpty()) {
+            listDao.insertAll(preserved)
+            // Prune: remove local entries that the server no longer reports.
+            listDao.deleteExcluding(account.id, mapped.map { it.calendarId })
+        }
     }
 
     /** Subscribes to a public/iCal calendar via Google's calendarList.insert. */
@@ -151,10 +144,6 @@ class CalendarRepository @Inject constructor(
         runCatching { apiClient.setSelectedRemote(account.email, calendarId, isSelected) }
     }
 
-    /** Convenience wrapper: events that occur on a single day in the device's timezone. */
-    fun getEventsForDay(accountId: Long, dayStart: Long, dayEnd: Long): Flow<List<CalendarEvent>> =
-        dao.getInRange(accountId, dayStart, dayEnd).map { rows -> rows.map { it.toDomain() } }
-
     suspend fun getById(id: Long): CalendarEvent? = dao.getById(id)?.toDomain()
 
     /** Pulls events for [account] covering [startMs, endMs) and replaces local cache for the window. */
@@ -212,8 +201,6 @@ class CalendarRepository @Inject constructor(
             service.events().delete(calendarId, eventId).execute()
             dao.getByRemoteId(account.id, calendarId, eventId)?.let { dao.deleteById(it.id) }
         }
-
-    suspend fun deleteLocal(id: Long) = dao.deleteById(id)
 }
 
 /* ---------- CalendarListEntry <-> Entity mapping ---------- */
