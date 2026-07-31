@@ -102,6 +102,7 @@ class FolderManagementViewModel @Inject constructor(
         data class Renamed(val name: String) : FolderEvent
         data class Moved(val name: String) : FolderEvent
         data class Deleted(val name: String) : FolderEvent
+        data class Created(val name: String) : FolderEvent
         /** Server (or transport) rejected the operation. */
         data class Failed(val name: String) : FolderEvent
         /** Client-side validation stopped the operation before any server call. */
@@ -165,6 +166,33 @@ class FolderManagementViewModel @Inject constructor(
                 return@launch
             }
             relocate(account, remote, folder, newServerId, folder.name, folders, separator, FolderEvent.Moved(folder.name))
+        }
+    }
+
+    /**
+     * Create a server folder/label and immediately add it to the local tree.
+     * Gmail supports nested labels; IMAP uses the server separator.
+     */
+    fun createFolder(parent: MailFolder?, name: String) {
+        viewModelScope.launch {
+            val account = _selectedAccount.value ?: return@launch
+            val folders = uiState.value.folders
+            val remote = mailRemoteFactory.create(account)
+            val separator = separatorFor(remote, folders)
+            val trimmed = name.trim()
+            if (trimmed.isEmpty() || trimmed.indexOf(separator) >= 0) {
+                _events.emit(FolderEvent.InvalidName)
+                return@launch
+            }
+            val result = runCatching {
+                remote.createFolder(parent?.serverId, trimmed)
+            }.getOrElse { Result.failure(it) }
+            result.onSuccess { created ->
+                mailRepository.saveFolders(listOf(created))
+                _events.emit(FolderEvent.Created(created.name))
+            }.onFailure {
+                _events.emit(FolderEvent.Failed(trimmed))
+            }
         }
     }
 

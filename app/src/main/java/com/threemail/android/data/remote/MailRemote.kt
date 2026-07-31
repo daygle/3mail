@@ -35,6 +35,14 @@ interface MailRemote {
     suspend fun fetchMessages(folder: MailFolder, sinceCursor: Long, limit: Int): Result<RemoteFetch>
 
     /**
+     * Search the provider rather than only the local Room cache. Implementations
+     * should preserve the supplied folder id on returned messages so a result
+     * can be opened immediately even when it was not previously cached.
+     */
+    suspend fun search(query: String, folders: List<MailFolder>, limit: Int = 100): Result<List<MailMessage>> =
+        Result.failure(UnsupportedOperationException("Server-side search is unavailable for this account type"))
+
+    /**
      * Given the provider ids ([cachedUids] - IMAP UIDs) currently cached
      * locally for [folder], return the subset that STILL EXIST on the server.
      * Sync deletes the difference (cached ids the server didn't return) so a
@@ -134,6 +142,10 @@ interface MailRemote {
      */
     suspend fun deleteFolder(serverId: String): Result<Unit> =
         Result.failure(UnsupportedOperationException("This account type does not support folder deletion"))
+
+    /** Create a mailbox/label on the server. [parentServerId] is null for a top-level folder. */
+    suspend fun createFolder(parentServerId: String?, name: String): Result<MailFolder> =
+        Result.failure(UnsupportedOperationException("This account type does not support folder creation"))
 
     /**
      * The server's folder-hierarchy separator (e.g. '/' or '.'), used to build

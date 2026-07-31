@@ -96,6 +96,52 @@ class GmailRemote(
             RemoteFetch(messages, nextCursor)
         }
 
+    /** Gmail's q parameter searches the complete mailbox, including mail not cached locally. */
+    override suspend fun search(query: String, folders: List<MailFolder>, limit: Int): Result<List<MailMessage>> =
+        gmail { svc ->
+            val request = svc.users().messages().list(USER)
+                .setMaxResults(limit.toLong())
+            request.q = query.trim()
+            val refs = request.execute().messages ?: emptyList<GmailMessage>()
+            refs.mapNotNull { ref ->
+                runCatching {
+                    val full = svc.users().messages().get(USER, ref.id)
+                        .setFormat("metadata")
+                        .setMetadataHeaders(METADATA_HEADERS)
+                        .execute()
+                    val preferredFolder = folders.firstOrNull { folder ->
+                        full.labelIds?.contains(folder.serverId) == true
+                    }
+                    // Prefer an actual local label, but retain a stable
+                    // fallback folder for provider results whose labels are
+                    // system-only or not present in the local cache yet.
+                    val fallbackFolder = folders.firstOrNull { it.type == FolderType.INBOX }
+                    toHeaderMessage(full).copy(folderId = preferredFolder?.id ?: fallbackFolder?.id ?: 0L)
+                }.getOrNull()
+            }
+        }
+
+    override suspend fun createFolder(parentServerId: String?, name: String): Result<MailFolder> =
+        gmail { svc ->
+            val fullName = if (parentServerId.isNullOrBlank()) name.trim()
+            else {
+                // Gmail nested labels use '/' in their display name. The
+                // parentServerId is already the label id, so resolve it first.
+                val parent = svc.users().labels().get(USER, parentServerId).execute()
+                "${parent.name}/$name"
+            }
+            val created = svc.users().labels().create(
+                USER,
+                Label().setName(fullName).setType("user")
+            ).execute()
+            MailFolder(
+                accountId = account.id,
+                serverId = created.id,
+                name = created.name ?: fullName.substringAfterLast('/'),
+                type = FolderType.CUSTOM
+            )
+        }
+
     override suspend fun fetchBody(folder: MailFolder, message: MailMessage): Result<MessageBody> = gmail { svc ->
         val full = svc.users().messages().get(USER, message.remoteId).setFormat("full").execute()
         val html = StringBuilder()

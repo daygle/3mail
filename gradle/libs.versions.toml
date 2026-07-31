@@ -26,6 +26,7 @@ credentials = "1.6.0"
 googleid = "1.2.0"
 splashscreen = "1.2.0"
 robolectric = "4.16.1"
+biometric = "1.1.0"
 androidxTestCore = "1.7.0"
 ksp = "2.3.10"
 # Bouncy Castle for the in-app OpenKeychain-equivalent OpenPGP path.
@@ -113,6 +114,7 @@ org-bouncycastle-bcprov = { group = "org.bouncycastle", name = "bcprov-jdk18on",
 
 # Splash screen
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashscreen" }
+androidx-biometric = { group = "androidx.biometric", name = "biometric", version.ref = "biometric" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
 # ApplicationProvider for the Robolectric JVM tests (FolderDaoTest,
 # AddAccountViewModelTest). Robolectric does not put androidx.test:core on the

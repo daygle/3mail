@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
+import androidx.core.app.RemoteInput
 import com.threemail.android.MainActivity
 import com.threemail.android.R
 import com.threemail.android.domain.model.MailMessage
@@ -44,6 +45,9 @@ class NotificationHelper @Inject constructor(
         /** Intent extras shared with [NotificationActionReceiver] and MainActivity. */
         const val EXTRA_MESSAGE_ID = "com.threemail.android.notifications.extra.MESSAGE_ID"
         const val EXTRA_NOTIFICATION_ID = "com.threemail.android.notifications.extra.NOTIFICATION_ID"
+        const val EXTRA_REPLY_MESSAGE_ID = "com.threemail.android.notifications.extra.REPLY_MESSAGE_ID"
+        const val EXTRA_REPLY_TEXT = "com.threemail.android.notifications.extra.REPLY_TEXT"
+        const val REMOTE_INPUT_REPLY = "com.threemail.android.notifications.remote_input.REPLY"
 
         /** Group key that ties the per-message notifications under one summary. */
         private const val NEW_MAIL_GROUP = "com.threemail.android.notifications.NEW_MAIL"
@@ -155,10 +159,16 @@ class NotificationHelper @Inject constructor(
             .setAutoCancel(true)
             .setGroup(NEW_MAIL_GROUP)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .addAction(replyAction(message.id, notificationId))
             .addAction(
                 0,
                 context.getString(R.string.mark_read),
                 actionIntent(NotificationActionReceiver.ACTION_MARK_READ, message.id, notificationId)
+            )
+            .addAction(
+                0,
+                context.getString(R.string.archive),
+                actionIntent(NotificationActionReceiver.ACTION_ARCHIVE, message.id, notificationId)
             )
             .addAction(
                 0,
@@ -237,10 +247,33 @@ class NotificationHelper @Inject constructor(
         }
         return PendingIntent.getBroadcast(
             context,
-            notificationId,
+            notificationId xor action.hashCode(),
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+    }
+
+    /** Inline notification reply action; the receiver queues it directly. */
+    private fun replyAction(messageId: Long, notificationId: Int): NotificationCompat.Action {
+        val intent = Intent(context, NotificationActionReceiver::class.java).apply {
+            action = NotificationActionReceiver.ACTION_REPLY
+            putExtra(EXTRA_MESSAGE_ID, messageId)
+            putExtra(EXTRA_NOTIFICATION_ID, notificationId)
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            notificationId xor 0x5f3759df,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+        )
+        val remoteInput = RemoteInput.Builder(REMOTE_INPUT_REPLY)
+            .setLabel(context.getString(R.string.reply))
+            .build()
+        return NotificationCompat.Action.Builder(
+            0,
+            context.getString(R.string.reply),
+            pendingIntent
+        ).addRemoteInput(remoteInput).build()
     }
 
     /** Shown when the trash-cleanup worker exhausts all retry attempts and still fails for every account. */

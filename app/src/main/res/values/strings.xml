@@ -53,6 +53,8 @@
     <string name="display_section">Inbox &amp; Reading</string>
     <string name="swipe_right_label">Swipe Right Action</string>
     <string name="swipe_left_label">Swipe Left Action</string>
+    <string name="swipe_right_long_label">Long Swipe Right Action</string>
+    <string name="swipe_left_long_label">Long Swipe Left Action</string>
     <string name="density_label">List Density</string>
     <string name="preview_lines_label">Preview Lines</string>
     <string name="swipe_action_none">None</string>
@@ -91,6 +93,13 @@
     <!-- Remote-image loading: global default in Settings, per-message banner
          shown above HTML bodies when the global toggle is off. -->
     <string name="images_section_title">Privacy</string>
+    <string name="biometric_lock_title">Biometric lock</string>
+    <string name="biometric_lock_subtitle">Require fingerprint, face, or device credentials before opening 3mail.</string>
+    <string name="biometric_unlock_title">Unlock 3mail</string>
+    <string name="biometric_unlock_subtitle">Authenticate to view your mail.</string>
+    <string name="biometric_unavailable">Biometric or device authentication is unavailable.</string>
+    <string name="biometric_retry">Try again</string>
+    <string name="open_security_settings">Open security settings</string>
     <string name="images_setting_label">Always Load Remote Images</string>
     <string name="images_setting_subtitle">Reveals pixel trackers and your IP address to senders. Recommended to keep off.</string>
     <string name="images_blocked_banner_title">Remote images are hidden</string>
@@ -117,6 +126,10 @@
     <string name="protocol_pop3_subtitle">Downloads inbox mail. No server folders, flags, or push.</string>
     <string name="pop3_server">POP3 server</string>
     <string name="manage_folders_title">Manage Folders</string>
+    <string name="create_folder">Create folder</string>
+    <string name="folder_name_label">Folder name</string>
+    <string name="folder_top_level">Top level</string>
+    <string name="create">Create</string>
     <string name="manage_folders_description">Turn a folder off to hide it from the navigation drawer. On IMAP this also unsubscribes it on the server so other apps hide it too; the folder stays on the server and keeps syncing.</string>
     <!-- Per-row overflow: rename / move / delete a custom IMAP folder. -->
     <string name="folder_actions_content_description">Folder actions</string>
@@ -136,6 +149,7 @@
     <string name="folder_renamed">Renamed to \"%1$s\"</string>
     <string name="folder_moved">Moved \"%1$s\"</string>
     <string name="folder_deleted">Deleted \"%1$s\"</string>
+    <string name="folder_created">Created \"%1$s\"</string>
     <string name="folder_op_failed">Couldn\'t update \"%1$s\" on the server</string>
     <string name="folder_name_invalid">Enter a valid folder name</string>
     <string name="folder_name_duplicate">A folder with that name already exists</string>
@@ -194,6 +208,14 @@
     <string name="new_mail_notification_channel_description">Notifies you when new mail arrives</string>
     <string name="notification_unknown_sender">Unknown sender</string>
     <string name="notification_no_subject">(No subject)</string>
+
+    <!-- Home-screen unread-count widget -->
+    <string name="widget_unread_label">Unread inbox</string>
+    <string name="widget_unread_description">Shows the number of unread inbox messages.</string>
+    <plurals name="widget_unread_count">
+        <item quantity="one">%1$d message</item>
+        <item quantity="other">%1$d messages</item>
+    </plurals>
 
     <!-- Message headers viewer -->
     <string name="headers_show">Show headers</string>

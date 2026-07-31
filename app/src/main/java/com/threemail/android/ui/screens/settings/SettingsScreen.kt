@@ -49,7 +49,7 @@ import com.threemail.android.ui.components.SettingsSwitchRow
 
 /** Which single-choice picker dialog, if any, is currently open. */
 private enum class SettingsDialog {
-    None, Theme, SyncFrequency, SwipeRight, SwipeLeft, Density, PreviewLines, AfterAction, InboxLimit
+    None, Theme, SyncFrequency, SwipeRight, SwipeLeft, SwipeRightLong, SwipeLeftLong, Density, PreviewLines, AfterAction, InboxLimit
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -135,6 +135,18 @@ fun SettingsScreen(
                 )
                 CardDivider()
                 SettingsRow(
+                    title = stringResource(R.string.swipe_right_long_label),
+                    value = stringResource(swipeActionLabel(settings.swipeRightLongAction)),
+                    onClick = { dialog = SettingsDialog.SwipeRightLong }
+                )
+                CardDivider()
+                SettingsRow(
+                    title = stringResource(R.string.swipe_left_long_label),
+                    value = stringResource(swipeActionLabel(settings.swipeLeftLongAction)),
+                    onClick = { dialog = SettingsDialog.SwipeLeftLong }
+                )
+                CardDivider()
+                SettingsRow(
                     title = stringResource(R.string.reading_after_delete_row_title),
                     subtitle = stringResource(R.string.reading_after_delete_subtitle),
                     value = stringResource(afterDeleteLabel(settings.afterDeleteNavigation)),
@@ -174,6 +186,13 @@ fun SettingsScreen(
 
             // -- Privacy --
             SettingsGroup(title = stringResource(R.string.images_section_title), icon = Icons.Default.Security) {
+                SettingsSwitchRow(
+                    title = stringResource(R.string.biometric_lock_title),
+                    subtitle = stringResource(R.string.biometric_lock_subtitle),
+                    checked = settings.biometricLockEnabled,
+                    onCheckedChange = viewModel::setBiometricLockEnabled
+                )
+                CardDivider()
                 SettingsSwitchRow(
                     title = stringResource(R.string.images_setting_label),
                     subtitle = stringResource(R.string.images_setting_subtitle),
@@ -247,6 +266,22 @@ fun SettingsScreen(
             selected = settings.swipeLeftAction,
             dismissLabel = stringResource(R.string.cancel),
             onSelect = viewModel::setSwipeLeftAction,
+            onDismiss = { dialog = SettingsDialog.None }
+        )
+        SettingsDialog.SwipeRightLong -> SettingsChoiceDialog(
+            title = stringResource(R.string.swipe_right_long_label),
+            options = SwipeAction.entries.map { SettingsChoice(it, stringResource(swipeActionLabel(it))) },
+            selected = settings.swipeRightLongAction,
+            dismissLabel = stringResource(R.string.cancel),
+            onSelect = viewModel::setSwipeRightLongAction,
+            onDismiss = { dialog = SettingsDialog.None }
+        )
+        SettingsDialog.SwipeLeftLong -> SettingsChoiceDialog(
+            title = stringResource(R.string.swipe_left_long_label),
+            options = SwipeAction.entries.map { SettingsChoice(it, stringResource(swipeActionLabel(it))) },
+            selected = settings.swipeLeftLongAction,
+            dismissLabel = stringResource(R.string.cancel),
+            onSelect = viewModel::setSwipeLeftLongAction,
             onDismiss = { dialog = SettingsDialog.None }
         )
         SettingsDialog.Density -> SettingsChoiceDialog(

@@ -109,8 +109,11 @@ interface MessageDao {
     @Query("SELECT * FROM messages WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): MessageEntity?
 
+    @Query("SELECT * FROM messages WHERE accountId = :accountId AND messageId = :messageId AND folderId = :folderId LIMIT 1")
+    suspend fun getByMessageId(accountId: Long, messageId: String, folderId: Long): MessageEntity?
+
     @Query("SELECT * FROM messages WHERE accountId = :accountId AND messageId = :messageId LIMIT 1")
-    suspend fun getByMessageId(accountId: Long, messageId: String): MessageEntity?
+    suspend fun getAnyByMessageId(accountId: Long, messageId: String): MessageEntity?
 
     @Query("SELECT * FROM messages WHERE accountId = :accountId AND threadId = :threadId ORDER BY date DESC")
     fun getByThread(accountId: Long, threadId: String): Flow<List<MessageEntity>>

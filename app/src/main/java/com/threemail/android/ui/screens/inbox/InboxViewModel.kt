@@ -72,6 +72,8 @@ class InboxViewModel @Inject constructor(
         // and swipe gestures react to changes without re-navigating).
         val swipeRightAction: SwipeAction = SwipeAction.ARCHIVE,
         val swipeLeftAction: SwipeAction = SwipeAction.DELETE,
+        val swipeRightLongAction: SwipeAction = SwipeAction.DELETE,
+        val swipeLeftLongAction: SwipeAction = SwipeAction.ARCHIVE,
         val messageDensity: MessageDensity = MessageDensity.COMFORTABLE,
         val previewLines: Int = 2
     ) {
@@ -170,6 +172,8 @@ class InboxViewModel @Inject constructor(
             selectedIds = selectedIds intersect base.messages.mapTo(HashSet()) { it.id },
             swipeRightAction = settings.swipeRightAction,
             swipeLeftAction = settings.swipeLeftAction,
+            swipeRightLongAction = settings.swipeRightLongAction,
+            swipeLeftLongAction = settings.swipeLeftLongAction,
             messageDensity = settings.messageDensity,
             previewLines = settings.previewLines
         )

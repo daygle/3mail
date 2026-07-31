@@ -41,6 +41,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.setNotificationsEnabled(enabled) }
     }
 
+    fun setBiometricLockEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setBiometricLockEnabled(enabled) }
+    }
+
     fun setThemeMode(mode: ThemeMode) {
         viewModelScope.launch { settingsRepository.setThemeMode(mode) }
     }
@@ -63,6 +67,14 @@ class SettingsViewModel @Inject constructor(
 
     fun setSwipeLeftAction(action: SwipeAction) {
         viewModelScope.launch { settingsRepository.setSwipeLeftAction(action) }
+    }
+
+    fun setSwipeRightLongAction(action: SwipeAction) {
+        viewModelScope.launch { settingsRepository.setSwipeRightLongAction(action) }
+    }
+
+    fun setSwipeLeftLongAction(action: SwipeAction) {
+        viewModelScope.launch { settingsRepository.setSwipeLeftLongAction(action) }
     }
 
     fun setMessageDensity(density: MessageDensity) {

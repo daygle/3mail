@@ -42,10 +42,16 @@ data class AppSettings(
     val emptyTrashOnLaunch: Boolean = false,
     val emptyTrashOnQuit: Boolean = false,
     val pushEnabled: Boolean = true,
+    /** Require biometric/device authentication before showing mail. */
+    val biometricLockEnabled: Boolean = false,
     /** Swipe start-to-end (left-to-right) action. */
     val swipeRightAction: SwipeAction = SwipeAction.ARCHIVE,
-    /** Swipe end-to-start (right-to-left) action. */
+    /** Swipe end-to-start (right-to-left) short-swipe action. */
     val swipeLeftAction: SwipeAction = SwipeAction.DELETE,
+    /** Action used after a deliberate long right swipe. */
+    val swipeRightLongAction: SwipeAction = SwipeAction.DELETE,
+    /** Action used after a deliberate long left swipe. */
+    val swipeLeftLongAction: SwipeAction = SwipeAction.ARCHIVE,
     val messageDensity: MessageDensity = MessageDensity.COMFORTABLE,
     /** Body-preview lines shown per row (0 hides the preview). */
     val previewLines: Int = 2,
@@ -105,8 +111,11 @@ class SettingsRepository @Inject constructor(
         val EMPTY_TRASH_ON_LAUNCH = booleanPreferencesKey("empty_trash_on_launch")
         val EMPTY_TRASH_ON_QUIT = booleanPreferencesKey("empty_trash_on_quit")
         val PUSH_ENABLED = booleanPreferencesKey("push_enabled")
+        val BIOMETRIC_LOCK = booleanPreferencesKey("biometric_lock_enabled")
         val SWIPE_RIGHT = stringPreferencesKey("swipe_right_action")
         val SWIPE_LEFT = stringPreferencesKey("swipe_left_action")
+        val SWIPE_RIGHT_LONG = stringPreferencesKey("swipe_right_long_action")
+        val SWIPE_LEFT_LONG = stringPreferencesKey("swipe_left_long_action")
         val MESSAGE_DENSITY = stringPreferencesKey("message_density")
         val PREVIEW_LINES = intPreferencesKey("preview_lines")
         val LOAD_IMAGES = booleanPreferencesKey("load_images")
@@ -128,12 +137,15 @@ class SettingsRepository @Inject constructor(
                     emptyTrashOnLaunch = prefs[Keys.EMPTY_TRASH_ON_LAUNCH] ?: false,
                     emptyTrashOnQuit = prefs[Keys.EMPTY_TRASH_ON_QUIT] ?: false,
                     pushEnabled = prefs[Keys.PUSH_ENABLED] ?: true,
+                    biometricLockEnabled = prefs[Keys.BIOMETRIC_LOCK] ?: false,
                     // Legacy prefs holding the now-removed "TOGGLE_STAR"
                     // string coerce to ARCHIVE (right) / DELETE (left) -
                     // the safe defaults. Intentional one-way migration;
                     // do not surface this as a visible error.
                     swipeRightAction = prefs[Keys.SWIPE_RIGHT]?.let { runCatching { SwipeAction.valueOf(it) }.getOrNull() } ?: SwipeAction.ARCHIVE,
                     swipeLeftAction = prefs[Keys.SWIPE_LEFT]?.let { runCatching { SwipeAction.valueOf(it) }.getOrNull() } ?: SwipeAction.DELETE,
+                    swipeRightLongAction = prefs[Keys.SWIPE_RIGHT_LONG]?.let { runCatching { SwipeAction.valueOf(it) }.getOrNull() } ?: SwipeAction.DELETE,
+                    swipeLeftLongAction = prefs[Keys.SWIPE_LEFT_LONG]?.let { runCatching { SwipeAction.valueOf(it) }.getOrNull() } ?: SwipeAction.ARCHIVE,
                     messageDensity = prefs[Keys.MESSAGE_DENSITY]?.let { runCatching { MessageDensity.valueOf(it) }.getOrNull() } ?: MessageDensity.COMFORTABLE,
                     previewLines = (prefs[Keys.PREVIEW_LINES] ?: 2).coerceIn(0, 3),
                     loadImages = prefs[Keys.LOAD_IMAGES] ?: false,
@@ -164,8 +176,11 @@ class SettingsRepository @Inject constructor(
     suspend fun setEmptyTrashOnLaunch(enabled: Boolean) = dataStore.edit { it[Keys.EMPTY_TRASH_ON_LAUNCH] = enabled }
     suspend fun setEmptyTrashOnQuit(enabled: Boolean) = dataStore.edit { it[Keys.EMPTY_TRASH_ON_QUIT] = enabled }
     suspend fun setPushEnabled(enabled: Boolean) = dataStore.edit { it[Keys.PUSH_ENABLED] = enabled }
+    suspend fun setBiometricLockEnabled(enabled: Boolean) = dataStore.edit { it[Keys.BIOMETRIC_LOCK] = enabled }
     suspend fun setSwipeRightAction(action: SwipeAction) = dataStore.edit { it[Keys.SWIPE_RIGHT] = action.name }
     suspend fun setSwipeLeftAction(action: SwipeAction) = dataStore.edit { it[Keys.SWIPE_LEFT] = action.name }
+    suspend fun setSwipeRightLongAction(action: SwipeAction) = dataStore.edit { it[Keys.SWIPE_RIGHT_LONG] = action.name }
+    suspend fun setSwipeLeftLongAction(action: SwipeAction) = dataStore.edit { it[Keys.SWIPE_LEFT_LONG] = action.name }
     suspend fun setMessageDensity(density: MessageDensity) = dataStore.edit { it[Keys.MESSAGE_DENSITY] = density.name }
     suspend fun setPreviewLines(lines: Int) = dataStore.edit { it[Keys.PREVIEW_LINES] = lines.coerceIn(0, 3) }
     suspend fun setLoadImages(enabled: Boolean) = dataStore.edit { it[Keys.LOAD_IMAGES] = enabled }

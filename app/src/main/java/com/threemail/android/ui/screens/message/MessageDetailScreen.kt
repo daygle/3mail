@@ -145,7 +145,9 @@ fun MessageDetailScreen(
     onReplyAll: (Long) -> Unit,
     onForward: (Long) -> Unit,
     /** Start a fresh compose addressed to the given email address. */
-    onComposeTo: (String) -> Unit = {}
+    onComposeTo: (String) -> Unit = {},
+    modifier: Modifier = Modifier,
+    showBackButton: Boolean = true
 ) {
     val state by viewModel.uiState.collectAsState()
     val message = state.message
@@ -197,6 +199,30 @@ fun MessageDetailScreen(
     // emitting an updated ids list, which would re-derive the same currentPage
     // and re-call selectMessage with the same id.
     if (pagerState != null) {
+        // Room can remove or insert rows while the pager is open. Reconcile
+        // the current page by stable message id rather than trusting the old
+        // numeric index; otherwise a deletion before the selected row can make
+        // the pager display a different message without changing selection.
+        LaunchedEffect(pagerState, ids, selectedId) {
+            val selectedPage = ids.indexOf(selectedId)
+            when {
+                selectedPage >= 0 && pagerState.currentPage != selectedPage -> {
+                    pagerState.scrollToPage(selectedPage)
+                }
+                selectedPage < 0 -> {
+                    // The selected row may have been removed by a remote sync
+                    // or a completed triage action. Rebind to the message now
+                    // occupying the current keyed page instead of leaving the
+                    // pager showing an orphaned body.
+                    val replacementId = ids.getOrNull(pagerState.currentPage)
+                    if (replacementId != null) {
+                        viewModel.selectMessage(replacementId)
+                    } else {
+                        onNavigateBack()
+                    }
+                }
+            }
+        }
         LaunchedEffect(pagerState, ids) {
             snapshotFlow { pagerState.currentPage to pagerState.isScrollInProgress }
                 .filter { (_, scrolling) -> !scrolling }
@@ -213,8 +239,10 @@ fun MessageDetailScreen(
             snapshotFlow { pagerState.currentPage }
                 .distinctUntilChanged()
                 .collect { page ->
-                    ids.getOrNull(page + 1)?.let(viewModel::ensureLoaded)
-                    ids.getOrNull(page - 1)?.let(viewModel::ensureLoaded)
+                    for (distance in 1..PAGER_PREFETCH_RADIUS) {
+                        ids.getOrNull(page + distance)?.let(viewModel::ensureLoaded)
+                        ids.getOrNull(page - distance)?.let(viewModel::ensureLoaded)
+                    }
                 }
         }
     }
@@ -364,12 +392,15 @@ fun MessageDetailScreen(
     }
 
     Scaffold(
+        modifier = modifier,
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.inbox), maxLines = 1) },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cancel))
+                    if (showBackButton) {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cancel))
+                        }
                     }
                 },
                 actions = {
@@ -563,25 +594,72 @@ fun MessageDetailScreen(
         if (pagerState != null) {
             HorizontalPager(
                 state = pagerState,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                key = { page -> ids[page] }
             ) { page ->
-                // We mount one full message-body Column per page. Until
-                // `viewModel.selectMessage(targetId)` re-fires in reaction to
-                // the snapshotFlow collector above, `state.message` may still
-                // hold the previous message; we render the new page's body
-                // using whatever `state.message` currently is, even if it's
-                // the previous one (the LaunchedEffect below flips it as
-                // soon as the new page is hydrated).
                 val pageId = ids.getOrNull(page) ?: return@HorizontalPager
-                // Avoid an infinite splash while a freshly swiped page is
-                // loading its body; show the previous body until ready.
-                body(state.message.takeIf { it?.id == pageId })
+                val isSelectedPage = pageId == selectedId && state.message?.id == pageId
+                val pageMessage = if (isSelectedPage) {
+                    state.message
+                } else {
+                    // A prefetch gives the adjacent page useful metadata. If
+                    // it has not arrived yet, show a stable loading surface -
+                    // never reuse the previous page's body, which could expose
+                    // the wrong email during a fast swipe.
+                    viewModel.prefetchedMessage(pageId)
+                }
+                if (isSelectedPage && pageMessage != null) {
+                    body(pageMessage)
+                } else if (pageMessage != null) {
+                    AdjacentMessagePreview(pageMessage)
+                } else {
+                    LoadingIndicator()
+                }
             }
         } else {
             // Single-message (deep-link) path: identical to the pre-pager
             // behaviour - one Column, no swipe, back goes to the caller.
             body(message)
         }
+    }
+}
+
+@Composable
+private fun AdjacentMessagePreview(message: MailMessage) {
+    // Pager pages are keyed by message id, but only the selected page owns the
+    // ViewModel's body state. Showing metadata for prefetched pages avoids both
+    // a blank page and, more importantly, accidentally displaying the previous
+    // email's body while the new page hydrates.
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp)
+    ) {
+        Text(
+            text = message.subject,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = message.from.firstOrNull()?.toString().orEmpty(),
+            style = MaterialTheme.typography.titleMedium
+        )
+        Spacer(Modifier.height(16.dp))
+        HorizontalDivider()
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = message.bodyPreview,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(12.dp))
+        Text(
+            text = stringResource(R.string.loading_message),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 

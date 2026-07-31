@@ -2,6 +2,7 @@ package com.threemail.android.data.remote.imap
 
 import android.util.Log
 import com.sun.mail.imap.IMAPFolder
+import com.sun.mail.imap.IMAPMessage
 import com.sun.mail.imap.IMAPStore
 import com.threemail.android.data.remote.MessageBody
 import com.threemail.android.data.remote.RemoteCapabilities
@@ -21,6 +22,7 @@ import com.threemail.android.domain.model.EmailAddress
 import com.threemail.android.domain.model.FolderType
 import com.threemail.android.domain.model.MailFolder
 import com.threemail.android.domain.model.MailMessage
+import com.threemail.android.util.MailText
 import com.threemail.android.util.ThreadUtil
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -28,6 +30,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayInputStream
 import java.io.File
+import java.io.InputStream
 import java.util.Properties
 import javax.mail.Address
 import javax.mail.AuthenticationFailedException
@@ -364,6 +367,68 @@ class ImapClient(
             } catch (e: RecoverableAuthException) {
                 throw e
             } catch (e: MessagingException) {
+                Result.failure(e)
+            }
+        }
+
+    /**
+     * Searches one mailbox on the server. JavaMail translates these terms to
+     * IMAP SEARCH, so this never downloads every cached message or body just to
+     * answer a query. BODY matching remains provider/server-side.
+     */
+    suspend fun searchMessages(folderServerId: String, query: String, limit: Int = 100): Result<List<MailMessage>> =
+        try {
+            withFolder(folderServerId, Folder.READ_ONLY) { folder ->
+                val text = query.trim()
+                if (text.isBlank()) return@withFolder emptyList()
+                val term = javax.mail.search.OrTerm(
+                    arrayOf(
+                        javax.mail.search.SubjectTerm(text),
+                        javax.mail.search.FromStringTerm(text),
+                        javax.mail.search.RecipientStringTerm(Message.RecipientType.TO, text),
+                        javax.mail.search.RecipientStringTerm(Message.RecipientType.CC, text),
+                        javax.mail.search.BodyTerm(text)
+                    )
+                )
+                folder.search(term)
+                    .takeLast(limit)
+                    .map { it.toHeaderMessage(folder) }
+            }.let { Result.success(it) }
+        } catch (e: RecoverableAuthException) {
+            throw e
+        } catch (e: MessagingException) {
+            Result.failure(e)
+        }
+
+    suspend fun createFolder(parentServerId: String?, name: String): Result<MailFolder> =
+        withContext(Dispatchers.IO) {
+            try {
+                val trimmed = name.trim()
+                require(trimmed.isNotEmpty()) { "Folder name cannot be empty" }
+                val store = connectStore()
+                try {
+                    val separator = store.defaultFolder.separator
+                    val serverId = if (parentServerId.isNullOrBlank()) trimmed
+                    else "$parentServerId$separator$trimmed"
+                    val folder = store.getFolder(serverId)
+                    if (folder.exists()) throw MessagingException("Folder already exists: $serverId")
+                    if (!folder.create(Folder.HOLDS_MESSAGES)) {
+                        throw MessagingException("Server rejected folder creation: $serverId")
+                    }
+                    Result.success(
+                        MailFolder(
+                            accountId = account.id,
+                            serverId = serverId,
+                            name = trimmed,
+                            type = FolderType.CUSTOM
+                        )
+                    )
+                } finally {
+                    runCatching { store.close() }
+                }
+            } catch (e: RecoverableAuthException) {
+                throw e
+            } catch (e: Exception) {
                 Result.failure(e)
             }
         }
@@ -928,7 +993,10 @@ class ImapClient(
             cc = getRecipients(Message.RecipientType.CC)?.map { it.toEmailAddress() } ?: emptyList(),
             bcc = getRecipients(Message.RecipientType.BCC)?.map { it.toEmailAddress() } ?: emptyList(),
             date = sentDate?.time ?: receivedDate?.time ?: System.currentTimeMillis(),
-            bodyPreview = extractPreview(this),
+            // Never walk the MIME tree during inbox sync. This bounded PEEK
+            // reads at most a small prefix and leaves the message unseen;
+            // full MIME parsing remains an explicit detail-screen operation.
+            bodyPreview = previewFromPeek(this),
             isRead = isSet(Flags.Flag.SEEN),
             isStarred = isSet(Flags.Flag.FLAGGED),
             isDraft = isSet(Flags.Flag.DRAFT),
@@ -1030,15 +1098,42 @@ class ImapClient(
         )
     }
 
-    private fun extractPreview(message: Message): String = try {
-        val sb = StringBuilder()
-        val plain = StringBuilder()
-        val attachments = mutableListOf<Attachment>()
-        extractParts(message, sb, plain, attachments)
-        val text = plain.toString().takeIf { it.isNotBlank() }
-            ?: com.threemail.android.util.MailText.stripHtml(sb.toString())
-        text.replace(Regex("\\s+"), " ").trim().take(200)
-    } catch (e: Exception) {
+    /**
+     * Read only a bounded prefix using JavaMail's BODY.PEEK stream. Servers
+     * commonly return the first IMAP body chunk without marking the message
+     * seen. The prefix is intentionally best-effort: if a server rejects
+     * partial PEEK, the list still renders immediately with an empty snippet
+     * and the detail screen can fetch the complete body later.
+     */
+    /** Invoke JavaMail's protected MIME stream accessor with BODY.PEEK. */
+    private fun IMAPMessage.peekMimeStream(): InputStream {
+        val method = IMAPMessage::class.java.getDeclaredMethod(
+            "getMimeStream",
+            Boolean::class.javaPrimitiveType
+        )
+        method.isAccessible = true
+        return method.invoke(this, true) as InputStream
+    }
+
+    private fun previewFromPeek(message: Message): String = try {
+        val imap = message as? IMAPMessage ?: return ""
+        val bytes = imap.peekMimeStream().use { input ->
+            val out = ByteArray(768)
+            var offset = 0
+            while (offset < out.size) {
+                val read = input.read(out, offset, out.size - offset)
+                if (read <= 0) break
+                offset += read
+            }
+            out.copyOf(offset)
+        }
+        val raw = String(bytes, Charsets.UTF_8)
+            .substringAfter("\r\n\r\n", missingDelimiterValue = String(bytes, Charsets.UTF_8))
+        MailText.stripHtml(raw)
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .take(200)
+    } catch (_: Exception) {
         ""
     }
 

@@ -187,6 +187,9 @@ class MessageDetailViewModel @Inject constructor(
     private val _prefetchedIds = MutableStateFlow<Set<Long>>(emptySet())
     private val _prefetchedMessages = MutableStateFlow<Map<Long, MailMessage>>(emptyMap())
 
+    /** Metadata available for an adjacent pager page before that page is selected. */
+    fun prefetchedMessage(id: Long): MailMessage? = _prefetchedMessages.value[id]
+
     init {
         // Mirror the global "load images" preference into UiState so the
         // banner can flip on the very first frame after navigation without

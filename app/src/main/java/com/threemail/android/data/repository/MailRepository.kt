@@ -195,6 +195,21 @@ class MailRepository @Inject constructor(
         return entity.toDomain(isEncrypted = isEncrypted)
     }
 
+    /** Resolve a server-search result after it has been inserted into Room. */
+    suspend fun getMessageByIdentity(
+        accountId: Long,
+        messageId: String,
+        folderId: Long? = null
+    ): MailMessage? {
+        val entity = if (folderId != null) {
+            messageDao.getByMessageId(accountId, messageId, folderId)
+        } else {
+            messageDao.getAnyByMessageId(accountId, messageId)
+        } ?: return null
+        val isEncrypted = isEncryptedFor(entity.accountId, entity.messageId)
+        return entity.toDomain(isEncrypted = isEncrypted)
+    }
+
     suspend fun getMessagesOnce(folderId: Long): List<MailMessage> {
         val list = messageDao.getByFolderOnce(folderId)
         return list.map { entity ->

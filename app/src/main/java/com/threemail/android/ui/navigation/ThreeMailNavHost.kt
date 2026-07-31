@@ -1,7 +1,14 @@
 package com.threemail.android.ui.navigation
 
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import com.threemail.android.ui.screens.inbox.InboxViewModel
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -40,7 +47,6 @@ import com.threemail.android.ui.screens.settings.TopBarCustomisationScreen
 fun ThreeMailNavHost(navController: NavHostController) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
-
     val bottomBar: @Composable () -> Unit = {
         ThreeMailBottomBar(
             currentRoute = currentRoute,
@@ -65,9 +71,11 @@ fun ThreeMailNavHost(navController: NavHostController) {
                 onNavigateToAccounts = { navController.navigate(Screen.Accounts.route) },
                 onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
                 onNavigateToMessage = { messageId, folderId, unified ->
-                    navController.navigate(
-                        Screen.MessageDetail.createRoute(messageId, folderId, unified)
-                    )
+                    // Always enter the adaptive destination. It renders as a
+                    // single detail pane on phones and a master/detail pair on
+                    // wide windows, allowing a fold or resize to change the
+                    // layout live without replacing the navigation entry.
+                    navController.navigate(Screen.AdaptiveMessageDetail.createRoute(messageId, folderId, unified))
                 },
                 onNavigateToAddAccount = { navController.navigate(Screen.AddAccount.route) },
                 onNavigateToManageFolders = { navController.navigate(Screen.ManageFolders.route) },
@@ -120,6 +128,77 @@ fun ThreeMailNavHost(navController: NavHostController) {
                 onForward = { messageId -> navController.navigate(Screen.Compose.createRoute("forward", messageId)) },
                 onComposeTo = { address -> navController.navigate(Screen.Compose.createRoute(to = address)) }
             )
+        }
+        composable(
+            route = Screen.AdaptiveMessageDetail.route,
+            arguments = listOf(
+                navArgument("messageId") { type = NavType.LongType },
+                navArgument("folderId") { type = NavType.LongType },
+                navArgument("unified") { type = NavType.BoolType; defaultValue = false }
+            )
+        ) {
+            // Keep the master pane attached to the original Inbox nav entry.
+            // Otherwise the adaptive destination creates a second InboxViewModel
+            // that performs its own sync and can disagree with the list the user
+            // just selected. BoxWithConstraints also reacts to fold/unfold and
+            // freeform-window resizing while this destination is already open.
+            val inboxEntry = remember(navController) {
+                navController.getBackStackEntry(Screen.Inbox.route)
+            }
+            val inboxViewModel: InboxViewModel = hiltViewModel(inboxEntry)
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val showMaster = maxWidth >= 840.dp
+                if (showMaster) {
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        InboxScreen(
+                            viewModel = inboxViewModel,
+                            onNavigateToCompose = { navController.navigate(Screen.Compose.createRoute()) },
+                            onNavigateToSearch = { navController.navigate(Screen.Search.route) },
+                            onNavigateToAccounts = { navController.navigate(Screen.Accounts.route) },
+                            onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
+                            onNavigateToMessage = { messageId, folderId, unified ->
+                                navController.navigate(Screen.AdaptiveMessageDetail.createRoute(messageId, folderId, unified)) {
+                                    popUpTo(Screen.AdaptiveMessageDetail.route) { inclusive = true }
+                                }
+                            },
+                            onNavigateToAddAccount = { navController.navigate(Screen.AddAccount.route) },
+                            onNavigateToManageFolders = { navController.navigate(Screen.ManageFolders.route) },
+                            onNavigateToAccountSettings = { accountId -> navController.navigate(Screen.AccountSettings.createRoute(accountId)) },
+                            bottomBar = bottomBar,
+                            modifier = Modifier.weight(0.46f)
+                        )
+                        MessageDetailScreen(
+                            viewModel = hiltViewModel(),
+                            onNavigateBack = { navController.popBackStack() },
+                            onNavigateToNext = { nextId -> navController.navigate(Screen.AdaptiveMessageDetail.createRoute(nextId, -1L, false)) },
+                            onReply = { messageId -> navController.navigate(Screen.Compose.createRoute("reply", messageId)) },
+                            onReplyAll = { messageId -> navController.navigate(Screen.Compose.createRoute("replyAll", messageId)) },
+                            onForward = { messageId -> navController.navigate(Screen.Compose.createRoute("forward", messageId)) },
+                            onComposeTo = { address -> navController.navigate(Screen.Compose.createRoute(to = address)) },
+                            modifier = Modifier.weight(0.54f),
+                            showBackButton = false
+                        )
+                    }
+                } else {
+                    // On a narrow window the same destination becomes a normal
+                    // full-screen detail view instead of squeezing two panes
+                    // together. The route remains stable, so a live resize does
+                    // not lose the selected message or grow the back stack.
+                    MessageDetailScreen(
+                        viewModel = hiltViewModel(),
+                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateToNext = { nextId ->
+                            navController.navigate(Screen.AdaptiveMessageDetail.createRoute(nextId, -1L, false))
+                        },
+                        onReply = { messageId -> navController.navigate(Screen.Compose.createRoute("reply", messageId)) },
+                        onReplyAll = { messageId -> navController.navigate(Screen.Compose.createRoute("replyAll", messageId)) },
+                        onForward = { messageId -> navController.navigate(Screen.Compose.createRoute("forward", messageId)) },
+                        onComposeTo = { address -> navController.navigate(Screen.Compose.createRoute(to = address)) },
+                        modifier = Modifier.fillMaxSize(),
+                        showBackButton = true
+                    )
+                }
+            }
         }
         composable(Screen.Search.route) {
             SearchScreen(

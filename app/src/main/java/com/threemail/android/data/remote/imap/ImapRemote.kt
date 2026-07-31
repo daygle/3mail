@@ -22,6 +22,20 @@ class ImapRemote(private val client: ImapClient) : MailRemote {
     override suspend fun fetchMessages(folder: MailFolder, sinceCursor: Long, limit: Int): Result<RemoteFetch> =
         client.fetchMessagesSince(folder.serverId, sinceCursor, limit)
 
+    override suspend fun search(query: String, folders: List<MailFolder>, limit: Int): Result<List<MailMessage>> {
+        val results = mutableListOf<MailMessage>()
+        for (folder in folders) {
+            client.searchMessages(folder.serverId, query, limit)
+                .onSuccess { messages -> results += messages.map { it.copy(folderId = folder.id) } }
+                .onFailure { return Result.failure(it) }
+            if (results.size >= limit) break
+        }
+        return Result.success(results.take(limit))
+    }
+
+    override suspend fun createFolder(parentServerId: String?, name: String): Result<MailFolder> =
+        client.createFolder(parentServerId, name)
+
     override suspend fun listExistingMessageUids(folder: MailFolder, cachedUids: List<Long>): Result<Set<Long>> =
         client.existingUids(folder.serverId, cachedUids)
 

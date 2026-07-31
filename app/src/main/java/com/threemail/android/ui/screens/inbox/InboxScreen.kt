@@ -13,11 +13,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Check
@@ -51,8 +53,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -60,11 +60,11 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -73,6 +73,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -95,6 +97,7 @@ import com.threemail.android.ui.components.FolderTreePicker
 import com.threemail.android.ui.components.MailListItem
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -116,7 +119,8 @@ fun InboxScreen(
     onNavigateToAddAccount: () -> Unit,
     onNavigateToManageFolders: () -> Unit = {},
     onNavigateToAccountSettings: (Long) -> Unit = {},
-    bottomBar: @Composable () -> Unit = {}
+    bottomBar: @Composable () -> Unit = {},
+    modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState.collectAsState()
     // Captured once per recomposition into a stable local so the per-row
@@ -238,6 +242,7 @@ fun InboxScreen(
     }
 
     ModalNavigationDrawer(
+        modifier = modifier,
         drawerState = drawerState,
         // Enable drawer gestures only while it's already open. Closed, gestures
         // are off so the edge/diagonal swipe-to-open can't compete with the
@@ -400,6 +405,8 @@ fun InboxScreen(
                                             selected = selected,
                                             swipeRightAction = state.swipeRightAction,
                                             swipeLeftAction = state.swipeLeftAction,
+                                            swipeRightLongAction = state.swipeRightLongAction,
+                                            swipeLeftLongAction = state.swipeLeftLongAction,
                                             density = state.messageDensity,
                                             previewLines = state.previewLines,
                                             onArchive = { viewModel.archive(message) },
@@ -775,7 +782,6 @@ private fun SelectionTopBar(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SwipeableMailRow(
     message: MailMessage,
@@ -783,6 +789,8 @@ private fun SwipeableMailRow(
     selected: Boolean,
     swipeRightAction: SwipeAction,
     swipeLeftAction: SwipeAction,
+    swipeRightLongAction: SwipeAction,
+    swipeLeftLongAction: SwipeAction,
     density: MessageDensity,
     previewLines: Int,
     onArchive: () -> Unit,
@@ -818,58 +826,87 @@ private fun SwipeableMailRow(
         }
     }
 
-    // `rememberSwipeToDismissBoxState` (and its `confirmValueChange`
-    // parameter) is deprecated in Compose Material3. The team recommends
-    // driving swipe-to-dismiss with the lower-level `AnchoredDraggable` API
-    // and a curated anchor set, but that refactor is out of scope for this
-    // change. In the meantime we suppress the deprecation and react to the
-    // dismiss through a `LaunchedEffect` instead of through the deprecated
-    // callback. `SwipeToDismissBox` (the consumer composable) is NOT
-    // deprecated, so the row composable itself stays clean.
-    @Suppress("DEPRECATION")
-    val dismissState = rememberSwipeToDismissBoxState()
-
-    // Guard so each row instance handles the gesture exactly once. For
-    // non-removing actions (#1) we spring the row back so it stays in the
-    // list; ARCHIVE/DELETE remove the row from the reactive feed, so the
-    // dismissed state is left in place.
-    var handled by remember { mutableStateOf(false) }
-    LaunchedEffect(dismissState.currentValue) {
-        if (!handled && dismissState.currentValue != SwipeToDismissBoxValue.Settled) {
-            handled = true
-            val action = when (dismissState.currentValue) {
-                SwipeToDismissBoxValue.StartToEnd -> swipeRightAction
-                SwipeToDismissBoxValue.EndToStart -> swipeLeftAction
-                SwipeToDismissBoxValue.Settled -> SwipeAction.NONE
-            }
-            perform(action)
-            if (action != SwipeAction.ARCHIVE && action != SwipeAction.DELETE && action != SwipeAction.MARK_SPAM) {
-                dismissState.reset()
-                handled = false
-            }
+    var dragOffsetPx by remember { mutableFloatStateOf(0f) }
+    val shortThreshold = 0.30f
+    val longThreshold = 0.68f
+    val maxOffset = 0.92f
+    var rowWidthPx by remember { mutableFloatStateOf(1f) }
+    val currentOffset = dragOffsetPx
+    val actionFor = { distance: Float ->
+        val right = distance > 0f
+        val long = kotlin.math.abs(distance) >= rowWidthPx * longThreshold
+        when {
+            long && right -> swipeRightLongAction
+            long && !right -> swipeLeftLongAction
+            right -> swipeRightAction
+            else -> swipeLeftAction
         }
     }
 
-    SwipeToDismissBox(
-        state = dismissState,
-        backgroundContent = {
-            val isStart = dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd
-            val action = if (isStart) swipeRightAction else swipeLeftAction
-            SwipeBackground(action = action, alignEnd = !isStart)
-        }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .onGloballyPositioned { rowWidthPx = it.size.width.toFloat().coerceAtLeast(1f) }
     ) {
+        val shownAction = when {
+            currentOffset == 0f -> SwipeAction.NONE
+            kotlin.math.abs(currentOffset) >= rowWidthPx * longThreshold -> actionFor(currentOffset)
+            else -> actionFor(currentOffset)
+        }
+        SwipeBackground(
+            action = shownAction,
+            alignEnd = currentOffset < 0f,
+            modifier = Modifier.fillMaxSize()
+        )
         MailListItem(
             message = message,
             onClick = onClick,
             onLongClick = onLongClick,
             density = density,
-            previewLines = previewLines
+            previewLines = previewLines,
+            modifier = Modifier
+                .offset { androidx.compose.ui.unit.IntOffset(currentOffset.roundToInt(), 0) }
+                .pointerInput(
+                    swipeRightAction,
+                    swipeLeftAction,
+                    swipeRightLongAction,
+                    swipeLeftLongAction,
+                    rowWidthPx
+                ) {
+                    detectHorizontalDragGestures(
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            dragOffsetPx = (dragOffsetPx + dragAmount).coerceIn(
+                                -rowWidthPx * maxOffset,
+                                rowWidthPx * maxOffset
+                            )
+                        },
+                        onDragEnd = {
+                            val distance = dragOffsetPx
+                            val shouldDismiss = kotlin.math.abs(distance) >= rowWidthPx * shortThreshold
+                            if (!shouldDismiss) {
+                                dragOffsetPx = 0f
+                            } else {
+                                val action = actionFor(distance)
+                                perform(action)
+                                dragOffsetPx = 0f
+                            }
+                        },
+                        onDragCancel = {
+                            dragOffsetPx = 0f
+                        }
+                    )
+                }
         )
     }
 }
 
 @Composable
-private fun SwipeBackground(action: SwipeAction, alignEnd: Boolean) {
+private fun SwipeBackground(
+    action: SwipeAction,
+    alignEnd: Boolean,
+    modifier: Modifier = Modifier
+) {
     val color = when (action) {
         SwipeAction.ARCHIVE -> MaterialTheme.colorScheme.tertiary
         SwipeAction.DELETE -> MaterialTheme.colorScheme.error
@@ -887,7 +924,7 @@ private fun SwipeBackground(action: SwipeAction, alignEnd: Boolean) {
         SwipeAction.NONE -> null
     }
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .background(color)
             .padding(horizontal = 24.dp),

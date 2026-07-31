@@ -2,6 +2,7 @@ package com.threemail.android.ui.screens.folders
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,6 +20,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
@@ -30,6 +32,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
@@ -82,11 +85,15 @@ fun FolderManagementScreen(
     // Structural folder edits (rename/move/delete) are IMAP-only; Gmail's
     // labels and POP3's fixed inbox don't map onto the RENAME/DELETE commands.
     val isImap = state.selectedAccount?.accountType == AccountType.IMAP
+    val canCreate = state.selectedAccount?.accountType == AccountType.IMAP ||
+        state.selectedAccount?.accountType == AccountType.GMAIL
 
     // Which folder (if any) each dialog is currently acting on.
     var renameTarget by remember { mutableStateOf<MailFolder?>(null) }
     var moveTarget by remember { mutableStateOf<MailFolder?>(null) }
     var deleteTarget by remember { mutableStateOf<MailFolder?>(null) }
+    var showCreateDialog by remember { mutableStateOf(false) }
+    var createParent by remember { mutableStateOf<MailFolder?>(null) }
 
     // Drain the view-model's one-shot events into the snackbar. getString (not
     // stringResource) because this runs in a coroutine, not composition.
@@ -99,6 +106,8 @@ fun FolderManagementScreen(
                     resources.getString(R.string.folder_moved, event.name)
                 is FolderManagementViewModel.FolderEvent.Deleted ->
                     resources.getString(R.string.folder_deleted, event.name)
+                is FolderManagementViewModel.FolderEvent.Created ->
+                    resources.getString(R.string.folder_created, event.name)
                 is FolderManagementViewModel.FolderEvent.Failed ->
                     resources.getString(R.string.folder_op_failed, event.name)
                 FolderManagementViewModel.FolderEvent.InvalidName ->
@@ -118,6 +127,17 @@ fun FolderManagementScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cancel))
+                    }
+                },
+                actions = {
+                    if (canCreate) IconButton(onClick = {
+                        createParent = null
+                        showCreateDialog = true
+                    }) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = stringResource(R.string.create_folder)
+                        )
                     }
                 },
                 colors = appTopBarColors(),
@@ -216,6 +236,18 @@ fun FolderManagementScreen(
         )
     }
 
+    if (showCreateDialog) {
+        CreateFolderDialog(
+            folders = state.folders,
+            selectedParent = createParent,
+            onDismiss = { showCreateDialog = false },
+            onConfirm = { parent, name ->
+                showCreateDialog = false
+                viewModel.createFolder(parent, name)
+            }
+        )
+    }
+
     deleteTarget?.let { target ->
         AlertDialog(
             onDismissRequest = { deleteTarget = null },
@@ -236,6 +268,61 @@ fun FolderManagementScreen(
             }
         )
     }
+}
+
+@Composable
+private fun CreateFolderDialog(
+    folders: List<MailFolder>,
+    selectedParent: MailFolder?,
+    onDismiss: () -> Unit,
+    onConfirm: (MailFolder?, String) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var parent by remember { mutableStateOf(selectedParent) }
+    var parentMenuOpen by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.create_folder)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.folder_name_label)) }
+                )
+                Box {
+                    OutlinedButton(onClick = { parentMenuOpen = true }) {
+                        Text(parent?.serverId ?: stringResource(R.string.folder_top_level))
+                    }
+                    DropdownMenu(
+                        expanded = parentMenuOpen,
+                        onDismissRequest = { parentMenuOpen = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.folder_top_level)) },
+                            onClick = { parent = null; parentMenuOpen = false }
+                        )
+                        folders.filter { it.type == FolderType.CUSTOM }.forEach { folder ->
+                            DropdownMenuItem(
+                                text = { Text(folder.serverId) },
+                                onClick = { parent = folder; parentMenuOpen = false }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(parent, name) },
+                enabled = name.isNotBlank()
+            ) { Text(stringResource(R.string.create)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        }
+    )
 }
 
 @Composable

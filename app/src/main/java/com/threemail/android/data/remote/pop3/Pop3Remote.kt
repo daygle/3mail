@@ -32,6 +32,10 @@ class Pop3Remote(private val client: Pop3Client) : MailRemote {
     override suspend fun fetchMessages(folder: MailFolder, sinceCursor: Long, limit: Int): Result<RemoteFetch> =
         client.fetchMessagesSince(sinceCursor, limit)
 
+    // POP3 has no mailbox search or folder creation primitive.
+    override suspend fun search(query: String, folders: List<MailFolder>, limit: Int): Result<List<MailMessage>> =
+        Result.failure(UnsupportedOperationException("POP3 does not support server-side search"))
+
     override suspend fun fetchBody(folder: MailFolder, message: MailMessage): Result<MessageBody> =
         client.fetchBody(number(message))
 

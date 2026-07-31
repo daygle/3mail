@@ -40,6 +40,12 @@ sealed class Screen(val route: String) {
             "message/$messageId?folderId=$folderId&unified=$unified"
     }
 
+    /** Wide-screen master/detail destination. The inbox remains visible beside the selected message. */
+    data object AdaptiveMessageDetail : Screen("adaptive_message/{messageId}?folderId={folderId}&unified={unified}") {
+        fun createRoute(messageId: Long, folderId: Long, unified: Boolean): String =
+            "adaptive_message/$messageId?folderId=$folderId&unified=$unified"
+    }
+
     data object Search : Screen("search")
     data object Accounts : Screen("accounts")
     data object AddAccount : Screen("add_account")

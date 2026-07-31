@@ -14,6 +14,7 @@ import com.threemail.android.notifications.NotificationHelper
 import com.threemail.android.sync.SyncScheduler
 import com.threemail.android.sync.ThreeMailWorkerFactory
 import com.threemail.android.sync.TrashCleanupWorker
+import com.threemail.android.widgets.UnreadCountWidget
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -159,7 +160,10 @@ class ThreeMailApplication : Application(), Configuration.Provider {
     private fun registerBadgeObserver() {
         appScope.launch {
             messageDao.observeTotalUnreadAcrossInboxes()
-                .collectLatest { count -> launcherBadge.setCount(count) }
+                .collectLatest { count ->
+                    launcherBadge.setCount(count)
+                    UnreadCountWidget.requestUpdate(this@ThreeMailApplication)
+                }
         }
     }
 
