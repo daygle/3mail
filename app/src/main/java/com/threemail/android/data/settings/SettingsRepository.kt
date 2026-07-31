@@ -28,23 +28,11 @@ enum class SwipeAction { NONE, ARCHIVE, DELETE, TOGGLE_READ, MARK_SPAM, MOVE }
  */
 enum class AfterDeleteNavigation { RETURN_TO_LIST, NEXT_MESSAGE }
 
-/**
- * Vertical density of the message list. Three tiers so users with
- * shallow inboxes can pick a row size that fits their device:
- *
- *  - [COMFORTABLE]  legacy default. 12 dp vertical padding, 44 dp
- *     avatar. Designed for finger-tap accessibility over information
- *     density.
- *  - [COMPACT]      one notch tighter - 8 dp padding, 36 dp avatar.
- *     Picked-up historically because it shaves a row or two on
- *     mid-sized phones.
- *  - [EXTRA_COMPACT] the densest tier - 4 dp padding, 28 dp avatar.
- *     Shown as a third chip in Settings for users whose inboxes run
- *     deep or whose phones run small. Density and preview-line count
- *     stay orthogonal here: a user who wants "rows but no body
- *     preview" can still set `previewLines = 0` independently.
- */
+/** Vertical density of the message list. */
 enum class MessageDensity { COMFORTABLE, COMPACT, EXTRA_COMPACT }
+
+/** Sort order for the message list. */
+enum class MessageSort { DATE_DESC, DATE_ASC, SENDER_ASC, SUBJECT_ASC, UNREAD_FIRST }
 
 data class AppSettings(
     val syncIntervalMinutes: Long = 15,
@@ -99,7 +87,9 @@ data class AppSettings(
      * 0 means "Unlimited" (load all cached messages).
      * Default: 250 for a balance between history and performance.
      */
-    val inboxLimit: Int = 250
+    val inboxLimit: Int = 250,
+    /** Sort order for the inbox and folder views. Defaults to newest first. */
+    val inboxSort: MessageSort = MessageSort.DATE_DESC
 )
 
 @Singleton
@@ -124,6 +114,7 @@ class SettingsRepository @Inject constructor(
         val HIDDEN_TOP_BAR_ITEMS = stringSetPreferencesKey("hidden_top_bar_items")
         val AFTER_DELETE_NAVIGATION = stringPreferencesKey("after_delete_navigation")
         val INBOX_LIMIT = intPreferencesKey("inbox_limit")
+        val INBOX_SORT = stringPreferencesKey("inbox_sort")
     }
 
     val settings: Flow<AppSettings> = flow {
@@ -159,7 +150,8 @@ class SettingsRepository @Inject constructor(
                     afterDeleteNavigation = prefs[Keys.AFTER_DELETE_NAVIGATION]
                         ?.let { runCatching { AfterDeleteNavigation.valueOf(it) }.getOrNull() }
                         ?: AfterDeleteNavigation.RETURN_TO_LIST,
-                    inboxLimit = prefs[Keys.INBOX_LIMIT] ?: 250
+                    inboxLimit = prefs[Keys.INBOX_LIMIT] ?: 250,
+                    inboxSort = prefs[Keys.INBOX_SORT]?.let { runCatching { MessageSort.valueOf(it) }.getOrNull() } ?: MessageSort.DATE_DESC
                 )
             )
         }
@@ -182,6 +174,8 @@ class SettingsRepository @Inject constructor(
         dataStore.edit { it[Keys.AFTER_DELETE_NAVIGATION] = value.name }
 
     suspend fun setInboxLimit(limit: Int) = dataStore.edit { it[Keys.INBOX_LIMIT] = limit }
+
+    suspend fun setInboxSort(sort: MessageSort) = dataStore.edit { it[Keys.INBOX_SORT] = sort.name }
 
     /**
      * Toggle a single top-bar item's hidden state. Pass the new desired

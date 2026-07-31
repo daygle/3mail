@@ -12,11 +12,13 @@ import com.threemail.android.data.repository.UndoController
 import com.threemail.android.data.settings.MessageDensity
 import com.threemail.android.data.settings.SettingsRepository
 import com.threemail.android.data.settings.SwipeAction
+import com.threemail.android.data.settings.MessageSort
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.MailFolder
 import com.threemail.android.domain.model.MailMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -31,6 +33,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import com.threemail.android.domain.model.FolderType
@@ -102,19 +105,32 @@ class InboxViewModel @Inject constructor(
     // Reactive message feed: switches between the cross-account unified inbox
     // and a single folder. Room-backed, so sync results and read/star/delete
     // mutations reflect live without a manual re-query.
-    private val messagesFlow = combine(
+    private val messagesFlow: StateFlow<List<MailMessage>> = combine(
         _unifiedMode,
         _selectedFolder,
         settingsFlow
     ) { unified, folder, settings ->
-        Triple(unified, folder, settings.inboxLimit)
-    }.flatMapLatest { (unified, folder, limit) ->
-        when {
+        Triple(unified, folder, settings)
+    }.flatMapLatest { (unified, folder, settings) ->
+        val limit = settings.inboxLimit
+        val sort = settings.inboxSort
+        val flow: Flow<List<MailMessage>> = when {
             unified -> mailRepository.observeUnifiedInbox(limit)
             folder != null -> mailRepository.observeFolder(folder.id, limit)
             else -> flowOf(emptyList())
         }
+        flow.map { list -> applySort(list, sort) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private fun applySort(messages: List<MailMessage>, sort: MessageSort): List<MailMessage> {
+        return when (sort) {
+            MessageSort.DATE_DESC -> messages.sortedByDescending { it.date }
+            MessageSort.DATE_ASC -> messages.sortedBy { it.date }
+            MessageSort.SENDER_ASC -> messages.sortedBy { it.from.firstOrNull()?.name?.ifBlank { it.from.firstOrNull()?.address } ?: "" }
+            MessageSort.SUBJECT_ASC -> messages.sortedBy { it.subject }
+            MessageSort.UNREAD_FIRST -> messages.sortedWith(compareBy<MailMessage> { it.isRead }.thenByDescending { it.date })
+        }
+    }
 
     private val baseState: StateFlow<UiState> = combine(
         accountsFlow,
@@ -257,6 +273,10 @@ class InboxViewModel @Inject constructor(
         _selectedFolder.value = folder
     }
 
+    fun setInboxSort(sort: MessageSort) {
+        viewModelScope.launch { settingsRepository.setInboxSort(sort) }
+    }
+
     /** Switch to the cross-account unified inbox view. */
     fun selectUnifiedInbox() {
         _selectedIds.value = emptySet()
@@ -373,7 +393,7 @@ class InboxViewModel @Inject constructor(
     }
 
     fun selectAll() {
-        _selectedIds.value = messagesFlow.value.mapTo(HashSet()) { it.id }
+        _selectedIds.value = (messagesFlow.value as List<MailMessage>).mapTo(HashSet()) { it.id }
     }
 
     private fun selectedMessages(): List<MailMessage> {

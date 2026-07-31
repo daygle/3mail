@@ -5,6 +5,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,12 +13,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DoneAll
@@ -31,6 +34,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.outlined.Report
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -78,6 +82,7 @@ import com.threemail.android.ui.theme.appTopBarColors
 import com.threemail.android.R
 import com.threemail.android.data.repository.UndoKind
 import com.threemail.android.data.settings.MessageDensity
+import com.threemail.android.data.settings.MessageSort
 import com.threemail.android.data.settings.SwipeAction
 import com.threemail.android.data.settings.TopBarItemId
 import com.threemail.android.ui.screens.settings.SettingsViewModel
@@ -322,15 +327,18 @@ fun InboxScreen(
                     )
                 } else {
                     val isTrashFolder = state.selectedFolder?.type == FolderType.TRASH
+                    val domain = state.selectedAccount?.email?.substringAfter('@', "")
                     InboxTopBar(
                         title = when {
                             state.unifiedInbox -> stringResource(R.string.unified_inbox)
                             else -> state.selectedFolder?.name ?: stringResource(R.string.app_name)
                         },
+                        subtitle = if (state.unifiedInbox) null else domain,
+                        currentSort = appSettings.inboxSort,
                         scrollBehavior = scrollBehavior,
                         onOpenDrawer = { scope.launch { drawerState.open() } },
                         onSearch = onNavigateToSearch,
-                        onSync = { viewModel.sync() },
+                        onSort = { viewModel.setInboxSort(it) },
                         onMarkAllRead = { viewModel.markAllRead() },
                         showEmptyTrash = isTrashFolder,
                         onEmptyTrash = { confirmEmptyTrash = true },
@@ -547,10 +555,12 @@ fun InboxScreen(
 @Composable
 private fun InboxTopBar(
     title: String,
+    subtitle: String? = null,
+    currentSort: MessageSort = MessageSort.DATE_DESC,
     scrollBehavior: androidx.compose.material3.TopAppBarScrollBehavior,
     onOpenDrawer: () -> Unit,
     onSearch: () -> Unit,
-    onSync: () -> Unit,
+    onSort: (MessageSort) -> Unit,
     onMarkAllRead: () -> Unit,
     showEmptyTrash: Boolean = false,
     onEmptyTrash: () -> Unit = {},
@@ -564,9 +574,21 @@ private fun InboxTopBar(
     hidden: Set<TopBarItemId> = emptySet()
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    var sortMenuOpen by remember { mutableStateOf(false) }
     val isHidden: (TopBarItemId) -> Boolean = { id -> id in hidden }
     TopAppBar(
-        title = { Text(title) },
+        title = {
+            Column {
+                Text(title)
+                if (!subtitle.isNullOrBlank()) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        },
         navigationIcon = {
             IconButton(onClick = onOpenDrawer) {
                 Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.accounts))
@@ -578,11 +600,30 @@ private fun InboxTopBar(
                     Icon(Icons.Default.Search, contentDescription = stringResource(R.string.search))
                 }
             }
-            if (!isHidden(TopBarItemId.INBOX_SYNC)) {
-                IconButton(onClick = onSync) {
-                    Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.sync))
+            
+            // Sort Action
+            Box {
+                IconButton(onClick = { sortMenuOpen = true }) {
+                    Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = stringResource(R.string.sort_label))
+                }
+                DropdownMenu(expanded = sortMenuOpen, onDismissRequest = { sortMenuOpen = false }) {
+                    MessageSort.entries.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(stringResource(sortOptionLabel(option))) },
+                            trailingIcon = {
+                                if (option == currentSort) {
+                                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                }
+                            },
+                            onClick = {
+                                sortMenuOpen = false
+                                onSort(option)
+                            }
+                        )
+                    }
                 }
             }
+
             // The Empty-Trash button is only meaningful while viewing Trash; if
             // the user has hidden it AND we're in the Trash folder, surface it
             // in the overflow so the destructive affordance stays reachable.
@@ -619,16 +660,6 @@ private fun InboxTopBar(
                         }
                     )
                 }
-                if (isHidden(TopBarItemId.INBOX_SYNC)) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.sync)) },
-                        leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) },
-                        onClick = {
-                            menuOpen = false
-                            onSync()
-                        }
-                    )
-                }
                 if (showEmptyTrash && isHidden(TopBarItemId.INBOX_EMPTY_TRASH)) {
                     HorizontalDivider()
                     DropdownMenuItem(
@@ -656,6 +687,14 @@ private fun InboxTopBar(
         colors = appTopBarColors(),
         scrollBehavior = scrollBehavior
     )
+}
+
+private fun sortOptionLabel(sort: MessageSort): Int = when (sort) {
+    MessageSort.DATE_DESC -> R.string.sort_date_desc
+    MessageSort.DATE_ASC -> R.string.sort_date_asc
+    MessageSort.SENDER_ASC -> R.string.sort_sender_asc
+    MessageSort.SUBJECT_ASC -> R.string.sort_subject_asc
+    MessageSort.UNREAD_FIRST -> R.string.sort_unread_first
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

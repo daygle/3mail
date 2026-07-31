@@ -81,6 +81,12 @@
     <string name="inbox_limit_label">Inbox Display Limit</string>
     <string name="inbox_limit_subtitle">Max messages to load in the list. Lower values improve load speed.</string>
     <string name="inbox_limit_unlimited">Unlimited</string>
+    <string name="sort_label">Sort By</string>
+    <string name="sort_date_desc">Newest First</string>
+    <string name="sort_date_asc">Oldest First</string>
+    <string name="sort_sender_asc">Sender (A-Z)</string>
+    <string name="sort_subject_asc">Subject (A-Z)</string>
+    <string name="sort_unread_first">Unread First</string>
 
     <!-- Remote-image loading: global default in Settings, per-message banner
          shown above HTML bodies when the global toggle is off. -->
