@@ -49,7 +49,7 @@ import com.threemail.android.ui.components.SettingsSwitchRow
 
 /** Which single-choice picker dialog, if any, is currently open. */
 private enum class SettingsDialog {
-    None, Theme, SyncFrequency, SwipeRight, SwipeLeft, Density, PreviewLines, AfterAction
+    None, Theme, SyncFrequency, SwipeRight, SwipeLeft, Density, PreviewLines, AfterAction, InboxLimit
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -139,6 +139,13 @@ fun SettingsScreen(
                     subtitle = stringResource(R.string.reading_after_delete_subtitle),
                     value = stringResource(afterDeleteLabel(settings.afterDeleteNavigation)),
                     onClick = { dialog = SettingsDialog.AfterAction }
+                )
+                CardDivider()
+                SettingsRow(
+                    title = stringResource(R.string.inbox_limit_label),
+                    subtitle = stringResource(R.string.inbox_limit_subtitle),
+                    value = inboxLimitLabel(settings.inboxLimit),
+                    onClick = { dialog = SettingsDialog.InboxLimit }
                 )
                 CardDivider()
                 SettingsRow(
@@ -266,12 +273,22 @@ fun SettingsScreen(
             onSelect = viewModel::setAfterDeleteNavigation,
             onDismiss = { dialog = SettingsDialog.None }
         )
+        SettingsDialog.InboxLimit -> SettingsChoiceDialog(
+            title = stringResource(R.string.inbox_limit_label),
+            options = INBOX_LIMIT_OPTIONS.map { SettingsChoice(it, inboxLimitLabel(it)) },
+            selected = settings.inboxLimit,
+            dismissLabel = stringResource(R.string.cancel),
+            onSelect = viewModel::setInboxLimit,
+            onDismiss = { dialog = SettingsDialog.None }
+        )
         SettingsDialog.None -> Unit
     }
 }
 
 /** Default-frequency options offered globally, in minutes. */
 private val SYNC_FREQUENCY_OPTIONS = listOf(15L, 30L, 60L, 180L)
+
+private val INBOX_LIMIT_OPTIONS = listOf(50, 100, 250, 500, 1000, 0)
 
 @Composable
 private fun themeLabel(mode: ThemeMode): String = stringResource(
@@ -290,6 +307,11 @@ private fun frequencyLabel(minutes: Long): String =
 private fun previewLinesLabel(lines: Int): String =
     if (lines == 0) stringResource(R.string.preview_lines_none)
     else stringResource(R.string.preview_lines_count, lines)
+
+@Composable
+private fun inboxLimitLabel(limit: Int): String =
+    if (limit <= 0) stringResource(R.string.inbox_limit_unlimited)
+    else limit.toString()
 
 private fun swipeActionLabel(action: SwipeAction): Int = when (action) {
     SwipeAction.NONE -> R.string.swipe_action_none

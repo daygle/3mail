@@ -85,6 +85,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.setAfterDeleteNavigation(value) }
     }
 
+    fun setInboxLimit(limit: Int) {
+        viewModelScope.launch { settingsRepository.setInboxLimit(limit) }
+    }
+
     /**
      * Show or hide a single top-bar action. The supported screens (Inbox,
      * Message Detail, Compose) read only the values that apply to them;

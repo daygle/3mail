@@ -78,6 +78,9 @@
     <string name="default_check_frequency_subtitle">Applies to accounts without their own frequency. Set a per-account override in Accounts.</string>
     <string name="preview_lines_none">None</string>
     <string name="preview_lines_count">%1$d</string>
+    <string name="inbox_limit_label">Inbox Display Limit</string>
+    <string name="inbox_limit_subtitle">Max messages to load in the list. Lower values improve load speed.</string>
+    <string name="inbox_limit_unlimited">Unlimited</string>
 
     <!-- Remote-image loading: global default in Settings, per-message banner
          shown above HTML bodies when the global toggle is off. -->

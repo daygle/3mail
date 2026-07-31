@@ -54,8 +54,9 @@ interface MessageDao {
         LEFT JOIN message_flags f ON m.accountId = f.accountId AND m.messageId = f.messageId
         WHERE m.folderId = :folderId 
         ORDER BY m.date DESC
+        LIMIT :limit
     """)
-    fun observeByFolderWithFlags(folderId: Long): Flow<List<MessageWithFlags>>
+    fun observeByFolderWithFlags(folderId: Long, limit: Int): Flow<List<MessageWithFlags>>
 
     @Query("""
         SELECT m.*, f.isEncrypted 
@@ -64,8 +65,9 @@ interface MessageDao {
         JOIN folders fold ON m.folderId = fold.id
         WHERE fold.type IN ('Inbox', 'INBOX')
         ORDER BY m.date DESC
+        LIMIT :limit
     """)
-    fun observeUnifiedInboxWithFlags(): Flow<List<MessageWithFlags>>
+    fun observeUnifiedInboxWithFlags(limit: Int): Flow<List<MessageWithFlags>>
 
     /**
      * Lightweight id-only projection of the per-folder observer. Used by the
@@ -75,16 +77,17 @@ interface MessageDao {
      * ViewModel. Keeps the pager's reactive recomposition cheap when the
      * folder has hundreds of cached messages.
      */
-    @Query("SELECT id FROM messages WHERE folderId = :folderId ORDER BY date DESC")
-    fun observeIdsByFolder(folderId: Long): Flow<List<Long>>
+    @Query("SELECT id FROM messages WHERE folderId = :folderId ORDER BY date DESC LIMIT :limit")
+    fun observeIdsByFolder(folderId: Long, limit: Int): Flow<List<Long>>
 
     @Query(
         "SELECT m.id FROM messages m " +
             "JOIN folders f ON m.folderId = f.id " +
             "WHERE f.type IN ('Inbox', 'INBOX') " +
-            "ORDER BY m.date DESC"
+            "ORDER BY m.date DESC " +
+            "LIMIT :limit"
     )
-    fun observeUnifiedInboxIds(): Flow<List<Long>>
+    fun observeUnifiedInboxIds(limit: Int): Flow<List<Long>>
 
     /**
      * Reactive, unbounded cross-account unified inbox: every message in a

@@ -667,6 +667,19 @@ val MIGRATION_25_26: Migration = object : Migration(25, 26) {
 }
 
 /**
+ * Adds a composite index on (folderId, date) to the messages table.
+ * This speeds up the inbox query which filters by folder and sorts by date.
+ */
+val MIGRATION_26_27: Migration = object : Migration(26, 27) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_messages_folderId_date` " +
+                "ON `messages` (`folderId`, `date`)"
+        )
+    }
+}
+
+/**
  * Idempotently creates the FTS4 virtual table, the keep-in-sync triggers and an
  * initial backfill.  All statements use IF NOT EXISTS so a partial state can be
  * resumed without crashing; the backfill is a no-op on empty `messages`.

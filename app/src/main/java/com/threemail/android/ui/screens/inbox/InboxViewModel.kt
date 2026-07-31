@@ -88,6 +88,9 @@ class InboxViewModel @Inject constructor(
     private val _transient = MutableStateFlow(Transient())
     private var syncJob: Job? = null
 
+    private val settingsFlow = settingsRepository.settings
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.threemail.android.data.settings.AppSettings())
+
     private val accountsFlow = accountRepository.getAccounts()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -98,17 +101,17 @@ class InboxViewModel @Inject constructor(
 
     // Reactive message feed: switches between the cross-account unified inbox
     // and a single folder. Room-backed, so sync results and read/star/delete
-    // mutations reflect live without a manual re-query. Intentionally uncapped
-    // at the repository layer - the rendering consumer handles large lists
-    // downstream. The previous 50-row SQL LIMIT was silently hiding every
-    // email older than the latest 50 (the "today's email only" bug reported
-    // by users with busy inboxes or favorited non-inbox folders).
-    private val messagesFlow = combine(_unifiedMode, _selectedFolder) { unified, folder ->
-        unified to folder
-    }.flatMapLatest { (unified, folder) ->
+    // mutations reflect live without a manual re-query.
+    private val messagesFlow = combine(
+        _unifiedMode,
+        _selectedFolder,
+        settingsFlow
+    ) { unified, folder, settings ->
+        Triple(unified, folder, settings.inboxLimit)
+    }.flatMapLatest { (unified, folder, limit) ->
         when {
-            unified -> mailRepository.observeUnifiedInbox()
-            folder != null -> mailRepository.observeFolder(folder.id)
+            unified -> mailRepository.observeUnifiedInbox(limit)
+            folder != null -> mailRepository.observeFolder(folder.id, limit)
             else -> flowOf(emptyList())
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -132,9 +135,6 @@ class InboxViewModel @Inject constructor(
             messages = messages
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState())
-
-    private val settingsFlow = settingsRepository.settings
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.threemail.android.data.settings.AppSettings())
 
     val uiState: StateFlow<UiState> = combine(
         baseState,

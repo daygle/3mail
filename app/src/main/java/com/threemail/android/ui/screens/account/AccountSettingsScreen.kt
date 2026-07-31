@@ -3,6 +3,7 @@ package com.threemail.android.ui.screens.account
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,6 +36,7 @@ import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Draw
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FormatColorReset
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Sync
@@ -199,39 +201,55 @@ fun AccountSettingsScreen(
                                 modifier = Modifier.padding(bottom = 8.dp)
                             )
                             FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                // "Default" option resets to null
-                                FilterChip(
-                                    selected = account.color == null,
-                                    onClick = { viewModel.setAccountColor(null) },
-                                    label = { Text(stringResource(R.string.account_color_default)) }
-                                )
+                                // "Default" option (null)
+                                val isDefault = account.color == null
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                                        .border(
+                                            width = if (isDefault) 2.dp else 0.dp,
+                                            color = if (isDefault) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                            shape = CircleShape
+                                        )
+                                        .clickable { viewModel.setAccountColor(null) },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.FormatColorReset,
+                                        contentDescription = stringResource(R.string.account_color_default),
+                                        tint = if (isDefault) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+
                                 AvatarColors.forEach { color ->
                                     val argb = color.toArgb()
+                                    val isSelected = account.color == argb
                                     Box(
                                         modifier = Modifier
-                                            .size(32.dp)
+                                            .size(40.dp)
                                             .clip(CircleShape)
                                             .background(color)
-                                            .clickable { viewModel.setAccountColor(argb) }
-                                            .then(
-                                                if (account.color == argb) {
-                                                    Modifier.background(
-                                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
-                                                        CircleShape
-                                                    )
-                                                } else Modifier
-                                            ),
+                                            .border(
+                                                width = if (isSelected) 2.dp else 0.dp,
+                                                color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                                shape = CircleShape
+                                            )
+                                            .clickable { viewModel.setAccountColor(argb) },
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        if (account.color == argb) {
+                                        if (isSelected) {
+                                            // Add a small white tick or just rely on the border
                                             Icon(
                                                 imageVector = Icons.Default.Check,
                                                 contentDescription = null,
                                                 tint = Color.White,
-                                                modifier = Modifier.size(16.dp)
+                                                modifier = Modifier.size(20.dp)
                                             )
                                         }
                                     }

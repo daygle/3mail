@@ -21,11 +21,13 @@ import com.threemail.android.domain.model.MailMessage
 import com.threemail.android.util.MailText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -55,6 +57,7 @@ import javax.inject.Inject
  * (top bar, dialogs, bottom reply/reply-all/forward row, etc. all read
  * [UiState.message]) - they only differ in how the *body* is wrapped.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class MessageDetailViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -158,11 +161,14 @@ class MessageDetailViewModel @Inject constructor(
      * Empty when the route didn't pass folder context, which is the signal
      * for the screen to render the non-pager single-message view.
      */
-    val adjacentIds: StateFlow<List<Long>> = mailRepository
-        .observeMessageIds(
-            folderId = pagerFolderId.takeIf { it > 0L },
-            unified = pagerUnified
-        )
+    val adjacentIds: StateFlow<List<Long>> = settingsRepository.settings
+        .flatMapLatest { settings ->
+            mailRepository.observeMessageIds(
+                folderId = pagerFolderId.takeIf { it > 0L },
+                unified = pagerUnified,
+                limit = settings.inboxLimit
+            )
+        }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),

@@ -93,7 +93,13 @@ data class AppSettings(
      * message-detail. Defaults to [AfterDeleteNavigation.RETURN_TO_LIST] so
      * existing users see the same pop-back behaviour on first launch.
      */
-    val afterDeleteNavigation: AfterDeleteNavigation = AfterDeleteNavigation.RETURN_TO_LIST
+    val afterDeleteNavigation: AfterDeleteNavigation = AfterDeleteNavigation.RETURN_TO_LIST,
+    /**
+     * Number of messages to load in the inbox and folder views.
+     * 0 means "Unlimited" (load all cached messages).
+     * Default: 250 for a balance between history and performance.
+     */
+    val inboxLimit: Int = 250
 )
 
 @Singleton
@@ -117,6 +123,7 @@ class SettingsRepository @Inject constructor(
         val SHRINK_EMAIL_TO_FIT = booleanPreferencesKey("shrink_email_to_fit")
         val HIDDEN_TOP_BAR_ITEMS = stringSetPreferencesKey("hidden_top_bar_items")
         val AFTER_DELETE_NAVIGATION = stringPreferencesKey("after_delete_navigation")
+        val INBOX_LIMIT = intPreferencesKey("inbox_limit")
     }
 
     val settings: Flow<AppSettings> = flow {
@@ -151,7 +158,8 @@ class SettingsRepository @Inject constructor(
                     // to the safe default (RETURN_TO_LIST).
                     afterDeleteNavigation = prefs[Keys.AFTER_DELETE_NAVIGATION]
                         ?.let { runCatching { AfterDeleteNavigation.valueOf(it) }.getOrNull() }
-                        ?: AfterDeleteNavigation.RETURN_TO_LIST
+                        ?: AfterDeleteNavigation.RETURN_TO_LIST,
+                    inboxLimit = prefs[Keys.INBOX_LIMIT] ?: 250
                 )
             )
         }
@@ -172,6 +180,8 @@ class SettingsRepository @Inject constructor(
     suspend fun setShrinkEmailToFit(enabled: Boolean) = dataStore.edit { it[Keys.SHRINK_EMAIL_TO_FIT] = enabled }
     suspend fun setAfterDeleteNavigation(value: AfterDeleteNavigation) =
         dataStore.edit { it[Keys.AFTER_DELETE_NAVIGATION] = value.name }
+
+    suspend fun setInboxLimit(limit: Int) = dataStore.edit { it[Keys.INBOX_LIMIT] = limit }
 
     /**
      * Toggle a single top-bar item's hidden state. Pass the new desired

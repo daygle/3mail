@@ -221,9 +221,9 @@ class MailRepository @Inject constructor(
      * supplied, so deep-link callers (Search / notifications) opt out
      * cleanly and end up with the non-pager detail view.
      */
-    fun observeMessageIds(folderId: Long? = null, unified: Boolean = false): Flow<List<Long>> = when {
-        unified -> messageDao.observeUnifiedInboxIds()
-        folderId != null -> messageDao.observeIdsByFolder(folderId)
+    fun observeMessageIds(folderId: Long? = null, unified: Boolean = false, limit: Int = -1): Flow<List<Long>> = when {
+        unified -> messageDao.observeUnifiedInboxIds(if (limit <= 0) -1 else limit)
+        folderId != null -> messageDao.observeIdsByFolder(folderId, if (limit <= 0) -1 else limit)
         else -> flowOf(emptyList())
     }
 
@@ -237,24 +237,24 @@ class MailRepository @Inject constructor(
     /**
      * Reactive feed of a single folder. Room re-emits on every mutation so
      * the inbox reflects sync, swipe, and batch actions live. Intentionally
-     * uncapped: the underlying DAO [MessageDao.observeByFolder] issues no
-     * SQL LIMIT, so every message currently stored for the folder is in
-     * the feed. Emit size grows with the folder's stored rows; the rendering
-     * consumer handles large lists downstream.
+     * uncapped by default: the underlying DAO [MessageDao.observeByFolder]
+     * issues no SQL LIMIT, so every message currently stored for the folder
+     * is in the feed. Emit size grows with the folder's stored rows; the
+     * rendering consumer handles large lists downstream.
      */
-    fun observeFolder(folderId: Long): Flow<List<MailMessage>> =
-        messageDao.observeByFolderWithFlags(folderId).map { list ->
+    fun observeFolder(folderId: Long, limit: Int = -1): Flow<List<MailMessage>> =
+        messageDao.observeByFolderWithFlags(folderId, if (limit <= 0) -1 else limit).map { list ->
             list.map { (entity, isEncrypted) ->
                 entity.toDomain(isEncrypted = isEncrypted ?: false)
             }
         }
 
     /**
-     * Reactive cross-account unified inbox (all INBOX folders). Uncapped, same
-     * rationale as [observeFolder].
+     * Reactive cross-account unified inbox (all INBOX folders). Uncapped by
+     * default, same rationale as [observeFolder].
      */
-    fun observeUnifiedInbox(): Flow<List<MailMessage>> =
-        messageDao.observeUnifiedInboxWithFlags().map { list ->
+    fun observeUnifiedInbox(limit: Int = -1): Flow<List<MailMessage>> =
+        messageDao.observeUnifiedInboxWithFlags(if (limit <= 0) -1 else limit).map { list ->
             list.map { (entity, isEncrypted) ->
                 entity.toDomain(isEncrypted = isEncrypted ?: false)
             }
@@ -464,21 +464,29 @@ class MailRepository @Inject constructor(
     }
 
     private fun parseAddresses(json: String): List<EmailAddress> {
+        if (json == "[]" || json.isBlank()) return emptyList()
         return try {
             val array = JSONArray(json)
-            (0 until array.length()).map {
-                val obj = array.getJSONObject(it)
-                EmailAddress(
-                    name = obj.optString("name", ""),
-                    address = obj.optString("address", "")
+            val len = array.length()
+            if (len == 0) return emptyList()
+            val result = ArrayList<EmailAddress>(len)
+            for (i in 0 until len) {
+                val obj = array.getJSONObject(i)
+                result.add(
+                    EmailAddress(
+                        name = obj.optString("name", ""),
+                        address = obj.optString("address", "")
+                    )
                 )
             }
+            result
         } catch (e: Exception) {
             emptyList()
         }
     }
 
     private fun serializeAttachments(attachments: List<Attachment>): String {
+        if (attachments.isEmpty()) return "[]"
         val json = JSONArray()
         attachments.forEach {
             val obj = JSONObject()
@@ -493,18 +501,25 @@ class MailRepository @Inject constructor(
     }
 
     private fun parseAttachments(json: String): List<Attachment> {
+        if (json == "[]" || json.isBlank()) return emptyList()
         return try {
             val array = JSONArray(json)
-            (0 until array.length()).map {
-                val obj = array.getJSONObject(it)
-                Attachment(
-                    fileName = obj.optString("fileName", ""),
-                    mimeType = obj.optString("mimeType", ""),
-                    size = obj.optLong("size", 0),
-                    localPath = obj.optString("localPath").takeIf { it.isNotBlank() },
-                    remoteId = obj.optString("remoteId").takeIf { it.isNotBlank() }
+            val len = array.length()
+            if (len == 0) return emptyList()
+            val result = ArrayList<Attachment>(len)
+            for (i in 0 until len) {
+                val obj = array.getJSONObject(i)
+                result.add(
+                    Attachment(
+                        fileName = obj.optString("fileName", ""),
+                        mimeType = obj.optString("mimeType", ""),
+                        size = obj.optLong("size", 0),
+                        localPath = obj.optString("localPath").takeIf { it.isNotBlank() },
+                        remoteId = obj.optString("remoteId").takeIf { it.isNotBlank() }
+                    )
                 )
             }
+            result
         } catch (e: Exception) {
             emptyList()
         }

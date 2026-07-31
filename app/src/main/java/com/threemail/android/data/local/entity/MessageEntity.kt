@@ -25,7 +25,8 @@ import androidx.room.PrimaryKey
         Index(value = ["folderId", "accountId", "messageId"], unique = true),
         Index(value = ["accountId", "threadId"]),
         Index(value = ["date"]),
-        Index(value = ["isRead"])
+        Index(value = ["isRead"]),
+        Index(value = ["folderId", "date"])
     ]
 )
 data class MessageEntity(
