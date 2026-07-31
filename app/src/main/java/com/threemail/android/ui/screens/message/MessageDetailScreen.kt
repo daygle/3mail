@@ -127,6 +127,10 @@ private const val PAGER_PREFETCH_RADIUS = 1
 fun MessageDetailScreen(
     viewModel: MessageDetailViewModel,
     onNavigateBack: () -> Unit,
+    onReply: (Long) -> Unit,
+    onReplyAll: (Long) -> Unit,
+    onForward: (Long) -> Unit,
+    modifier: Modifier = Modifier,
     /**
      * Invoked after a successful delete in **single-message** mode (deep
      * links from Search / notifications, which don't carry folder context)
@@ -141,12 +145,8 @@ fun MessageDetailScreen(
      * through their inbox without growing the back stack on every delete.
      */
     onNavigateToNext: (Long) -> Unit = {},
-    onReply: (Long) -> Unit,
-    onReplyAll: (Long) -> Unit,
-    onForward: (Long) -> Unit,
     /** Start a fresh compose addressed to the given email address. */
     onComposeTo: (String) -> Unit = {},
-    modifier: Modifier = Modifier,
     showBackButton: Boolean = true
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -875,7 +875,14 @@ class SafeWebView(
         if (event.pointerCount > 1) {
             parent.requestDisallowInterceptTouchEvent(true)
         }
-        return super.onTouchEvent(event)
+        val handled = super.onTouchEvent(event)
+        if (event.action == android.view.MotionEvent.ACTION_UP) {
+            // Report the tap for accessibility (TalkBack) and click-sound
+            // feedback; link taps are consumed inside super.onTouchEvent,
+            // so this is purely click reporting per the accessibility guide.
+            performClick()
+        }
+        return handled
     }
 
     override fun performClick(): Boolean {

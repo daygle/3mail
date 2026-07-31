@@ -117,10 +117,10 @@ fun InboxScreen(
      */
     onNavigateToMessage: (messageId: Long, folderId: Long, unified: Boolean) -> Unit,
     onNavigateToAddAccount: () -> Unit,
+    modifier: Modifier = Modifier,
     onNavigateToManageFolders: () -> Unit = {},
     onNavigateToAccountSettings: (Long) -> Unit = {},
-    bottomBar: @Composable () -> Unit = {},
-    modifier: Modifier = Modifier
+    bottomBar: @Composable () -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
     // Captured once per recomposition into a stable local so the per-row
