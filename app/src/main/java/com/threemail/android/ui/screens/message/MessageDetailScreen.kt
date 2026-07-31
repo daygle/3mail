@@ -771,6 +771,7 @@ class SafeWebView(
         settings.setSupportZoom(true)
         settings.builtInZoomControls = true
         settings.displayZoomControls = false
+        settings.textZoom = 100 // Prevent system-wide font scaling from clobbering email layout
         webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(
                 view: WebView?,
@@ -787,8 +788,46 @@ class SafeWebView(
         shrinkToFit = true
     }
 
+    /**
+     * Disallow parent from intercepting touch events when we are zooming or
+     * have horizontal scroll content, so that the vertical scroll of the
+     * Compose Column doesn't fight with the WebView's internal gestures.
+     */
+    override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
+        if (event.pointerCount > 1) {
+            parent.requestDisallowInterceptTouchEvent(true)
+        }
+        return super.onTouchEvent(event)
+    }
+
+    override fun performClick(): Boolean {
+        return super.performClick()
+    }
+
+    override fun onOverScrolled(scrollX: Int, scrollY: Int, clampedX: Boolean, clampedY: Boolean) {
+        if (!clampedX) {
+            parent.requestDisallowInterceptTouchEvent(true)
+        }
+        super.onOverScrolled(scrollX, scrollY, clampedX, clampedY)
+    }
+
     fun loadHtml(html: String) {
-        loadDataWithBaseURL(IMAGE_BASE_URL, html, "text/html", "utf-8", null)
+        // Inject a mobile-friendly viewport if one is missing. This ensures
+        // that emails without responsive metadata still respect the device
+        // width and allow user-driven zooming.
+        val viewportMeta = "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes\">"
+        val finalHtml = if (!html.contains("viewport", ignoreCase = true)) {
+            when {
+                html.contains("<head>", ignoreCase = true) ->
+                    html.replace("<head>", "<head>$viewportMeta", ignoreCase = true)
+                html.contains("<html>", ignoreCase = true) ->
+                    html.replace("<html>", "<html><head>$viewportMeta</head>", ignoreCase = true)
+                else -> "<html><head>$viewportMeta</head><body>$html</body></html>"
+            }
+        } else {
+            html
+        }
+        loadDataWithBaseURL(IMAGE_BASE_URL, finalHtml, "text/html", "utf-8", null)
     }
 }
 
