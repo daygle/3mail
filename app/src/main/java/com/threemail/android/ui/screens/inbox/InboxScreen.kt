@@ -17,8 +17,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
@@ -380,18 +378,10 @@ fun InboxScreen(
                             modifier = Modifier.fillMaxSize()
                         ) {
                             if (state.messages.isEmpty()) {
-                                // Wrap EmptyState in a scrollable Box so PullToRefreshBox
-                                // can detect the downward swipe even when the list is empty.
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .verticalScroll(rememberScrollState())
-                                ) {
-                                    EmptyState(
-                                        title = stringResource(R.string.no_messages),
-                                        subtitle = stringResource(R.string.pull_to_refresh_hint)
-                                    )
-                                }
+                                EmptyState(
+                                    title = stringResource(R.string.no_messages),
+                                    subtitle = stringResource(R.string.pull_to_refresh_hint)
+                                )
                             } else {
                                 LazyColumn(
                                     modifier = Modifier.fillMaxSize(),
