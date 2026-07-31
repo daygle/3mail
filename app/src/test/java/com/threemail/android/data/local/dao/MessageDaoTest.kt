@@ -221,7 +221,7 @@ class MessageDaoTest {
             )
         )
 
-        val emitted = db.messageDao().observeByFolderWithFlags(inboxOneId).first()
+        val emitted = db.messageDao().observeByFolderWithFlags(inboxOneId, -1).first()
         assertEquals(
             "observeByFolderWithFlags dropped rows across the message_flags LEFT JOIN; emitted=${emitted.size}, expected=$ROWS_PAST_LEGACY_CAP",
             ROWS_PAST_LEGACY_CAP,

@@ -113,7 +113,7 @@ class MailRepositoryTest {
         assertEquals(
             "re-saving folders must not cascade-delete cached messages",
             5,
-            db.messageDao().observeByFolderWithFlags(saved.id).first().size
+            db.messageDao().observeByFolderWithFlags(saved.id, -1).first().size
         )
     }
 
