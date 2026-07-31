@@ -100,7 +100,7 @@ The fix, [`sync/ThreeMailWorkerFactory.kt`](app/src/main/java/com/threemail/andr
 - HTML message bodies load with remote images blocked by default to limit tracking pixels.
 - Credential prefs (`threemail_credentials_v2`) are excluded from cloud backup AND device transfer via `res/xml/backup_rules.xml` and `res/xml/data_extraction_rules.xml`. The Android Keystore master key isn't transferable to a new device, so a cloud restore of this file would silently fail to decrypt and force the user to re-enter every IMAP password. Other prefs (settings, FTS state) still transfer normally.
 - OpenPGP private keys are generated on-device and never leave the app's private files dir; the keyring files are ASCII-armoured and passphrase-wrapped (AES-256 S2K), with the passphrase held in the Keystore-encrypted `CredentialStore`. Outbound encryption is strict all-or-nothing - a message is only encrypted when every recipient's key resolved, so no recipient silently loses access - and encrypted payloads carry an MDC integrity packet that is verified on decrypt.
-- `local.properties` is intentionally committed with a developer-specific `sdk.dir`; CI overrides it via `echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties`.
+- `local.properties` is ignored by Git; CI generates it dynamically via `echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties`.
 
 ## Continuous Integration
 
