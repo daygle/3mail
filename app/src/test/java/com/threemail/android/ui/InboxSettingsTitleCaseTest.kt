@@ -116,7 +116,7 @@ class InboxSettingsTitleCaseTest {
         composeTestRule.setContent {
             MaterialTheme { StaticLabelPreview(labelId = R.string.mark_all_read) }
         }
-        assertTextVisible("Mark All as Read")
+        assertTextVisible("Mark All As Read")
     }
 
     @Test
@@ -140,7 +140,7 @@ class InboxSettingsTitleCaseTest {
         composeTestRule.setContent {
             MaterialTheme { StaticLabelPreview(labelId = R.string.move_to_folder) }
         }
-        assertTextVisible("Move to Folder")
+        assertTextVisible("Move")
     }
 
     @Test
@@ -148,7 +148,7 @@ class InboxSettingsTitleCaseTest {
         composeTestRule.setContent {
             MaterialTheme { StaticLabelPreview(labelId = R.string.mark_as_unread) }
         }
-        assertTextVisible("Mark as Unread")
+        assertTextVisible("Mark As Unread")
     }
 
     @Test
@@ -156,7 +156,7 @@ class InboxSettingsTitleCaseTest {
         composeTestRule.setContent {
             MaterialTheme { StaticLabelPreview(labelId = R.string.mark_as_read) }
         }
-        assertTextVisible("Mark as Read")
+        assertTextVisible("Mark As Read")
     }
 
     @Test
@@ -164,7 +164,7 @@ class InboxSettingsTitleCaseTest {
         composeTestRule.setContent {
             MaterialTheme { StaticLabelPreview(labelId = R.string.mark_as_spam) }
         }
-        assertTextVisible("Mark as Spam")
+        assertTextVisible("Mark Spam")
     }
 
     @Test
@@ -255,8 +255,8 @@ class AccountFolderRolesVisibilityTest {
         SwipeAction.ARCHIVE -> "Archive"
         SwipeAction.DELETE -> "Delete"
         SwipeAction.TOGGLE_READ -> "Read/Unread"
-        SwipeAction.MARK_SPAM -> "Mark as Spam"
-        SwipeAction.MOVE -> "Move to folder"
+        SwipeAction.MARK_SPAM -> "Mark Spam"
+        SwipeAction.MOVE -> "Move"
     }
 }
 
@@ -290,8 +290,8 @@ private fun SwipeActionLabels() {
                         SwipeAction.ARCHIVE -> "Archive"
                         SwipeAction.DELETE -> "Delete"
                         SwipeAction.TOGGLE_READ -> "Read/Unread"
-                        SwipeAction.MARK_SPAM -> "Mark as Spam"
-                        SwipeAction.MOVE -> "Move to folder"
+                        SwipeAction.MARK_SPAM -> "Mark Spam"
+                        SwipeAction.MOVE -> "Move"
                     }
                 )
             }
