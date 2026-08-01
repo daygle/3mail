@@ -42,7 +42,7 @@ class InboxSettingsTitleCaseDeviceTest {
 
     @Test
     fun inbox_top_bar_mark_all_read_renders_title_case() {
-        assertLabelRenders(R.string.mark_all_read, "Mark All as Read")
+        assertLabelRenders(R.string.mark_all_read, "Mark All As Read")
     }
 
     @Test
@@ -76,8 +76,8 @@ class InboxSettingsTitleCaseDeviceTest {
         SwipeAction.ARCHIVE -> "Archive"
         SwipeAction.DELETE -> "Delete"
         SwipeAction.TOGGLE_READ -> "Read/Unread"
-        SwipeAction.MARK_SPAM -> "Mark as Spam"
-        SwipeAction.MOVE -> "Move to folder"
+        SwipeAction.MARK_SPAM -> "Mark Spam"
+        SwipeAction.MOVE -> "Move"
     }
 }
 
@@ -101,8 +101,8 @@ private fun SwipeActionLabels() {
                     SwipeAction.ARCHIVE -> "Archive"
                     SwipeAction.DELETE -> "Delete"
                     SwipeAction.TOGGLE_READ -> "Read/Unread"
-                    SwipeAction.MARK_SPAM -> "Mark as Spam"
-                    SwipeAction.MOVE -> "Move to folder"
+                    SwipeAction.MARK_SPAM -> "Mark Spam"
+                    SwipeAction.MOVE -> "Move"
                 }
             )
         }
