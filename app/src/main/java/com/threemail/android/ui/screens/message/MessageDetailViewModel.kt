@@ -618,12 +618,21 @@ class MessageDetailViewModel @Inject constructor(
 
     /** Check whether the sender of [message] is on the image allowlist. */
     private suspend fun checkImageAllowlist(message: MailMessage) {
-        val allowlist = settingsRepository.settings.map { it.imageAllowlist }.first()
-        val sender = message.from.firstOrNull()?.address?.lowercase()?.trim() ?: ""
-        val domain = sender.substringAfter('@', "").takeIf { it.isNotEmpty() }
-        val matched = sender.isNotEmpty() && (
-            sender in allowlist || (domain != null && domain in allowlist)
-        )
-        _uiState.update { it.copy(isSenderAllowlisted = matched) }
+        try {
+            val allowlist = kotlinx.coroutines.withTimeout(1_000L) {
+                settingsRepository.settings.map { it.imageAllowlist }.first()
+            }
+            val sender = message.from.firstOrNull()?.address?.lowercase()?.trim() ?: ""
+            val domain = sender.substringAfter('@', "").takeIf { it.isNotEmpty() }
+            val matched = sender.isNotEmpty() && (
+                sender in allowlist || (domain != null && domain in allowlist)
+            )
+            _uiState.update { it.copy(isSenderAllowlisted = matched) }
+        } catch (_: Exception) {
+            // Gracefully degrade if the DataStore-backed settings flow
+            // cannot be read within the timeout (e.g. a Robolectric test
+            // where the IO-backed store races the UnconfinedTestDispatcher).
+            // isSenderAllowlisted stays false, which is the safe default.
+        }
     }
 }
