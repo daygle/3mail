@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -233,10 +232,10 @@ fun FolderDrawerContent(
                     }
                 }
             }
-        } catch (_: kotlinx.coroutines.CancellationException) {
+        } catch (ce: kotlinx.coroutines.CancellationException) {
             // Re-throw: suppressing cancellation in a LaunchedEffect delays
             // teardown when the keys change and is a coroutine anti-pattern.
-            throw it
+            throw ce
         } catch (_: Exception) {
             // separatorOf / parentOf may throw on a malformed folder list
             // whose serverIds lack any recognisable hierarchy separator.
