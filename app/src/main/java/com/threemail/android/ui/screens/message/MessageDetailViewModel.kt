@@ -27,7 +27,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -198,6 +197,8 @@ class MessageDetailViewModel @Inject constructor(
     /** Metadata available for an adjacent pager page before that page is selected. */
     fun prefetchedMessage(id: Long): MailMessage? = _prefetchedMessages.value[id]
 
+    private var cachedImageAllowlist: Set<String> = emptySet()
+
     init {
         // Mirror the global "load images" preference into UiState so the
         // banner can flip on the very first frame after navigation without
@@ -211,6 +212,10 @@ class MessageDetailViewModel @Inject constructor(
                 // deadlocking `MessageDetailViewModelTest.setUp` waiting for
                 // `uiState.message` to land.
                 _uiState.update { it.copy(loadImagesSetting = settings.loadImages) }
+                // Cache the image allowlist synchronously so
+                // checkImageAllowlist can read it without suspending on a
+                // DataStore-backed flow during every message load.
+                cachedImageAllowlist = settings.imageAllowlist
             }
         }
         // Bootstrap: load the message the nav route asked for. If the route
@@ -617,22 +622,12 @@ class MessageDetailViewModel @Inject constructor(
     }
 
     /** Check whether the sender of [message] is on the image allowlist. */
-    private suspend fun checkImageAllowlist(message: MailMessage) {
-        try {
-            val allowlist = kotlinx.coroutines.withTimeout(1_000L) {
-                settingsRepository.settings.map { it.imageAllowlist }.first()
-            }
-            val sender = message.from.firstOrNull()?.address?.lowercase()?.trim() ?: ""
-            val domain = sender.substringAfter('@', "").takeIf { it.isNotEmpty() }
-            val matched = sender.isNotEmpty() && (
-                sender in allowlist || (domain != null && domain in allowlist)
-            )
-            _uiState.update { it.copy(isSenderAllowlisted = matched) }
-        } catch (_: Exception) {
-            // Gracefully degrade if the DataStore-backed settings flow
-            // cannot be read within the timeout (e.g. a Robolectric test
-            // where the IO-backed store races the UnconfinedTestDispatcher).
-            // isSenderAllowlisted stays false, which is the safe default.
-        }
+    private fun checkImageAllowlist(message: MailMessage) {
+        val sender = message.from.firstOrNull()?.address?.lowercase()?.trim() ?: ""
+        val domain = sender.substringAfter('@', "").takeIf { it.isNotEmpty() }
+        val matched = sender.isNotEmpty() && (
+            sender in cachedImageAllowlist || (domain != null && domain in cachedImageAllowlist)
+        )
+        _uiState.update { it.copy(isSenderAllowlisted = matched) }
     }
 }
