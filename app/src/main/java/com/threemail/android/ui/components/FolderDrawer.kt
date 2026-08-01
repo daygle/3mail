@@ -451,13 +451,14 @@ fun FolderDrawerContent(
                         val moveBy: (Int) -> Unit = { delta ->
                             val live = favoriteFoldersState.value
                             val currentIdx = live.indexOfFirst { it.serverId == thisFolderServerId }
-                            if (currentIdx < 0) return@Unit
-                            val target = currentIdx + delta
-                            if (target in live.indices && target != currentIdx) {
-                                val newOrder = live.toMutableList()
-                                val moved = newOrder.removeAt(currentIdx)
-                                newOrder.add(target, moved)
-                                onReorderFavorite(account.id, newOrder.map { it.serverId })
+                            if (currentIdx >= 0) {
+                                val target = currentIdx + delta
+                                if (target in live.indices && target != currentIdx) {
+                                    val newOrder = live.toMutableList()
+                                    val moved = newOrder.removeAt(currentIdx)
+                                    newOrder.add(target, moved)
+                                    onReorderFavorite(account.id, newOrder.map { it.serverId })
+                                }
                             }
                         }
 
