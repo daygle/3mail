@@ -33,14 +33,14 @@
     <string name="forward">Forward</string>
     <string name="delete">Delete</string>
     <string name="archive">Archive</string>
-    <string name="mark_as_read">Mark as Read</string>
-    <string name="mark_as_unread">Mark as Unread</string>
+    <string name="mark_as_read">Mark As Read</string>
+    <string name="mark_as_unread">Mark As Unread</string>
     <string name="sync">Sync</string>
     <string name="syncing">Syncing…</string>
     <string name="no_messages">No Messages</string>
     <string name="unified_inbox">Unified Inbox</string>
     <string name="all_inboxes">All Inboxes</string>
-    <string name="mark_all_read">Mark All as Read</string>
+    <string name="mark_all_read">Mark All As Read</string>
     <string name="mark_read">Mark Read</string>
     <string name="mark_unread">Mark Unread</string>
     <string name="select_all">Select All</string>
@@ -61,8 +61,8 @@
     <string name="swipe_action_archive">Archive</string>
     <string name="swipe_action_delete">Delete</string>
     <string name="swipe_action_toggle_read">Read/Unread</string>
-    <string name="swipe_action_mark_spam">Mark as spam</string>
-    <string name="swipe_action_move">Move to folder</string>
+    <string name="swipe_action_mark_spam">Mark Spam</string>
+    <string name="swipe_action_move">Move</string>
     <string name="density_comfortable">Comfortable</string>
     <string name="density_compact">Compact</string>
     <string name="density_extra_compact">Extra Compact</string>
@@ -93,7 +93,7 @@
     <!-- Remote-image loading: global default in Settings, per-message banner
          shown above HTML bodies when the global toggle is off. -->
     <string name="images_section_title">Privacy</string>
-    <string name="biometric_lock_title">Biometric lock</string>
+    <string name="biometric_lock_title">Biometric Lock</string>
     <string name="biometric_lock_subtitle">Require fingerprint, face, or device credentials before opening 3mail.</string>
     <string name="biometric_unlock_title">Unlock 3mail</string>
     <string name="biometric_unlock_subtitle">Authenticate to view your mail.</string>
@@ -106,7 +106,7 @@
     <string name="images_blocked_banner_subtitle">Blocked to protect your privacy and avoid email tracking.</string>
     <string name="images_blocked_banner_action">Show images</string>
     <string name="images_always_allow_sender">Always allow from %1$s</string>
-    <string name="image_allowlist_title">Image allowlist</string>
+    <string name="image_allowlist_title">Image Allowlist</string>
     <string name="image_allowlist_subtitle">Senders whose images always load, even when the global setting is off.</string>
     <string name="image_allowlist_empty">No senders allowlisted yet. Tap "Always allow from (sender)" from the blocked-images banner in any email to add one.</string>
     <string name="shrink_to_fit_title">Shrink Email Body</string>
@@ -162,7 +162,7 @@
     <string name="snackbar_deleted">Moved to Trash</string>
     <string name="snackbar_moved">Message moved</string>
     <string name="snackbar_spam">Marked as spam</string>
-    <string name="move_to_folder">Move to Folder</string>
+    <string name="move_to_folder">Move</string>
     <plurals name="move_dialog_title">
         <item quantity="one">Move %1$d message to…</item>
         <item quantity="other">Move %1$d messages to…</item>
@@ -170,8 +170,8 @@
     <string name="move_no_targets">No folders available</string>
     <string name="move_unified_unavailable">Move is unavailable in the unified inbox. Switch to a single account to move messages between its folders.</string>
     <string name="move_unavailable">Move disabled - no other folders in this account</string>
-    <string name="mark_as_spam">Mark as Spam</string>
-    <string name="confirm_mark_spam_title">Mark as spam?</string>
+    <string name="mark_as_spam">Mark Spam</string>
+    <string name="confirm_mark_spam_title">Mark Spam?</string>
     <plurals name="confirm_mark_spam_body">
         <item quantity="one">%1$d message will be moved to Spam. The server may use it to train its spam filter, so this is hard to undo.</item>
         <item quantity="other">%1$d messages will be moved to Spam. The server may use them to train its spam filter, so this is hard to undo.</item>
@@ -230,9 +230,9 @@
     <!-- Trash policy settings -->
     <string name="trash_settings_section">Trash</string>
     <string name="trash_settings_description">Manage how and when messages are permanently deleted from your Trash. Once cleared, messages are removed from the server and this device.</string>
-    <string name="empty_trash_on_launch_title">Empty Trash on Startup</string>
+    <string name="empty_trash_on_launch_title">Empty Trash On Startup</string>
     <string name="empty_trash_on_launch_subtitle">Permanently delete trash messages when the app starts.</string>
-    <string name="empty_trash_on_quit_title">Empty Trash on Background</string>
+    <string name="empty_trash_on_quit_title">Empty Trash On Background</string>
     <string name="empty_trash_on_quit_subtitle">Permanently delete trash messages when the app is backgrounded.</string>
 
     <!-- Trash cleanup failure notification -->
@@ -249,9 +249,9 @@
          that changes for the user. -->
     <string name="reading_after_delete_section">After Moving/Deleting</string>
     <string name="reading_after_delete_subtitle">Action to take after you delete or move a message you are currently reading.</string>
-    <string name="reading_after_delete_row_title">After Delete or Archive</string>
-    <string name="reading_after_delete_return_to_list">Return to inbox</string>
-    <string name="reading_after_delete_next_message">Open next message</string>
+    <string name="reading_after_delete_row_title">After Delete Or Archive</string>
+    <string name="reading_after_delete_return_to_list">Return To Inbox</string>
+    <string name="reading_after_delete_next_message">Open Next Message</string>
     <string name="trash_cleanup_notification_channel_description">Reports persistent failures clearing the trash.</string>
     <string name="trash_cleanup_failure_title">Trash cleanup failed</string>
     <plurals name="trash_cleanup_failure_body">
@@ -285,7 +285,7 @@
     <string name="remove_account_title">Remove account?</string>
     <string name="remove_account_body">This signs %1$s out of 3mail and clears its locally cached mail and calendar. Your messages stay on the server.</string>
     <string name="remove">Remove</string>
-    <string name="account_push_label">Push for New Mail</string>
+    <string name="account_push_label">Push For New Mail</string>
     <string name="account_push_subtitle">Get notified the moment a new message arrives on this account.</string>
     <string name="account_push_folders_title">Also Push These Folders</string>
     <string name="account_push_folders_subtitle">The inbox is always watched. Add extra folders to get pushed here too - each keeps its own always-on connection, so add only what you need: more folders use more battery and may hit your server\'s connection limit.</string>
@@ -296,7 +296,7 @@
     <string name="account_settings_general">General</string>
     <string name="account_settings_display_name_subtitle">The name recipients see when you send mail from this account.</string>
     <string name="account_settings_signature_section">Composing</string>
-    <string name="account_settings_signature_label">Signature for This Account</string>
+    <string name="account_settings_signature_label">Signature For This Account</string>
     <string name="account_settings_signature_placeholder">e.g. Sent from my phone</string>
     <string name="account_settings_signature_hint">Appended to new mail from this account. Leave blank to omit a signature.</string>
     <string name="account_settings_sync_section">Delivery</string>

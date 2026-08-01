@@ -26,7 +26,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -47,7 +46,7 @@ class InboxViewModel @Inject constructor(
     private val mailActions: MailActions,
     private val mailRemoteFactory: MailRemoteFactory,
     private val settingsRepository: SettingsRepository,
-    private val undoController: UndoController
+    private val undoController: UndoController,
 ) : ViewModel() {
 
     /** Pending undoable action (drives the inbox undo snackbar). */
@@ -88,7 +87,7 @@ class InboxViewModel @Inject constructor(
 
     private val _selectedAccount = MutableStateFlow<Account?>(null)
     private val _selectedFolder = MutableStateFlow<MailFolder?>(null)
-    private val _unifiedMode = MutableStateFlow(false)
+    private val _unifiedMode = MutableStateFlow(value = false)
     private val _selectedIds = MutableStateFlow<Set<Long>>(emptySet())
     private val _transient = MutableStateFlow(Transient())
     private var syncJob: Job? = null
@@ -183,7 +182,7 @@ class InboxViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching {
             accountsFlow.collect { accounts ->
-                if (_selectedAccount.value == null && accounts.isNotEmpty()) {
+                if ((_selectedAccount.value == null) && accounts.isNotEmpty()) {
                     _selectedAccount.value = accounts.first()
                 }
             }
@@ -291,10 +290,6 @@ class InboxViewModel @Inject constructor(
         _transient.value = _transient.value.copy(recoverableAuthIntent = null)
     }
 
-    fun dismissError() {
-        _transient.value = _transient.value.copy(error = null)
-    }
-
     fun sync() {
         syncJob?.cancel()
         _transient.value = _transient.value.copy(isSyncing = true, error = null, recoverableAuthIntent = null)
@@ -305,7 +300,7 @@ class InboxViewModel @Inject constructor(
                 } else {
                     syncSelectedFolder()
                 }
-            } catch (e: CancellationException) {
+            } catch (_: CancellationException) {
                 // Ignore cancellation
             } catch (e: RecoverableAuthException) {
                 _transient.value = _transient.value.copy(recoverableAuthIntent = e.intent)
@@ -397,7 +392,7 @@ class InboxViewModel @Inject constructor(
     }
 
     fun selectAll() {
-        _selectedIds.value = (messagesFlow.value as List<MailMessage>).mapTo(HashSet()) { it.id }
+        _selectedIds.value = messagesFlow.value.mapTo(HashSet()) { it.id }
     }
 
     private fun selectedMessages(): List<MailMessage> {

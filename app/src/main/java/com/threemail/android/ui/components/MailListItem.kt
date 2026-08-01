@@ -44,14 +44,14 @@ fun MailListItem(
     onLongClick: (() -> Unit)? = null,
     selected: Boolean = false,
     density: MessageDensity = MessageDensity.COMFORTABLE,
-    previewLines: Int = 2
+    previewLines: Int = 2,
 ) {
     val sender = message.from.firstOrNull()
     val senderLabel = sender?.name?.takeIf { it.isNotBlank() } ?: sender?.address ?: "(unknown)"
     val avatarColor = avatarColorFor(sender?.address ?: senderLabel)
 
     val extraCompact = density == MessageDensity.EXTRA_COMPACT
-    val compact = density == MessageDensity.COMPACT || extraCompact
+    val compact = (density == MessageDensity.COMPACT) || extraCompact
     val rowPaddingV = when {
         extraCompact -> 4.dp
         compact -> 8.dp
@@ -87,7 +87,7 @@ fun MailListItem(
             .background(background)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = 16.dp, vertical = rowPaddingV),
-        verticalAlignment = Alignment.Top
+        verticalAlignment = Alignment.Top,
     ) {
         // Sender avatar with deterministic color + initial. In selection mode a
         // selected row swaps the avatar for a check disc.
@@ -199,8 +199,8 @@ private fun formatDate(timestamp: Long): String {
     val now = System.currentTimeMillis()
     val diff = now - timestamp
     return when {
-        diff < 24 * 60 * 60 * 1000 -> SimpleDateFormat("HH:mm", Locale.getDefault()).format(date)
-        diff < 7 * 24 * 60 * 60 * 1000 -> SimpleDateFormat("EEE", Locale.getDefault()).format(date)
+        (diff < 24 * 60 * 60 * 1000) -> SimpleDateFormat("HH:mm", Locale.getDefault()).format(date)
+        (diff < 7 * 24 * 60 * 60 * 1000) -> SimpleDateFormat("EEE", Locale.getDefault()).format(date)
         else -> SimpleDateFormat("MMM d", Locale.getDefault()).format(date)
     }
 }

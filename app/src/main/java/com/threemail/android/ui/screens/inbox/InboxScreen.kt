@@ -3,7 +3,6 @@ package com.threemail.android.ui.screens.inbox
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -30,7 +29,6 @@ import androidx.compose.material.icons.filled.MarkEmailRead
 import androidx.compose.material.icons.filled.MarkEmailUnread
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.outlined.Report
@@ -118,7 +116,7 @@ fun InboxScreen(
     modifier: Modifier = Modifier,
     onNavigateToManageFolders: () -> Unit = {},
     onNavigateToAccountSettings: (Long) -> Unit = {},
-    bottomBar: @Composable () -> Unit = {}
+    bottomBar: @Composable () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
     // Captured once per recomposition into a stable local so the per-row
@@ -192,7 +190,7 @@ fun InboxScreen(
     // Confirmation dialog state for the destructive bulk spam action. Lives
     // at top-level so the dialog overlays both the Scaffold and the modal
     // navigation drawer.
-    var confirmSpam by remember { mutableStateOf(false) }
+    var confirmSpam by remember { mutableStateOf(value = false) }
 
     // Confirmation dialog for emptying the Trash folder. Only active when the
     // selected folder is the Trash folder (checked before setting to true).
@@ -292,12 +290,11 @@ fun InboxScreen(
                 onOpenAccountSettings = { account ->
                     scope.launch { drawerState.close() }
                     onNavigateToAccountSettings(account.id)
-                },
-                onEmptyTrash = {
-                    scope.launch { drawerState.close() }
-                    confirmEmptyTrash = true
                 }
-            )
+            ) { _ ->
+                scope.launch { drawerState.close() }
+                confirmEmptyTrash = true
+            }
         }
     ) {
         Scaffold(
@@ -312,7 +309,7 @@ fun InboxScreen(
                     // button stays in the layout so its position doesn't pop
                     // in/out, but the tap is gated by [canMove].
                     val visibleFolderCount = state.folders.count { !it.isHidden }
-                    val canMove = !state.unifiedInbox && visibleFolderCount >= 2
+                    val canMove = (!state.unifiedInbox) && (visibleFolderCount >= 2)
                     SelectionTopBar(
                         count = state.selectedIds.size,
                         canMove = canMove,
@@ -409,8 +406,9 @@ fun InboxScreen(
                                             onClick = {
                                                 if (state.selectionMode) {
                                                     viewModel.toggleSelection(message)
-                                                } else {                    viewModel.markAsRead(message, true)
-                    onNavigateToMessage(message.id, message.folderId, unifiedInboxActive)
+                                                } else {
+                                                    viewModel.markAsRead(message, true)
+                                                    onNavigateToMessage(message.id, message.folderId, unifiedInboxActive)
                                                 }
                                             },
                                             onLongClick = { viewModel.toggleSelection(message) }
@@ -441,7 +439,9 @@ fun InboxScreen(
                 }) { Text(stringResource(R.string.mark_as_spam)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmSpam = false }) {
+                TextButton(onClick = {
+                    confirmSpam = false
+                }) {
                     Text(stringResource(R.string.cancel))
                 }
             }
@@ -460,7 +460,9 @@ fun InboxScreen(
                 }) { Text(stringResource(R.string.delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmEmptyTrash = false }) {
+                TextButton(onClick = {
+                    confirmEmptyTrash = false
+                }) {
                     Text(stringResource(R.string.cancel))
                 }
             }
@@ -733,7 +735,7 @@ private fun SelectionTopBar(
             // useful feedback rather than a silently dead control.
             IconButton(
                 onClick = { onMove?.invoke() },
-                enabled = canMove && onMove != null
+                enabled = (canMove) && (onMove != null)
             ) {
                 Icon(
                     Icons.AutoMirrored.Filled.DriveFileMove,
@@ -824,14 +826,16 @@ private fun SwipeableMailRow(
     val maxOffset = 0.92f
     var rowWidthPx by remember { mutableFloatStateOf(1f) }
     val currentOffset = dragOffsetPx
-    val actionFor = { distance: Float ->
-        val right = distance > 0f
-        val long = kotlin.math.abs(distance) >= rowWidthPx * longThreshold
-        when {
-            long && right -> swipeRightLongAction
-            long && !right -> swipeLeftLongAction
-            right -> swipeRightAction
-            else -> swipeLeftAction
+    val actionFor = remember(swipeRightAction, swipeLeftAction, swipeRightLongAction, swipeLeftLongAction, rowWidthPx) {
+        { distance: Float ->
+            val right = distance > 0f
+            val long = kotlin.math.abs(distance) >= rowWidthPx * longThreshold
+            when {
+                long && right -> swipeRightLongAction
+                long && !right -> swipeLeftLongAction
+                right -> swipeRightAction
+                else -> swipeLeftAction
+            }
         }
     }
 
@@ -840,11 +844,7 @@ private fun SwipeableMailRow(
             .fillMaxWidth()
             .onGloballyPositioned { rowWidthPx = it.size.width.toFloat().coerceAtLeast(1f) }
     ) {
-        val shownAction = when {
-            currentOffset == 0f -> SwipeAction.NONE
-            kotlin.math.abs(currentOffset) >= rowWidthPx * longThreshold -> actionFor(currentOffset)
-            else -> actionFor(currentOffset)
-        }
+        val shownAction = if (currentOffset == 0f) SwipeAction.NONE else actionFor(currentOffset)
         SwipeBackground(
             action = shownAction,
             alignEnd = currentOffset < 0f,
