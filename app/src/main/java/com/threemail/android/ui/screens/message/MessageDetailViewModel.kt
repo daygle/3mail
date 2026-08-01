@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -130,6 +131,13 @@ class MessageDetailViewModel @Inject constructor(
          * the page reloads with images enabled.
          */
         val imagesShownForThisMessage: Boolean = false,
+        /**
+         * Whether the sender of the currently displayed message has been
+         * explicitly allowlisted by the user ("Always allow from this sender").
+         * Checked alongside [loadImagesSetting] and [imagesShownForThisMessage]
+         * so images load automatically for trusted senders without a banner.
+         */
+        val isSenderAllowlisted: Boolean = false,
         /** Full raw RFC 5322 header block, fetched on demand for the headers viewer. */
         val rawHeaders: String? = null,
         val isLoadingHeaders: Boolean = false,
@@ -360,6 +368,8 @@ class MessageDetailViewModel @Inject constructor(
             // gets nextMessageId reactively from [adjacentIds] in init.
             resolveNextMessageId(message.folderId, message.id)
         }
+        // Compute whether this sender is on the image allowlist.
+        checkImageAllowlist(message)
     }
 
     private fun resolveNextMessageId(folderId: Long, currentMessageId: Long) {
@@ -588,5 +598,32 @@ class MessageDetailViewModel @Inject constructor(
      */
     fun showImagesForThisMessage() {
         _uiState.update { it.copy(imagesShownForThisMessage = true) }
+    }
+
+    /**
+     * Add the sender of the currently displayed message to the image
+     * allowlist so future mail from this address always loads images
+     * without showing the blocked banner.
+     */
+    fun addSenderToImageAllowlist() {
+        val address = _uiState.value.message?.from?.firstOrNull()?.address?.trim()?.lowercase()
+            ?: return
+        viewModelScope.launch {
+            settingsRepository.addToImageAllowlist(address)
+            // Immediately reflect the change so the banner disappears and
+            // images load without waiting for the next DataStore emission.
+            _uiState.update { it.copy(isSenderAllowlisted = true) }
+        }
+    }
+
+    /** Check whether the sender of [message] is on the image allowlist. */
+    private suspend fun checkImageAllowlist(message: MailMessage) {
+        val allowlist = settingsRepository.settings.map { it.imageAllowlist }.first()
+        val sender = message.from.firstOrNull()?.address?.lowercase()?.trim() ?: ""
+        val domain = sender.substringAfter('@', "").takeIf { it.isNotEmpty() }
+        val matched = sender.isNotEmpty() && (
+            sender in allowlist || (domain != null && domain in allowlist)
+        )
+        _uiState.update { it.copy(isSenderAllowlisted = matched) }
     }
 }

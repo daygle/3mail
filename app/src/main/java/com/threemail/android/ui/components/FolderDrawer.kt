@@ -224,18 +224,37 @@ fun FolderDrawerContent(
     // Initialise: all parent nodes start expanded so the full hierarchy
     // is visible on first open.
     LaunchedEffect(treeFolders) {
-        if (expanded.isEmpty() && treeFolders.isNotEmpty()) {
-            val sep = FolderPaths.separatorOf(treeFolders)
-            expandedServerIds.value = buildSet {
-                for (folder in treeFolders) {
-                    FolderPaths.parentOf(folder.serverId, sep)?.let { add(it) }
+        try {
+            if (expanded.isEmpty() && treeFolders.isNotEmpty()) {
+                val sep = FolderPaths.separatorOf(treeFolders)
+                expandedServerIds.value = buildSet {
+                    for (folder in treeFolders) {
+                        FolderPaths.parentOf(folder.serverId, sep)?.let { add(it) }
+                    }
                 }
             }
+        } catch (_: kotlinx.coroutines.CancellationException) {
+            // Re-throw: suppressing cancellation in a LaunchedEffect delays
+            // teardown when the keys change and is a coroutine anti-pattern.
+            throw it
+        } catch (_: Exception) {
+            // separatorOf / parentOf may throw on a malformed folder list
+            // whose serverIds lack any recognisable hierarchy separator.
+            // Leave expandedServerIds empty so the tree renders every
+            // folder at depth 0 in a flat list rather than silently
+            // hiding children behind collapsed parents forever.
         }
     }
 
     val treeNodes = remember(treeFolders, expanded) {
-        buildFolderTree(treeFolders, expanded)
+        // Defensive: a malformed folder list (e.g. a server returning a
+        // hierarchy with no separator the algorithm recognises) can cause
+        // buildFolderTree to throw, which would render the entire drawer as
+        // a blank white sheet with no user-facing recovery. Fall back to an
+        // empty tree so the header and footer stay visible and the drawer
+        // remains dismissible.
+        runCatching { buildFolderTree(treeFolders, expanded) }
+            .getOrDefault(emptyList())
     }
 
     // Lookup set keyed by folder id. The tree section needs to know which
@@ -394,14 +413,14 @@ fun FolderDrawerContent(
                         }
                     }
 
-                    itemsIndexed(
+                    items(
                         favoriteFolders,
                         // Include account.id in the key so the per-row menu
                         // state cannot leak across account switches (two
                         // accounts can legitimately have the same serverId,
                         // e.g. a shared INBOX).
-                        key = { _, f -> "fav-${account.id}-${f.serverId}" }
-                    ) { index, folder ->
+                        key = { f -> "fav-${account.id}-${f.serverId}" }
+                    ) { folder ->
                         val haptics = LocalHapticFeedback.current
                         // Mirror the tree-row selected pill so a favorite folder
                         // that happens to be the current mailbox is also
@@ -419,14 +438,25 @@ fun FolderDrawerContent(
                         // two list types feel consistent.
                         var showMenu by remember { mutableStateOf(false) }
 
-                        // Reorder helper: move the folder at [index] to
-                        // [target] and persist the new favourite order. Reads
-                        // the live list at click time so rapid taps compose.
-                        val moveTo: (Int) -> Unit = { target ->
+                        // Reorder helper: capture the folder's stable identity
+                        // at lambda-creation time rather than looking it up by
+                        // index at click time. If a background sync changes the
+                        // favorites list between entering edit mode and tapping
+                        // a move button, the old index-based lookup would
+                        // silently move the wrong folder.
+                        val thisFolderServerId = folder.serverId
+                        // Accept a delta (-1 or +1) and resolve the live
+                        // position at tap time so the reorder is immune to
+                        // background list changes between entering edit mode
+                        // and tapping a move button.
+                        val moveBy: (Int) -> Unit = { delta ->
                             val live = favoriteFoldersState.value
-                            if (target in live.indices && target != index) {
+                            val currentIdx = live.indexOfFirst { it.serverId == thisFolderServerId }
+                            if (currentIdx < 0) return@Unit
+                            val target = currentIdx + delta
+                            if (target in live.indices && target != currentIdx) {
                                 val newOrder = live.toMutableList()
-                                val moved = newOrder.removeAt(index)
+                                val moved = newOrder.removeAt(currentIdx)
                                 newOrder.add(target, moved)
                                 onReorderFavorite(account.id, newOrder.map { it.serverId })
                             }
@@ -500,27 +530,29 @@ fun FolderDrawerContent(
                                 // favourite reads as [icon name] with no move
                                 // affordance at all.
                                 if (isEditingFavorites) {
+                                    val isFirst = { favoriteFoldersState.value.firstOrNull()?.serverId == folder.serverId }
+                                    val isLast = { favoriteFoldersState.value.lastOrNull()?.serverId == folder.serverId }
                                     IconButton(
-                                        onClick = { moveTo(index - 1) },
-                                        enabled = index > 0,
+                                        onClick = { moveBy(-1) },
+                                        enabled = !isFirst(),
                                         modifier = Modifier.size(32.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.KeyboardArrowUp,
                                             contentDescription = stringResource(R.string.favorites_move_up),
-                                            tint = if (index > 0) contentTint
+                                            tint = if (!isFirst()) contentTint
                                             else contentTint.copy(alpha = 0.3f)
                                         )
                                     }
                                     IconButton(
-                                        onClick = { moveTo(index + 1) },
-                                        enabled = index < favoriteFolders.lastIndex,
+                                        onClick = { moveBy(+1) },
+                                        enabled = !isLast(),
                                         modifier = Modifier.size(32.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.KeyboardArrowDown,
                                             contentDescription = stringResource(R.string.favorites_move_down),
-                                            tint = if (index < favoriteFolders.lastIndex) contentTint
+                                            tint = if (!isLast()) contentTint
                                             else contentTint.copy(alpha = 0.3f)
                                         )
                                     }

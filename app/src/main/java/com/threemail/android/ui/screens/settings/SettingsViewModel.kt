@@ -101,6 +101,16 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.setInboxLimit(limit) }
     }
 
+    /** Add a sender email address or domain to the image allowlist. */
+    fun addToImageAllowlist(sender: String) {
+        viewModelScope.launch { settingsRepository.addToImageAllowlist(sender) }
+    }
+
+    /** Remove a single entry from the image allowlist. */
+    fun removeFromImageAllowlist(item: String) {
+        viewModelScope.launch { settingsRepository.removeFromImageAllowlist(item) }
+    }
+
     /**
      * Show or hide a single top-bar action. The supported screens (Inbox,
      * Message Detail, Compose) read only the values that apply to them;

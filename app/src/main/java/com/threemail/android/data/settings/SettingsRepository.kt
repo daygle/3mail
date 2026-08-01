@@ -95,7 +95,14 @@ data class AppSettings(
      */
     val inboxLimit: Int = 250,
     /** Sort order for the inbox and folder views. Defaults to newest first. */
-    val inboxSort: MessageSort = MessageSort.DATE_DESC
+    val inboxSort: MessageSort = MessageSort.DATE_DESC,
+    /**
+     * Email addresses and domains whose images are always loaded,
+     * even when the global "load remote images" preference is off.
+     * Populated by the "Always allow from this sender" button in the
+     * per-message images-blocked banner. Managed in Settings > Privacy.
+     */
+    val imageAllowlist: Set<String> = emptySet()
 )
 
 @Singleton
@@ -124,6 +131,7 @@ class SettingsRepository @Inject constructor(
         val AFTER_DELETE_NAVIGATION = stringPreferencesKey("after_delete_navigation")
         val INBOX_LIMIT = intPreferencesKey("inbox_limit")
         val INBOX_SORT = stringPreferencesKey("inbox_sort")
+        val IMAGE_ALLOWLIST = stringSetPreferencesKey("image_allowlist")
     }
 
     val settings: Flow<AppSettings> = flow {
@@ -163,7 +171,8 @@ class SettingsRepository @Inject constructor(
                         ?.let { runCatching { AfterDeleteNavigation.valueOf(it) }.getOrNull() }
                         ?: AfterDeleteNavigation.RETURN_TO_LIST,
                     inboxLimit = prefs[Keys.INBOX_LIMIT] ?: 250,
-                    inboxSort = prefs[Keys.INBOX_SORT]?.let { runCatching { MessageSort.valueOf(it) }.getOrNull() } ?: MessageSort.DATE_DESC
+                    inboxSort = prefs[Keys.INBOX_SORT]?.let { runCatching { MessageSort.valueOf(it) }.getOrNull() } ?: MessageSort.DATE_DESC,
+                    imageAllowlist = prefs[Keys.IMAGE_ALLOWLIST] ?: emptySet()
                 )
             )
         }
@@ -191,6 +200,21 @@ class SettingsRepository @Inject constructor(
     suspend fun setInboxLimit(limit: Int) = dataStore.edit { it[Keys.INBOX_LIMIT] = limit }
 
     suspend fun setInboxSort(sort: MessageSort) = dataStore.edit { it[Keys.INBOX_SORT] = sort.name }
+
+    /** Add a sender email address or domain to the image allowlist. Duplicates (case-insensitive) are ignored. */
+    suspend fun addToImageAllowlist(sender: String) = dataStore.edit { prefs ->
+        val normalized = sender.trim().lowercase().takeIf { it.isNotBlank() } ?: return@edit
+        val current = prefs[Keys.IMAGE_ALLOWLIST] ?: emptySet()
+        prefs[Keys.IMAGE_ALLOWLIST] = current + normalized
+    }
+
+    /** Remove a single entry from the image allowlist. */
+    suspend fun removeFromImageAllowlist(item: String) = dataStore.edit { prefs ->
+        val current = prefs[Keys.IMAGE_ALLOWLIST] ?: emptySet()
+        val next = current - item.lowercase()
+        if (next.isEmpty()) prefs.remove(Keys.IMAGE_ALLOWLIST)
+        else prefs[Keys.IMAGE_ALLOWLIST] = next
+    }
 
     /**
      * Toggle a single top-bar item's hidden state. Pass the new desired

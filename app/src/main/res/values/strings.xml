@@ -105,6 +105,10 @@
     <string name="images_blocked_banner_title">Remote images are hidden</string>
     <string name="images_blocked_banner_subtitle">Blocked to protect your privacy and avoid email tracking.</string>
     <string name="images_blocked_banner_action">Show images</string>
+    <string name="images_always_allow_sender">Always allow from %1$s</string>
+    <string name="image_allowlist_title">Image allowlist</string>
+    <string name="image_allowlist_subtitle">Senders whose images always load, even when the global setting is off.</string>
+    <string name="image_allowlist_empty">No senders allowlisted yet. Tap "Always allow from (sender)" from the blocked-images banner in any email to add one.</string>
     <string name="shrink_to_fit_title">Shrink Email Body</string>
     <string name="shrink_to_fit_subtitle">Scale wide HTML emails down so they fit the screen instead of scrolling sideways.</string>
     <!-- Message-detail: tap the sender address to start a new email to them. -->

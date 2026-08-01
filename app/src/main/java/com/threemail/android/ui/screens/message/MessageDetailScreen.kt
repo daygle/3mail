@@ -170,7 +170,7 @@ fun MessageDetailScreen(
     // preference allows them or the user has tapped "Show images" for this
     // specific message. Either side is enough to flip the WebView off its
     // privacy lockdown, but only the global opt-in is persistent.
-    val showImages = state.loadImagesSetting || state.imagesShownForThisMessage
+    val showImages = state.loadImagesSetting || state.imagesShownForThisMessage || state.isSenderAllowlisted
     var menuOpen by remember { mutableStateOf(false) }
     var showMoveDialog by remember { mutableStateOf(false) }
     var showHeaders by remember { mutableStateOf(false) }
@@ -777,8 +777,13 @@ private fun MessageBody(
                 }
             }
             !message.bodyHtml.isNullOrBlank() -> {
+                val senderAddress = message.from.firstOrNull()?.address?.takeIf { it.isNotBlank() }
                 if (!showingImages) {
-                    ImagesBlockedBanner(onShowOnce = viewModel::showImagesForThisMessage)
+                    ImagesBlockedBanner(
+                        senderAddress = senderAddress,
+                        onShowOnce = viewModel::showImagesForThisMessage,
+                        onAlwaysAllow = { viewModel.addSenderToImageAllowlist() }
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
                 }
                 HtmlEmailContent(
@@ -828,6 +833,16 @@ class SafeWebView(
             field = value
             settings.loadsImagesAutomatically = value
             settings.blockNetworkImage = !value
+            // When the user opts in to loading images, also allow http://
+            // images inside the https-origin page. MIXED_CONTENT_NEVER_ALLOW
+            // would silently drop any image served over plain http, which many
+            // email senders (newsletters, tracking pixels, older servers) still
+            // use. Privacy is preserved when loadImages is false.
+            settings.mixedContentMode = if (value) {
+                android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            } else {
+                android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            }
         }
 
     var shrinkToFit: Boolean = true
@@ -844,7 +859,6 @@ class SafeWebView(
 
     init {
         settings.javaScriptEnabled = false
-        settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
         settings.domStorageEnabled = false
         settings.setSupportZoom(true)
         settings.builtInZoomControls = true
@@ -992,7 +1006,11 @@ private fun EncryptionBanner(signature: SignatureStatus?, decrypting: Boolean) {
 }
 
 @Composable
-private fun ImagesBlockedBanner(onShowOnce: () -> Unit) {
+private fun ImagesBlockedBanner(
+    senderAddress: String?,
+    onShowOnce: () -> Unit,
+    onAlwaysAllow: () -> Unit
+) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant,
         shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
@@ -1023,8 +1041,19 @@ private fun ImagesBlockedBanner(onShowOnce: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            TextButton(onClick = onShowOnce) {
-                Text(stringResource(R.string.images_blocked_banner_action))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                TextButton(onClick = onShowOnce) {
+                    Text(stringResource(R.string.images_blocked_banner_action))
+                }
+                if (senderAddress != null) {
+                    TextButton(onClick = onAlwaysAllow) {
+                        Text(
+                            text = stringResource(R.string.images_always_allow_sender, senderAddress),
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1
+                        )
+                    }
+                }
             }
         }
     }

@@ -2,25 +2,33 @@ package com.threemail.android.ui.screens.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -29,6 +37,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
@@ -49,7 +58,7 @@ import com.threemail.android.ui.components.SettingsSwitchRow
 
 /** Which single-choice picker dialog, if any, is currently open. */
 private enum class SettingsDialog {
-    None, Theme, SyncFrequency, SwipeRight, SwipeLeft, SwipeRightLong, SwipeLeftLong, Density, PreviewLines, AfterAction, InboxLimit
+    None, Theme, SyncFrequency, SwipeRight, SwipeLeft, SwipeRightLong, SwipeLeftLong, Density, PreviewLines, AfterAction, InboxLimit, ImageAllowlist
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -200,6 +209,13 @@ fun SettingsScreen(
                     onCheckedChange = viewModel::setLoadImages
                 )
                 CardDivider()
+                SettingsRow(
+                    title = stringResource(R.string.image_allowlist_title),
+                    subtitle = stringResource(R.string.image_allowlist_subtitle),
+                    value = settings.imageAllowlist.size.toString(),
+                    onClick = { dialog = SettingsDialog.ImageAllowlist }
+                )
+                CardDivider()
                 SettingsSwitchRow(
                     title = stringResource(R.string.shrink_to_fit_title),
                     subtitle = stringResource(R.string.shrink_to_fit_subtitle),
@@ -316,6 +332,61 @@ fun SettingsScreen(
             onSelect = viewModel::setInboxLimit,
             onDismiss = { dialog = SettingsDialog.None }
         )
+        SettingsDialog.ImageAllowlist -> {
+            if (settings.imageAllowlist.isEmpty()) {
+                AlertDialog(
+                    onDismissRequest = { dialog = SettingsDialog.None },
+                    title = { Text(stringResource(R.string.image_allowlist_title)) },
+                    text = { Text(stringResource(R.string.image_allowlist_empty)) },
+                    confirmButton = {
+                        TextButton(onClick = { dialog = SettingsDialog.None }) {
+                            Text(stringResource(R.string.headers_close))
+                        }
+                    }
+                )
+            } else {
+                AlertDialog(
+                    onDismissRequest = { dialog = SettingsDialog.None },
+                    title = { Text(stringResource(R.string.image_allowlist_title)) },
+                    text = {
+                        LazyColumn {
+                            items(settings.imageAllowlist.toList().sorted()) { entry ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = entry,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    IconButton(
+                                        onClick = {
+                                            viewModel.removeFromImageAllowlist(entry)
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = stringResource(R.string.remove),
+                                            modifier = Modifier.size(18.dp),
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { dialog = SettingsDialog.None }) {
+                            Text(stringResource(R.string.headers_close))
+                        }
+                    }
+                )
+            }
+        }
         SettingsDialog.None -> Unit
     }
 }

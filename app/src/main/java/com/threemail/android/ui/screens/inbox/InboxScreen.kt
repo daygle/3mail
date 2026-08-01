@@ -242,15 +242,17 @@ fun InboxScreen(
     ModalNavigationDrawer(
         modifier = modifier,
         drawerState = drawerState,
-        // Enable drawer gestures only while it's already open. Closed, gestures
-        // are off so the edge/diagonal swipe-to-open can't compete with the
-        // message list's pull-to-refresh / swipe-to-triage (a downward pull
-        // would otherwise yank the drawer open). Open, gestures are on so the
-        // scrim tap and swipe both close it - Material 3 gates BOTH the swipe
-        // and the scrim-tap-to-close on `gesturesEnabled`, so a flat `false`
-        // left the drawer impossible to dismiss when the content behind it had
-        // nothing tappable (e.g. the empty "no accounts" state).
-        gesturesEnabled = drawerState.isOpen,
+        // Evaluate the TARGET value rather than the settled current value so
+        // gestures are enabled BEFORE the open animation starts rather than
+        // flipping mid-settle. Toggling gesturesEnabled on [drawerState.isOpen]
+        // caused Compose to re-initialise the internal draggable modifier at
+        // the end of the animation, losing the drawer's offset state (NaN) and
+        // cascading into a layout failure that dropped the screen's content
+        // entirely - the user saw a blank white page.
+        // Target changes synchronously when open() / close() is called, so the
+        // modifier is stable throughout the animation and both the scrim tap
+        // and swipe-to-close work correctly from the first frame.
+        gesturesEnabled = drawerState.targetValue == DrawerValue.Open,
         drawerContent = {
             FolderDrawerContent(
                 account = state.selectedAccount,
