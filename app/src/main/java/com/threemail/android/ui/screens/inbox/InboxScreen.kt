@@ -349,7 +349,8 @@ fun InboxScreen(
                 }
             },
             floatingActionButton = {
-                if (!state.selectionMode) {
+                val isInboxView = state.unifiedInbox || state.selectedFolder?.type == FolderType.INBOX
+                if (!state.selectionMode && isInboxView) {
                     // Icon-only FAB: the pencil glyph reads as "compose" on its
                     // own, so we drop the text label to keep the button compact.
                     FloatingActionButton(onClick = onNavigateToCompose) {
