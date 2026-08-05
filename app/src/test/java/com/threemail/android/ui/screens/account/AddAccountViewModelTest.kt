@@ -221,6 +221,8 @@ class AddAccountViewModelTest {
         override suspend fun getAllOnce(): List<AccountEntity> = rows.values.toList()
         override suspend fun getById(id: Long): AccountEntity? = rows.values.firstOrNull { it.id == id }
         override suspend fun setPushEnabled(id: Long, enabled: Boolean) {}
+        override suspend fun setEmptyTrashOnLaunch(id: Long, enabled: Boolean) {}
+        override suspend fun setEmptyTrashOnQuit(id: Long, enabled: Boolean) {}
         override suspend fun setDisplayName(id: Long, displayName: String) {}
         override suspend fun setSignature(id: Long, signature: String) {}
         override suspend fun setSyncIntervalMinutes(id: Long, minutes: Long) {}

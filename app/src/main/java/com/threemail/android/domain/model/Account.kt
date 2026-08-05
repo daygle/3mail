@@ -101,6 +101,10 @@ data class Account(
     val syncEnabled: Boolean = true,
     val calendarSyncEnabled: Boolean = true,
     val pushEnabled: Boolean = true,
+    /** Empty this account's Trash when the app process first enters the foreground. */
+    val emptyTrashOnLaunch: Boolean = false,
+    /** Empty this account's Trash when the app process leaves the foreground. */
+    val emptyTrashOnQuit: Boolean = false,
     /** Per-account signature; blank means no signature on outgoing mail from this account. */
     val signature: String = "",
     /**

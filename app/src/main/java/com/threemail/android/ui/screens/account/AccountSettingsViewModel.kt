@@ -201,6 +201,16 @@ class AccountSettingsViewModel @Inject constructor(
         viewModelScope.launch { accountRepository.setNotificationsEnabled(accountId, enabled) }
     }
 
+    fun setEmptyTrashOnLaunch(enabled: Boolean) {
+        updateAccount { it.copy(emptyTrashOnLaunch = enabled) }
+        viewModelScope.launch { accountRepository.setEmptyTrashOnLaunch(accountId, enabled) }
+    }
+
+    fun setEmptyTrashOnQuit(enabled: Boolean) {
+        updateAccount { it.copy(emptyTrashOnQuit = enabled) }
+        viewModelScope.launch { accountRepository.setEmptyTrashOnQuit(accountId, enabled) }
+    }
+
     fun setCalendarSyncEnabled(enabled: Boolean) {
         updateAccount { it.copy(calendarSyncEnabled = enabled) }
         viewModelScope.launch { accountRepository.setCalendarSyncEnabled(accountId, enabled) }

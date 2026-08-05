@@ -15,7 +15,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Security
@@ -58,7 +57,7 @@ import com.threemail.android.ui.components.SettingsSwitchRow
 
 /** Which single-choice picker dialog, if any, is currently open. */
 private enum class SettingsDialog {
-    None, Theme, SyncFrequency, SwipeRight, SwipeLeft, SwipeRightLong, SwipeLeftLong, Density, PreviewLines, AfterAction, InboxLimit, ImageAllowlist
+    None, Theme, SyncFrequency, SwipeRight, SwipeLeft, Density, PreviewLines, AfterAction, InboxLimit, ImageAllowlist
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -142,19 +141,6 @@ fun SettingsScreen(
                     value = stringResource(swipeActionLabel(settings.swipeLeftAction)),
                     onClick = { dialog = SettingsDialog.SwipeLeft }
                 )
-                CardDivider()
-                SettingsRow(
-                    title = stringResource(R.string.swipe_right_long_label),
-                    value = stringResource(swipeActionLabel(settings.swipeRightLongAction)),
-                    onClick = { dialog = SettingsDialog.SwipeRightLong }
-                )
-                CardDivider()
-                SettingsRow(
-                    title = stringResource(R.string.swipe_left_long_label),
-                    value = stringResource(swipeActionLabel(settings.swipeLeftLongAction)),
-                    onClick = { dialog = SettingsDialog.SwipeLeftLong }
-                )
-                CardDivider()
                 SettingsRow(
                     title = stringResource(R.string.reading_after_delete_row_title),
                     subtitle = stringResource(R.string.reading_after_delete_subtitle),
@@ -224,30 +210,6 @@ fun SettingsScreen(
                 )
             }
 
-            // -- Maintenance --
-            SettingsGroup(title = stringResource(R.string.trash_settings_section), icon = Icons.Default.DeleteSweep) {
-                SettingsContentRow {
-                    Text(
-                        text = stringResource(R.string.trash_settings_description),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                CardDivider()
-                SettingsSwitchRow(
-                    title = stringResource(R.string.empty_trash_on_launch_title),
-                    subtitle = stringResource(R.string.empty_trash_on_launch_subtitle),
-                    checked = settings.emptyTrashOnLaunch,
-                    onCheckedChange = viewModel::setEmptyTrashOnLaunch
-                )
-                CardDivider()
-                SettingsSwitchRow(
-                    title = stringResource(R.string.empty_trash_on_quit_title),
-                    subtitle = stringResource(R.string.empty_trash_on_quit_subtitle),
-                    checked = settings.emptyTrashOnQuit,
-                    onCheckedChange = viewModel::setEmptyTrashOnQuit
-                )
-            }
         }
     }
 
@@ -282,22 +244,6 @@ fun SettingsScreen(
             selected = settings.swipeLeftAction,
             dismissLabel = stringResource(R.string.cancel),
             onSelect = viewModel::setSwipeLeftAction,
-            onDismiss = { dialog = SettingsDialog.None }
-        )
-        SettingsDialog.SwipeRightLong -> SettingsChoiceDialog(
-            title = stringResource(R.string.swipe_right_long_label),
-            options = SwipeAction.entries.map { SettingsChoice(it, stringResource(swipeActionLabel(it))) },
-            selected = settings.swipeRightLongAction,
-            dismissLabel = stringResource(R.string.cancel),
-            onSelect = viewModel::setSwipeRightLongAction,
-            onDismiss = { dialog = SettingsDialog.None }
-        )
-        SettingsDialog.SwipeLeftLong -> SettingsChoiceDialog(
-            title = stringResource(R.string.swipe_left_long_label),
-            options = SwipeAction.entries.map { SettingsChoice(it, stringResource(swipeActionLabel(it))) },
-            selected = settings.swipeLeftLongAction,
-            dismissLabel = stringResource(R.string.cancel),
-            onSelect = viewModel::setSwipeLeftLongAction,
             onDismiss = { dialog = SettingsDialog.None }
         )
         SettingsDialog.Density -> SettingsChoiceDialog(
@@ -436,5 +382,6 @@ private fun densityLabel(density: MessageDensity): Int = when (density) {
 
 private fun afterDeleteLabel(value: AfterDeleteNavigation): Int = when (value) {
     AfterDeleteNavigation.RETURN_TO_LIST -> R.string.reading_after_delete_return_to_list
-    AfterDeleteNavigation.NEXT_MESSAGE -> R.string.reading_after_delete_next_message
+    AfterDeleteNavigation.PREVIOUS_EMAIL -> R.string.reading_after_delete_previous_email
+    AfterDeleteNavigation.NEXT_EMAIL -> R.string.reading_after_delete_next_email
 }

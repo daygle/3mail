@@ -68,6 +68,14 @@ open class AccountRepository @Inject constructor(
         accountDao.setPushEnabled(id, enabled)
     }
 
+    suspend fun setEmptyTrashOnLaunch(id: Long, enabled: Boolean) {
+        accountDao.setEmptyTrashOnLaunch(id, enabled)
+    }
+
+    suspend fun setEmptyTrashOnQuit(id: Long, enabled: Boolean) {
+        accountDao.setEmptyTrashOnQuit(id, enabled)
+    }
+
     /**
      * Targeted per-account settings updates. These bypass [updateAccount] on
      * purpose: that path re-saves the password into the encrypted credential
@@ -222,6 +230,8 @@ open class AccountRepository @Inject constructor(
         syncEnabled = syncEnabled,
         calendarSyncEnabled = calendarSyncEnabled,
         pushEnabled = pushEnabled,
+        emptyTrashOnLaunch = emptyTrashOnLaunch,
+        emptyTrashOnQuit = emptyTrashOnQuit,
         signature = signature,
         syncIntervalMinutes = syncIntervalMinutes,
         notificationsEnabled = notificationsEnabled,
@@ -256,6 +266,8 @@ open class AccountRepository @Inject constructor(
         syncEnabled = syncEnabled,
         calendarSyncEnabled = calendarSyncEnabled,
         pushEnabled = pushEnabled,
+        emptyTrashOnLaunch = emptyTrashOnLaunch,
+        emptyTrashOnQuit = emptyTrashOnQuit,
         signature = signature,
         syncIntervalMinutes = syncIntervalMinutes,
         notificationsEnabled = notificationsEnabled,

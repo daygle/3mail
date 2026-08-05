@@ -160,6 +160,29 @@ class MailRepositoryTest {
      * must drop cached messages the server no longer returns.
      */
     @Test
+    fun `findAdjacentMessageIdsInFolder returns newer and older emails`() = runBlocking {
+        val folderId = insertFolder("INBOX", FolderType.INBOX)
+        insertMessageWithDate(folderId, id = 11L, uid = 11L, messageId = "newer", date = 3L)
+        insertMessageWithDate(folderId, id = 12L, uid = 12L, messageId = "current", date = 2L)
+        insertMessageWithDate(folderId, id = 13L, uid = 13L, messageId = "older", date = 1L)
+
+        assertEquals(
+            11L to 13L,
+            repository.findAdjacentMessageIdsInFolder(folderId, 12L)
+        )
+        assertEquals(null to 13L, repository.findAdjacentMessageIdsInFolder(folderId, 11L))
+        assertEquals(11L to null, repository.findAdjacentMessageIdsInFolder(folderId, 13L))
+    }
+
+    @Test
+    fun `findAdjacentMessageIdsInFolder returns no targets for an unknown email`() = runBlocking {
+        val folderId = insertFolder("INBOX", FolderType.INBOX)
+        insertMessageWithDate(folderId, id = 11L, uid = 11L, messageId = "known", date = 1L)
+
+        assertEquals(null to null, repository.findAdjacentMessageIdsInFolder(folderId, 999L))
+    }
+
+    @Test
     fun `reconcileDeletions drops messages the server no longer has`() = runBlocking {
         val folderId = db.folderDao().insert(
             com.threemail.android.data.local.entity.FolderEntity(
@@ -241,18 +264,33 @@ class MailRepositoryTest {
     }
 
     private suspend fun insertMessage(folderId: Long, uid: Long, messageId: String) {
-        db.messageDao().insertAll(
-            listOf(
-                MessageEntity(
-                    accountId = accountId,
-                    folderId = folderId,
-                    messageId = messageId,
-                    uid = uid,
-                    subject = "Subject $messageId",
-                    fromJson = "[]", toJson = "[]", ccJson = "[]", bccJson = "[]",
-                    date = 1_700_000_000_000L,
-                    syncedAt = 1_700_000_000_000L
-                )
+        insertMessageWithDate(
+            folderId = folderId,
+            id = null,
+            uid = uid,
+            messageId = messageId,
+            date = 1_700_000_000_000L
+        )
+    }
+
+    private suspend fun insertMessageWithDate(
+        folderId: Long,
+        id: Long?,
+        uid: Long,
+        messageId: String,
+        date: Long
+    ) {
+        db.messageDao().insert(
+            MessageEntity(
+                id = id ?: 0L,
+                accountId = accountId,
+                folderId = folderId,
+                messageId = messageId,
+                uid = uid,
+                subject = "Subject $messageId",
+                fromJson = "[]", toJson = "[]", ccJson = "[]", bccJson = "[]",
+                date = date,
+                syncedAt = date
             )
         )
     }

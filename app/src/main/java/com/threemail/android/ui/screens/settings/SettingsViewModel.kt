@@ -53,28 +53,12 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.setDynamicColor(enabled) }
     }
 
-    fun setEmptyTrashOnLaunch(enabled: Boolean) {
-        viewModelScope.launch { settingsRepository.setEmptyTrashOnLaunch(enabled) }
-    }
-
-    fun setEmptyTrashOnQuit(enabled: Boolean) {
-        viewModelScope.launch { settingsRepository.setEmptyTrashOnQuit(enabled) }
-    }
-
     fun setSwipeRightAction(action: SwipeAction) {
         viewModelScope.launch { settingsRepository.setSwipeRightAction(action) }
     }
 
     fun setSwipeLeftAction(action: SwipeAction) {
         viewModelScope.launch { settingsRepository.setSwipeLeftAction(action) }
-    }
-
-    fun setSwipeRightLongAction(action: SwipeAction) {
-        viewModelScope.launch { settingsRepository.setSwipeRightLongAction(action) }
-    }
-
-    fun setSwipeLeftLongAction(action: SwipeAction) {
-        viewModelScope.launch { settingsRepository.setSwipeLeftLongAction(action) }
     }
 
     fun setMessageDensity(density: MessageDensity) {

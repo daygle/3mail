@@ -27,6 +27,12 @@ interface AccountDao {
     @Query("UPDATE accounts SET pushEnabled = :enabled WHERE id = :id")
     suspend fun setPushEnabled(id: Long, enabled: Boolean)
 
+    @Query("UPDATE accounts SET emptyTrashOnLaunch = :enabled WHERE id = :id")
+    suspend fun setEmptyTrashOnLaunch(id: Long, enabled: Boolean)
+
+    @Query("UPDATE accounts SET emptyTrashOnQuit = :enabled WHERE id = :id")
+    suspend fun setEmptyTrashOnQuit(id: Long, enabled: Boolean)
+
     @Query("UPDATE accounts SET displayName = :displayName WHERE id = :id")
     suspend fun setDisplayName(id: Long, displayName: String)
 

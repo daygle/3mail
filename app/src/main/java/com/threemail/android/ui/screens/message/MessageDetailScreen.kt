@@ -84,6 +84,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.FileProvider
@@ -134,8 +135,9 @@ fun MessageDetailScreen(
     /**
      * Invoked after a successful delete in **single-message** mode (deep
      * links from Search / notifications, which don't carry folder context)
-     * when the user's "After delete" setting is [AfterDeleteNavigation.NEXT_MESSAGE]
-     * AND the VM resolved a next-older message in the same folder. The host
+     * when the user's "After moving/deleting" setting is [AfterDeleteNavigation.PREVIOUS_EMAIL]
+     * or [AfterDeleteNavigation.NEXT_EMAIL]
+     * AND the VM resolved the requested adjacent email in the same folder. The host
      * implementation pops the current detail entry off the back stack before
      * navigating so back from the next screen returns to whatever was before
      * the original (typically search) rather than the just-deleted message.
@@ -144,6 +146,7 @@ fun MessageDetailScreen(
      * by an in-screen `animateScrollToPage` so the user can keep swiping
      * through their inbox without growing the back stack on every delete.
      */
+    onNavigateToPrevious: (Long) -> Unit = {},
     onNavigateToNext: (Long) -> Unit = {},
     /** Start a fresh compose addressed to the given email address. */
     onComposeTo: (String) -> Unit = {},
@@ -178,7 +181,7 @@ fun MessageDetailScreen(
     // Pager wiring (only meaningful when the nav route passed folder context
     // -- ids stays empty in single-message deep-link mode, and the body
     // renders without a HorizontalPager below).
-    val pagerMode = ids.isNotEmpty()
+    val pagerMode = ids.isNotEmpty() || viewModel.hasPagerScope
     val initialPage = remember(ids) {
         ids.indexOf(selectedId).let { if (it >= 0) it else 0 }
     }
@@ -247,31 +250,28 @@ fun MessageDetailScreen(
         }
     }
 
-    // Post-delete navigation honours the user's "After delete" preference. In
-    // pager mode we drive the advance via `pagerState.animateScrollToPage` so
-    // the back stack stays at one entry; in single-message mode we fall
-    // through to the host's pop+navigate codepath as before.
+    // Post-delete navigation honours the user's "After moving/deleting"
+    // preference. In pager mode we drive the selected adjacent page inline;
+    // in single-message mode we fall through to the host's navigation callback.
     LaunchedEffect(state.isDeleted, appSettings.afterDeleteNavigation) {
         if (!state.isDeleted) return@LaunchedEffect
-        val advanceInline = pagerState != null &&
-            appSettings.afterDeleteNavigation == AfterDeleteNavigation.NEXT_MESSAGE &&
-            state.nextMessageId != null
-        if (advanceInline) {
-            val nextIdx = ids.indexOf(state.nextMessageId)
-            if (nextIdx >= 0) {
-                pagerState.animateScrollToPage(nextIdx)
-            } else {
-                // The next id isn't in our scope (e.g. it just got filtered
-                // out for some reason) - graceful fallback to back-out.
-                onNavigateBack()
-            }
-            // The `snapshotFlow(pagerState.currentPage)` collector below
-            // picks up the new page and calls selectMessage for us, so no
-            // further work is needed in this branch.
+        val targetId = when (appSettings.afterDeleteNavigation) {
+            AfterDeleteNavigation.PREVIOUS_EMAIL -> state.previousMessageId
+            AfterDeleteNavigation.NEXT_EMAIL -> state.nextMessageId
+            AfterDeleteNavigation.RETURN_TO_LIST -> null
+        }
+        if (targetId == null) {
+            onNavigateBack()
+            return@LaunchedEffect
+        }
+        if (pagerState != null) {
+            val targetIdx = ids.indexOf(targetId)
+            if (targetIdx >= 0) pagerState.animateScrollToPage(targetIdx)
+            else onNavigateBack()
+        } else if (appSettings.afterDeleteNavigation == AfterDeleteNavigation.PREVIOUS_EMAIL) {
+            onNavigateToPrevious(targetId)
         } else {
-            val goToNext = appSettings.afterDeleteNavigation == AfterDeleteNavigation.NEXT_MESSAGE &&
-                state.nextMessageId != null
-            if (goToNext) state.nextMessageId?.let(onNavigateToNext) else onNavigateBack()
+            onNavigateToNext(targetId)
         }
     }
 
@@ -1011,6 +1011,40 @@ private fun ImagesBlockedBanner(
     onShowOnce: () -> Unit,
     onAlwaysAllow: () -> Unit
 ) {
+    var optionsOpen by remember(senderAddress) { mutableStateOf(false) }
+    var showAllowlistConfirmation by remember(senderAddress) { mutableStateOf(false) }
+    val optionsLabel = stringResource(R.string.images_blocked_banner_options)
+
+    if (showAllowlistConfirmation && senderAddress != null) {
+        AlertDialog(
+            onDismissRequest = { showAllowlistConfirmation = false },
+            title = { Text(stringResource(R.string.images_always_allow_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.images_always_allow_message,
+                        senderAddress
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showAllowlistConfirmation = false
+                        onAlwaysAllow()
+                    }
+                ) {
+                    Text(stringResource(R.string.images_always_allow_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAllowlistConfirmation = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant,
         shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
@@ -1019,7 +1053,7 @@ private fun ImagesBlockedBanner(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
@@ -1033,24 +1067,44 @@ private fun ImagesBlockedBanner(
                 Text(
                     text = stringResource(R.string.images_blocked_banner_title),
                     style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = stringResource(R.string.images_blocked_banner_subtitle),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                TextButton(onClick = onShowOnce) {
-                    Text(stringResource(R.string.images_blocked_banner_action))
-                }
-                if (senderAddress != null) {
-                    TextButton(onClick = onAlwaysAllow) {
-                        Text(
-                            text = stringResource(R.string.images_always_allow_sender, senderAddress),
-                            style = MaterialTheme.typography.labelSmall,
-                            maxLines = 1
+            TextButton(onClick = onShowOnce) {
+                Text(stringResource(R.string.images_blocked_banner_action))
+            }
+            if (senderAddress != null) {
+                Box {
+                    IconButton(
+                        onClick = { optionsOpen = true },
+                        modifier = Modifier.semantics {
+                            contentDescription = optionsLabel
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = null
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = optionsOpen,
+                        onDismissRequest = { optionsOpen = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.images_always_allow_sender_short)) },
+                            onClick = {
+                                optionsOpen = false
+                                showAllowlistConfirmation = true
+                            }
                         )
                     }
                 }

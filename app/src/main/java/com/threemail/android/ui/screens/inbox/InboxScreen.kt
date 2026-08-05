@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -127,19 +128,12 @@ fun InboxScreen(
     val unifiedInboxActive = state.unifiedInbox
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
-
-    // Re-expand the collapsing top bar whenever the list becomes empty (e.g.
-    // after deleting every message in a folder) or the folder/view changes.
-    // An exit-until-collapsed bar that was scrolled away has no scrollable
-    // content left to pull it back, so it would otherwise stay stuck off-screen
-    // - the "title bar drops off" an emptied folder.
-    LaunchedEffect(state.messages.isEmpty(), state.selectedFolder?.id, state.unifiedInbox) {
-        if (state.messages.isEmpty()) {
-            scrollBehavior.state.heightOffset = 0f
-            scrollBehavior.state.contentOffset = 0f
-        }
-    }
+    // Keep the Inbox/folder toolbar pinned. PullToRefreshBox owns the vertical
+    // gesture at the top of the list, and an exit-until-collapsed app bar can
+    // consume that nested scroll and leave the menu bar collapsed/off-screen
+    // after a refresh gesture. The email list still scrolls normally below the
+    // always-available toolbar.
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
     // Per-screen top-bar customisation. SettingsViewModel is Hilt-scoped to this
     // nav entry alongside InboxViewModel and reads from the same singleton
@@ -321,6 +315,7 @@ fun InboxScreen(
                         onDelete = { viewModel.deleteSelected() },
                         onMarkSpam = { confirmSpam = true },
                         onMove = if (canMove) ({ showMovePicker = true }) else null,
+                        hidden = hiddenTopBarItems,
                         moveDisabledReason = when {
                             state.unifiedInbox -> stringResource(R.string.move_unified_unavailable)
                             visibleFolderCount < 2 -> stringResource(R.string.move_unavailable)
@@ -395,8 +390,6 @@ fun InboxScreen(
                                             selected = selected,
                                             swipeRightAction = state.swipeRightAction,
                                             swipeLeftAction = state.swipeLeftAction,
-                                            swipeRightLongAction = state.swipeRightLongAction,
-                                            swipeLeftLongAction = state.swipeLeftLongAction,
                                             density = state.messageDensity,
                                             previewLines = state.previewLines,
                                             onArchive = { viewModel.archive(message) },
@@ -712,9 +705,11 @@ private fun SelectionTopBar(
     onArchive: () -> Unit,
     onDelete: () -> Unit,
     onMarkSpam: () -> Unit,
-    onMove: (() -> Unit)? = null
+    onMove: (() -> Unit)? = null,
+    hidden: Set<TopBarItemId> = emptySet()
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    val isVisible: (TopBarItemId) -> Boolean = { it !in hidden }
     TopAppBar(
         title = { Text(pluralStringResource(R.plurals.selected_count, count, count)) },
         navigationIcon = {
@@ -723,49 +718,101 @@ private fun SelectionTopBar(
             }
         },
         actions = {
-            IconButton(onClick = onMarkRead) {
-                Icon(Icons.Default.MarkEmailRead, contentDescription = stringResource(R.string.mark_read))
+            if (isVisible(TopBarItemId.SELECTION_ARCHIVE)) {
+                IconButton(onClick = onArchive) {
+                    Icon(Icons.Default.Archive, contentDescription = stringResource(R.string.archive))
+                }
             }
-            IconButton(onClick = onArchive) {
-                Icon(Icons.Default.Archive, contentDescription = stringResource(R.string.archive))
+            // Move is gated by the current folder context as before, and can
+            // also be hidden by the long-press customization settings.
+            if (isVisible(TopBarItemId.SELECTION_MOVE)) {
+                IconButton(
+                    onClick = { onMove?.invoke() },
+                    enabled = (canMove) && (onMove != null)
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.DriveFileMove,
+                        contentDescription = if (canMove)
+                            stringResource(R.string.move_to_folder)
+                        else
+                            moveDisabledReason ?: stringResource(R.string.move_to_folder)
+                    )
+                }
             }
-            // Move button is always visible so the action's position in the
-            // bar is stable across views, but its tap is gated by [canMove].
-            // The disabled state carries a screen-reader label explaining why
-            // the action isn't available, so a TalkBack user still gets
-            // useful feedback rather than a silently dead control.
-            IconButton(
-                onClick = { onMove?.invoke() },
-                enabled = (canMove) && (onMove != null)
-            ) {
-                Icon(
-                    Icons.AutoMirrored.Filled.DriveFileMove,
-                    contentDescription = if (canMove)
-                        stringResource(R.string.move_to_folder)
-                    else
-                        moveDisabledReason ?: stringResource(R.string.move_to_folder)
-                )
+            if (isVisible(TopBarItemId.SELECTION_MARK_SPAM)) {
+                IconButton(onClick = onMarkSpam) {
+                    Icon(Icons.Outlined.Report, contentDescription = stringResource(R.string.mark_as_spam))
+                }
             }
-            IconButton(onClick = onMarkSpam) {
-                Icon(Icons.Outlined.Report, contentDescription = stringResource(R.string.mark_as_spam))
-            }
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete))
+            if (isVisible(TopBarItemId.SELECTION_DELETE)) {
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete))
+                }
             }
             IconButton(onClick = { menuOpen = true }) {
                 Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.settings))
             }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.mark_unread)) },
-                    leadingIcon = { Icon(Icons.Default.MarkEmailUnread, contentDescription = null) },
-                    onClick = { menuOpen = false; onMarkUnread() }
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.select_all)) },
-                    leadingIcon = { Icon(Icons.Default.SelectAll, contentDescription = null) },
-                    onClick = { menuOpen = false; onSelectAll() }
-                )
+                if (isVisible(TopBarItemId.SELECTION_MARK_READ)) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.mark_selected_as_read)) },
+                        leadingIcon = { Icon(Icons.Default.MarkEmailRead, contentDescription = null) },
+                        onClick = { menuOpen = false; onMarkRead() }
+                    )
+                }
+                if (isVisible(TopBarItemId.SELECTION_MARK_UNREAD)) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.mark_selected_as_unread)) },
+                        leadingIcon = { Icon(Icons.Default.MarkEmailUnread, contentDescription = null) },
+                        onClick = { menuOpen = false; onMarkUnread() }
+                    )
+                }
+                if (isVisible(TopBarItemId.SELECTION_SELECT_ALL)) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.select_all)) },
+                        leadingIcon = { Icon(Icons.Default.SelectAll, contentDescription = null) },
+                        onClick = { menuOpen = false; onSelectAll() }
+                    )
+                }
+                val hasHiddenActions = hidden.any {
+                    it == TopBarItemId.SELECTION_ARCHIVE ||
+                        it == TopBarItemId.SELECTION_MOVE ||
+                        it == TopBarItemId.SELECTION_MARK_READ ||
+                        it == TopBarItemId.SELECTION_MARK_UNREAD ||
+                        it == TopBarItemId.SELECTION_MARK_SPAM ||
+                        it == TopBarItemId.SELECTION_DELETE ||
+                        it == TopBarItemId.SELECTION_SELECT_ALL
+                }
+                if (hasHiddenActions) HorizontalDivider()
+                if (!isVisible(TopBarItemId.SELECTION_ARCHIVE)) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.archive)) },
+                        leadingIcon = { Icon(Icons.Default.Archive, contentDescription = null) },
+                        onClick = { menuOpen = false; onArchive() }
+                    )
+                }
+                if (!isVisible(TopBarItemId.SELECTION_MOVE)) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.move_to_folder)) },
+                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = null) },
+                        enabled = canMove && onMove != null,
+                        onClick = { menuOpen = false; onMove?.invoke() }
+                    )
+                }
+                if (!isVisible(TopBarItemId.SELECTION_MARK_SPAM)) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.mark_as_spam)) },
+                        leadingIcon = { Icon(Icons.Outlined.Report, contentDescription = null) },
+                        onClick = { menuOpen = false; onMarkSpam() }
+                    )
+                }
+                if (!isVisible(TopBarItemId.SELECTION_DELETE)) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.delete)) },
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                        onClick = { menuOpen = false; onDelete() }
+                    )
+                }
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(
@@ -784,8 +831,6 @@ private fun SwipeableMailRow(
     selected: Boolean,
     swipeRightAction: SwipeAction,
     swipeLeftAction: SwipeAction,
-    swipeRightLongAction: SwipeAction,
-    swipeLeftLongAction: SwipeAction,
     density: MessageDensity,
     previewLines: Int,
     onArchive: () -> Unit,
@@ -823,20 +868,12 @@ private fun SwipeableMailRow(
 
     var dragOffsetPx by remember { mutableFloatStateOf(0f) }
     val shortThreshold = 0.30f
-    val longThreshold = 0.68f
     val maxOffset = 0.92f
     var rowWidthPx by remember { mutableFloatStateOf(1f) }
     val currentOffset = dragOffsetPx
-    val actionFor = remember(swipeRightAction, swipeLeftAction, swipeRightLongAction, swipeLeftLongAction, rowWidthPx) {
+    val actionFor = remember(swipeRightAction, swipeLeftAction, rowWidthPx) {
         { distance: Float ->
-            val right = distance > 0f
-            val long = kotlin.math.abs(distance) >= rowWidthPx * longThreshold
-            when {
-                long && right -> swipeRightLongAction
-                long && !right -> swipeLeftLongAction
-                right -> swipeRightAction
-                else -> swipeLeftAction
-            }
+            if (distance > 0f) swipeRightAction else swipeLeftAction
         }
     }
 
@@ -849,7 +886,12 @@ private fun SwipeableMailRow(
         SwipeBackground(
             action = shownAction,
             alignEnd = currentOffset < 0f,
-            modifier = Modifier.fillMaxSize()
+            // The Box is measured from the email card. `fillMaxSize()` on a
+            // background-first child can resolve to the parent's minimum
+            // height while the LazyColumn item is still unbounded vertically,
+            // leaving only a thin action strip. matchParentSize() explicitly
+            // pins the swipe background to the measured card bounds.
+            modifier = Modifier.matchParentSize()
         )
         MailListItem(
             message = message,
@@ -862,8 +904,6 @@ private fun SwipeableMailRow(
                 .pointerInput(
                     swipeRightAction,
                     swipeLeftAction,
-                    swipeRightLongAction,
-                    swipeLeftLongAction,
                     rowWidthPx
                 ) {
                     detectHorizontalDragGestures(

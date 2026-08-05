@@ -42,6 +42,8 @@
     <string name="all_inboxes">All Inboxes</string>
     <string name="mark_all_read">Mark All As Read</string>
     <string name="mark_read">Mark Read</string>
+    <string name="mark_selected_as_read">Mark Selected As Read</string>
+    <string name="mark_selected_as_unread">Mark Selected As Unread</string>
     <string name="mark_unread">Mark Unread</string>
     <string name="select_all">Select All</string>
     <plurals name="selected_count">
@@ -53,8 +55,6 @@
     <string name="display_section">Inbox &amp; Reading</string>
     <string name="swipe_right_label">Swipe Right Action</string>
     <string name="swipe_left_label">Swipe Left Action</string>
-    <string name="swipe_right_long_label">Long Swipe Right Action</string>
-    <string name="swipe_left_long_label">Long Swipe Left Action</string>
     <string name="density_label">List Density</string>
     <string name="preview_lines_label">Preview Lines</string>
     <string name="swipe_action_none">None</string>
@@ -105,7 +105,11 @@
     <string name="images_blocked_banner_title">Remote images are hidden</string>
     <string name="images_blocked_banner_subtitle">Blocked to protect your privacy and avoid email tracking.</string>
     <string name="images_blocked_banner_action">Show images</string>
-    <string name="images_always_allow_sender">Always allow from %1$s</string>
+    <string name="images_blocked_banner_options">Image privacy options</string>
+    <string name="images_always_allow_sender_short">Always allow from this sender</string>
+    <string name="images_always_allow_title">Always show images from this sender?</string>
+    <string name="images_always_allow_message">Images from %1$s will load automatically in future messages. This may reveal your IP address and allow tracking pixels to report when you open mail.</string>
+    <string name="images_always_allow_confirm">Always allow</string>
     <string name="image_allowlist_title">Image Allowlist</string>
     <string name="image_allowlist_subtitle">Senders whose images always load, even when the global setting is off.</string>
     <string name="image_allowlist_empty">No senders allowlisted yet. Tap "Always allow from (sender)" from the blocked-images banner in any email to add one.</string>
@@ -249,9 +253,10 @@
          that changes for the user. -->
     <string name="reading_after_delete_section">After Moving/Deleting</string>
     <string name="reading_after_delete_subtitle">Action to take after you delete or move a message you are currently reading.</string>
-    <string name="reading_after_delete_row_title">After Delete Or Archive</string>
+    <string name="reading_after_delete_row_title">After Moving Or Deleting</string>
     <string name="reading_after_delete_return_to_list">Return To Inbox</string>
-    <string name="reading_after_delete_next_message">Open Next Message</string>
+    <string name="reading_after_delete_previous_email">Open Previous Email</string>
+    <string name="reading_after_delete_next_email">Open Next Email</string>
     <string name="trash_cleanup_notification_channel_description">Reports persistent failures clearing the trash.</string>
     <string name="trash_cleanup_failure_title">Trash cleanup failed</string>
     <plurals name="trash_cleanup_failure_body">
@@ -522,6 +527,8 @@
     <string name="top_bar_settings_title">Customise Top Bar</string>
     <string name="top_bar_settings_subtitle">Choose which actions appear in each screen\'s top bar. Hidden actions still appear in the overflow menu, so nothing disappears.</string>
     <string name="top_bar_settings_inbox_header">Inbox</string>
+    <string name="top_bar_settings_selection_header">Long-Press Actions</string>
+    <string name="top_bar_settings_selection_subtitle">Choose which actions appear when you long-press an email. Hidden actions remain available in the More menu.</string>
     <string name="top_bar_settings_detail_header">Message Detail</string>
     <string name="top_bar_settings_detail_bottom_header">Open Message Buttons</string>
     <string name="top_bar_settings_detail_bottom_subtitle">Choose which buttons appear along the bottom when an email is open.</string>

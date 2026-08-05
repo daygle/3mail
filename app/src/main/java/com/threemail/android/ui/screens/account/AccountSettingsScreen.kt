@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Draw
 import androidx.compose.material.icons.filled.ExpandMore
@@ -319,6 +320,38 @@ fun AccountSettingsScreen(
                             checked = account.notificationsEnabled,
                             onCheckedChange = viewModel::setNotificationsEnabled
                         )
+                    }
+
+                    // -- Trash cleanup (per mailbox) --
+                    // POP3 has no server-side Trash folder, so do not expose
+                    // controls that cannot be honored by TrashCleanupWorker.
+                    if (account.accountType == AccountType.IMAP || account.accountType == AccountType.GMAIL) {
+                        SettingsGroup(
+                            title = stringResource(R.string.trash_settings_section),
+                            icon = Icons.Default.DeleteSweep
+                        ) {
+                            SettingsContentRow {
+                                Text(
+                                    text = stringResource(R.string.trash_settings_description),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            CardDivider()
+                            SettingsSwitchRow(
+                                title = stringResource(R.string.empty_trash_on_launch_title),
+                                subtitle = stringResource(R.string.empty_trash_on_launch_subtitle),
+                                checked = account.emptyTrashOnLaunch,
+                                onCheckedChange = viewModel::setEmptyTrashOnLaunch
+                            )
+                            CardDivider()
+                            SettingsSwitchRow(
+                                title = stringResource(R.string.empty_trash_on_quit_title),
+                                subtitle = stringResource(R.string.empty_trash_on_quit_subtitle),
+                                checked = account.emptyTrashOnQuit,
+                                onCheckedChange = viewModel::setEmptyTrashOnQuit
+                            )
+                        }
                     }
 
                     // -- Organization (Folders & Calendar) --

@@ -58,6 +58,10 @@ data class AccountEntity(
     val syncEnabled: Boolean = true,
     val calendarSyncEnabled: Boolean = true,
     val pushEnabled: Boolean = true,
+    /** Empty this account's Trash when the app process first enters the foreground. */
+    val emptyTrashOnLaunch: Boolean = false,
+    /** Empty this account's Trash when the app process leaves the foreground. */
+    val emptyTrashOnQuit: Boolean = false,
     /**
      * Per-account signature appended to composed mail from this account. Empty
      * means "no signature for this account"; the composer treats a blank value

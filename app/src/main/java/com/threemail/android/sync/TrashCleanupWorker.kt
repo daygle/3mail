@@ -32,9 +32,17 @@ class TrashCleanupWorker(
         val hardFailureThreshold = 2
 
         return try {
+            val trigger = inputData.getString(SyncScheduler.KEY_TRIGGER)
             val accounts = accountRepository.getAccounts().first()
                 .filter { it.isActive && it.syncEnabled }
                 .filter { it.accountType == AccountType.GMAIL || it.accountType == AccountType.IMAP }
+                .filter { account ->
+                    when (trigger) {
+                        TRIGGER_LAUNCH -> account.emptyTrashOnLaunch
+                        TRIGGER_QUIT -> account.emptyTrashOnQuit
+                        else -> false
+                    }
+                }
 
             if (accounts.isEmpty()) {
                 return Result.success()

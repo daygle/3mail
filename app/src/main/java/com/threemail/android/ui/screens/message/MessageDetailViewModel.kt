@@ -44,8 +44,7 @@ import javax.inject.Inject
  *    that scope; the screen wraps the body in a [androidx.compose.foundation.pager.HorizontalPager]
  *    keyed off those ids. The user swipes between messages without leaving
  *    the screen, and changes to any page call [selectMessage], which re-runs
- *    the per-message load path (folder list, mark-read, body fetch, PGP,
- *    next-resolve) for the new id.
+ *    the per-message load path (folder list, mark-read, body fetch, PGP,         * adjacent-email resolution) for the new id.
  *
  *  * **Single-message mode** - the nav route omitted folder context (deep
  *    links from Search / notifications). [adjacentIds] stays empty, the
@@ -92,13 +91,13 @@ class MessageDetailViewModel @Inject constructor(
          */
         val isDeleted: Boolean = false,
         /**
-         * The next-older message in the same folder as the currently-open
-         * one, resolved when the VM has a folder context (pager mode) so the
-         * screen can advance to it after a delete without re-querying the DB.
-         * Null when the user is on the oldest message in the folder, when
-         * the folder is empty, or when the resolver query failed - in all
-         * those cases the screen falls back to popping back to the list.
+         * The adjacent messages in the same folder as the currently-open one.
+         * In the newest-first list, previous is the newer email (index - 1)
+         * and next is the older email (index + 1). They are resolved in pager
+         * mode from the reactive id list and in single-message mode with a
+         * one-shot repository lookup.
          */
+        val previousMessageId: Long? = null,
         val nextMessageId: Long? = null,
         val downloadingAttachment: String? = null,
         val openFile: File? = null,
@@ -161,7 +160,7 @@ class MessageDetailViewModel @Inject constructor(
     private val startMessageId: Long = savedStateHandle.get<Long>("messageId") ?: 0L
     private val pagerFolderId: Long = savedStateHandle.get<Long>("folderId")?.takeIf { it >= 0L } ?: 0L
     private val pagerUnified: Boolean = savedStateHandle.get<Boolean>("unified") == true
-    private val hasPagerScope: Boolean = pagerUnified || pagerFolderId > 0L
+    val hasPagerScope: Boolean = pagerUnified || pagerFolderId > 0L
 
     /**
      * Reactive ordered list of message ids the screen can swipe through.
@@ -185,8 +184,8 @@ class MessageDetailViewModel @Inject constructor(
     /**
      * The id whose body is currently mounted in the screen. The Compose
      * pager drives this via [selectMessage]; the VM uses it both to know
-     * which message to hydrate and to compute [UiState.nextMessageId] for
-     * pager-mode post-delete advance.
+     * which message to hydrate and to compute [UiState.previousMessageId] and
+     * [UiState.nextMessageId] for pager-mode post-delete navigation.
      */
     private val _selectedId = MutableStateFlow(startMessageId)
     val selectedId: StateFlow<Long> = _selectedId.asStateFlow()
@@ -227,26 +226,29 @@ class MessageDetailViewModel @Inject constructor(
         if (hasPagerScope) {
             viewModelScope.launch {
                 adjacentIds
-                    .map { ids ->
-                        if (ids.isEmpty()) null
-                        else ids.indexOf(_selectedId.value).let { if (it >= 0) it + 1 else null }
-                    }
+                    .map { ids -> ids.indexOf(_selectedId.value).takeIf { it >= 0 } }
                     .distinctUntilChanged()
-                    .collect { nextIdx ->
-                        _uiState.update { it.copy(
-                            nextMessageId = nextIdx?.let { idx ->
-                                adjacentIds.value.getOrNull(idx)
-                            }
-                        ) }
+                    .collect { currentIdx ->
+                        val ids = adjacentIds.value
+                        _uiState.update { state ->
+                            // A destructive action can remove the selected row
+                            // from Room before the navigation effect runs.
+                            // Keep the already-resolved targets until that
+                            // effect consumes them; otherwise the user can be
+                            // sent back to the list instead of the chosen email.
+                            if (state.isDeleted) state else state.copy(
+                                previousMessageId = currentIdx?.let { idx -> ids.getOrNull(idx - 1) },
+                                nextMessageId = currentIdx?.let { idx -> ids.getOrNull(idx + 1) }
+                            )
+                        }
                     }
             }
         }
-        // Single-message mode resolves [UiState.nextMessageId] from
+        // Single-message mode resolves both adjacent ids from
         // [onMessageLoaded]'s tail call below - no init-side collector is
         // needed and adding one (e.g. a `combine(_uiState, _selectedId)`)
-        // re-entrantly fires off extra `resolveNextMessageId` Room queries
-        // under UnconfinedTestDispatcher that can deadlock the test setup
-        // and never let `uiState.message` land.
+        // re-entrantly fires off extra Room queries under
+        // UnconfinedTestDispatcher.
     }
 
     /**
@@ -268,6 +270,7 @@ class MessageDetailViewModel @Inject constructor(
                 isLoading = id > 0L,
                 isLoadingBody = false,
                 isDeleted = false,
+                previousMessageId = null,
                 nextMessageId = null,
                 moveTargets = state.moveTargets,
                 spamAvailable = state.spamAvailable,
@@ -369,22 +372,27 @@ class MessageDetailViewModel @Inject constructor(
             maybeDecrypt(message)
         }
         if (!hasPagerScope) {
-            // Single-message mode keeps the legacy resolve; pager mode
-            // gets nextMessageId reactively from [adjacentIds] in init.
-            resolveNextMessageId(message.folderId, message.id)
+            // Single-message mode resolves both adjacent options; pager mode
+            // gets them reactively from [adjacentIds] in init.
+            resolveAdjacentMessageIds(message.folderId, message.id)
         }
         // Compute whether this sender is on the image allowlist.
         checkImageAllowlist(message)
     }
 
-    private fun resolveNextMessageId(folderId: Long, currentMessageId: Long) {
+    private fun resolveAdjacentMessageIds(folderId: Long, currentMessageId: Long) {
         viewModelScope.launch {
             try {
-                val next = mailRepository.findNextMessageIdInFolder(folderId, currentMessageId)
-                _uiState.update { it.copy(nextMessageId = next) }
+                val adjacent = mailRepository.findAdjacentMessageIdsInFolder(folderId, currentMessageId)
+                _uiState.update {
+                    it.copy(
+                        previousMessageId = adjacent.first,
+                        nextMessageId = adjacent.second
+                    )
+                }
             } catch (_: Exception) {
-                // Swallowed: screen treats a null nextMessageId as
-                // "return to list" regardless of the user's preference.
+                // Swallowed: the screen treats a null target as a graceful
+                // return to the list regardless of the user's preference.
             }
         }
     }

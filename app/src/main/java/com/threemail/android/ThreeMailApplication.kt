@@ -22,6 +22,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 
 @HiltAndroidApp
@@ -81,6 +83,7 @@ class ThreeMailApplication : Application(), Configuration.Provider {
      * restarts, which is exactly when "on open" should fire.
      */
     private var hasRunTrashOnLaunch = false
+    private val legacyTrashMigrationMutex = Mutex()
 
     override fun onCreate() {
         super.onCreate()
@@ -126,21 +129,47 @@ class ThreeMailApplication : Application(), Configuration.Provider {
     private fun triggerTrashCleanupIfEnabled(trigger: String) {
         appScope.launch {
             try {
-                val settings = settingsRepository.settings.first()
-                val enabled = when (trigger) {
-                    TrashCleanupWorker.TRIGGER_LAUNCH -> settings.emptyTrashOnLaunch
-                    TrashCleanupWorker.TRIGGER_QUIT -> settings.emptyTrashOnQuit
-                    else -> false
+                migrateLegacyTrashSettings()
+                val accounts = accountRepository.getAccountsOnce()
+                val enabledAccounts = accounts.filter { account ->
+                    when (trigger) {
+                        TrashCleanupWorker.TRIGGER_LAUNCH -> account.emptyTrashOnLaunch
+                        TrashCleanupWorker.TRIGGER_QUIT -> account.emptyTrashOnQuit
+                        else -> false
+                    }
                 }
-                if (!enabled) {
-                    Log.d(TAG, "Trash cleanup suppressed for trigger=$trigger (toggle off)")
+                if (enabledAccounts.isEmpty()) {
+                    Log.d(TAG, "Trash cleanup suppressed for trigger=$trigger (no account enabled)")
                     return@launch
                 }
-                Log.i(TAG, "Enqueuing trash cleanup for trigger=$trigger")
+                Log.i(TAG, "Enqueuing trash cleanup for trigger=$trigger for ${enabledAccounts.size} account(s)")
                 syncScheduler.enqueueTrashCleanup(trigger)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to enqueue trash cleanup", e)
             }
+        }
+    }
+
+    /**
+     * One-time compatibility bridge for the v27 global Trash switches. Room
+     * cannot read DataStore during its SQL migration, so copy the old values
+     * when the app first reaches a lifecycle trigger, then remove the legacy
+     * keys. Existing IMAP/Gmail accounts retain the behavior they had before
+     * the settings became per-mailbox; POP3 is intentionally excluded because
+     * it has no server-side Trash cleanup support.
+     */
+    private suspend fun migrateLegacyTrashSettings() {
+        legacyTrashMigrationMutex.withLock {
+            val legacy = settingsRepository.readLegacyTrashSettings() ?: return
+            val (onLaunch, onQuit) = legacy
+            accountRepository.getAccountsOnce()
+                .filter { it.accountType == com.threemail.android.domain.model.AccountType.IMAP ||
+                    it.accountType == com.threemail.android.domain.model.AccountType.GMAIL }
+                .forEach { account ->
+                    accountRepository.setEmptyTrashOnLaunch(account.id, onLaunch)
+                    accountRepository.setEmptyTrashOnQuit(account.id, onQuit)
+                }
+            settingsRepository.clearLegacyTrashSettings()
         }
     }
 

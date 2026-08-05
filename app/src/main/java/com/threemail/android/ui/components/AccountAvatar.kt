@@ -20,7 +20,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import coil3.compose.AsyncImage
-import com.threemail.android.ui.theme.avatarColorFor
 
 /**
  * Reusable avatar for mail accounts that attempts to load the domain's icon
@@ -37,7 +36,12 @@ fun AccountAvatar(
 ) {
     val domain = email.substringAfter("@")
     val faviconUrl = "https://www.google.com/s2/favicons?domain=$domain&sz=64"
-    val avatarColor = accountColor?.let { Color(it) } ?: avatarColorFor(email)
+    // Keep the default favicon canvas neutral. Many favicons contain
+    // transparent pixels, so the old deterministic colour palette could bleed
+    // through and make an uncustomised account look yellow (or another random
+    // accent colour). Explicit account colours still take precedence.
+    val hasCustomColor = accountColor != null
+    val avatarColor = accountColor?.let { Color(it) } ?: Color.White
     val initial = email.firstOrNull()?.uppercaseChar()?.toString() ?: "?"
     
     var isError by remember { mutableStateOf(false) }
@@ -55,7 +59,7 @@ fun AccountAvatar(
                 text = initial,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = if (hasCustomColor) Color.White else Color.Black
             )
         }
         AsyncImage(

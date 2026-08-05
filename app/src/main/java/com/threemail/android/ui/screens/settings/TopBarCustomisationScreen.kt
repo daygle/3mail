@@ -39,10 +39,10 @@ import com.threemail.android.ui.components.SettingsGroup
 import com.threemail.android.ui.components.SettingsSwitchRow
 
 /**
- * Per-screen top-bar visibility controls. Each supported screen (Inbox,
+ * Per-screen action visibility controls. Each supported screen (Inbox,
  * Message Detail, Compose) gets its own grouped section of toggles. Hiding
- * an entry moves the action from its TopAppBar IconButton into the bar's
- * MoreVert overflow menu so the underlying feature is still reachable.
+ * an inline action moves it into the bar's MoreVert overflow menu; hiding an
+ * action that already lives in More removes it from that menu.
  *
  * Persistence is a single shared list of hidden IDs in [AppSettings.hiddenTopBarItems].
  * The screen reads it via [SettingsViewModel.settings] and writes through
@@ -127,6 +127,66 @@ fun TopBarCustomisationScreen(
                     settings = settings,
                     onToggle = viewModel::setTopBarItemHidden,
                     subtitle = stringResource(R.string.top_bar_item_trash_subtitle)
+                )
+            }
+
+            SettingsGroup(title = stringResource(R.string.top_bar_settings_selection_header), icon = Icons.Default.Inbox) {
+                Text(
+                    text = stringResource(R.string.top_bar_settings_selection_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 8.dp)
+                )
+                CardDivider()
+                TopBarToggleRow(
+                    item = TopBarItemId.SELECTION_ARCHIVE,
+                    label = stringResource(R.string.archive),
+                    settings = settings,
+                    onToggle = viewModel::setTopBarItemHidden
+                )
+                CardDivider()
+                TopBarToggleRow(
+                    item = TopBarItemId.SELECTION_MOVE,
+                    label = stringResource(R.string.move_to_folder),
+                    settings = settings,
+                    onToggle = viewModel::setTopBarItemHidden
+                )
+                CardDivider()
+                TopBarToggleRow(
+                    item = TopBarItemId.SELECTION_MARK_READ,
+                    label = stringResource(R.string.mark_selected_as_read),
+                    settings = settings,
+                    onToggle = viewModel::setTopBarItemHidden
+                )
+                CardDivider()
+                TopBarToggleRow(
+                    item = TopBarItemId.SELECTION_MARK_UNREAD,
+                    label = stringResource(R.string.mark_selected_as_unread),
+                    settings = settings,
+                    onToggle = viewModel::setTopBarItemHidden
+                )
+                CardDivider()
+                TopBarToggleRow(
+                    item = TopBarItemId.SELECTION_SELECT_ALL,
+                    label = stringResource(R.string.select_all),
+                    settings = settings,
+                    onToggle = viewModel::setTopBarItemHidden
+                )
+                CardDivider()
+                TopBarToggleRow(
+                    item = TopBarItemId.SELECTION_MARK_SPAM,
+                    label = stringResource(R.string.mark_as_spam),
+                    settings = settings,
+                    onToggle = viewModel::setTopBarItemHidden
+                )
+                CardDivider()
+                TopBarToggleRow(
+                    item = TopBarItemId.SELECTION_DELETE,
+                    label = stringResource(R.string.delete),
+                    settings = settings,
+                    onToggle = viewModel::setTopBarItemHidden
                 )
             }
 

@@ -119,6 +119,10 @@ fun ThreeMailNavHost(navController: NavHostController) {
                 // the same screen instance instead of pushing a new entry, so
                 // the back stack is uncluttered regardless of how many messages
                 // the user wipes through in a triage burst.
+                onNavigateToPrevious = { previousId ->
+                    navController.popBackStack()
+                    navController.navigate(Screen.MessageDetail.createRoute(previousId))
+                },
                 onNavigateToNext = { nextId ->
                     navController.popBackStack()
                     navController.navigate(Screen.MessageDetail.createRoute(nextId))
@@ -149,6 +153,8 @@ fun ThreeMailNavHost(navController: NavHostController) {
                 navController.getBackStackEntry(Screen.Inbox.route)
             }
             val inboxViewModel: InboxViewModel = hiltViewModel(inboxEntry)
+            val detailFolderId = entry.arguments?.getLong("folderId") ?: -1L
+            val detailUnified = entry.arguments?.getBoolean("unified") ?: false
             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                 val showMaster = maxWidth >= 840.dp
                 if (showMaster) {
@@ -173,7 +179,16 @@ fun ThreeMailNavHost(navController: NavHostController) {
                         MessageDetailScreen(
                             viewModel = hiltViewModel(),
                             onNavigateBack = { navController.popBackStack() },
-                            onNavigateToNext = { nextId -> navController.navigate(Screen.AdaptiveMessageDetail.createRoute(nextId, -1L, false)) },
+                            onNavigateToPrevious = { previousId ->
+                                navController.navigate(Screen.AdaptiveMessageDetail.createRoute(previousId, detailFolderId, detailUnified)) {
+                                    popUpTo(Screen.AdaptiveMessageDetail.route) { inclusive = true }
+                                }
+                            },
+                            onNavigateToNext = { nextId ->
+                                navController.navigate(Screen.AdaptiveMessageDetail.createRoute(nextId, detailFolderId, detailUnified)) {
+                                    popUpTo(Screen.AdaptiveMessageDetail.route) { inclusive = true }
+                                }
+                            },
                             onReply = { messageId -> navController.navigate(Screen.Compose.createRoute("reply", messageId)) },
                             onReplyAll = { messageId -> navController.navigate(Screen.Compose.createRoute("replyAll", messageId)) },
                             onForward = { messageId -> navController.navigate(Screen.Compose.createRoute("forward", messageId)) },
@@ -190,8 +205,15 @@ fun ThreeMailNavHost(navController: NavHostController) {
                     MessageDetailScreen(
                         viewModel = hiltViewModel(),
                         onNavigateBack = { navController.popBackStack() },
+                        onNavigateToPrevious = { previousId ->
+                            navController.navigate(Screen.AdaptiveMessageDetail.createRoute(previousId, detailFolderId, detailUnified)) {
+                                popUpTo(Screen.AdaptiveMessageDetail.route) { inclusive = true }
+                            }
+                        },
                         onNavigateToNext = { nextId ->
-                            navController.navigate(Screen.AdaptiveMessageDetail.createRoute(nextId, -1L, false))
+                            navController.navigate(Screen.AdaptiveMessageDetail.createRoute(nextId, detailFolderId, detailUnified)) {
+                                popUpTo(Screen.AdaptiveMessageDetail.route) { inclusive = true }
+                            }
                         },
                         onReply = { messageId -> navController.navigate(Screen.Compose.createRoute("reply", messageId)) },
                         onReplyAll = { messageId -> navController.navigate(Screen.Compose.createRoute("replyAll", messageId)) },

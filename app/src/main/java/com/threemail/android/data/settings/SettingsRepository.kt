@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -21,12 +22,12 @@ enum class SwipeAction { NONE, ARCHIVE, DELETE, TOGGLE_READ, MARK_SPAM, MOVE }
 /**
  * Where to navigate from the message-detail screen after the user deletes
  * the currently-open message. Modelled after the Outlook / Gmail choice
- * between "leave the screen" and "advance to the next message in the same
+ * between "leave the screen" and "open an adjacent email in the same
  * folder". Defaults to [RETURN_TO_LIST] for users who want a quiet exit
- * path; the more aggressive [NEXT_MESSAGE] mirrors the "swipe delete"
- * rhythm on desktop mail clients.
+ * path; the adjacent-email choices mirror the "swipe delete" rhythm on
+ * desktop mail clients.
  */
-enum class AfterDeleteNavigation { RETURN_TO_LIST, NEXT_MESSAGE }
+enum class AfterDeleteNavigation { RETURN_TO_LIST, PREVIOUS_EMAIL, NEXT_EMAIL }
 
 /** Vertical density of the message list. */
 enum class MessageDensity { COMFORTABLE, COMPACT, EXTRA_COMPACT }
@@ -39,19 +40,13 @@ data class AppSettings(
     val notificationsEnabled: Boolean = true,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val useDynamicColor: Boolean = true,
-    val emptyTrashOnLaunch: Boolean = false,
-    val emptyTrashOnQuit: Boolean = false,
     val pushEnabled: Boolean = true,
     /** Require biometric/device authentication before showing mail. */
     val biometricLockEnabled: Boolean = false,
-    /** Swipe start-to-end (left-to-right) action. */
-    val swipeRightAction: SwipeAction = SwipeAction.ARCHIVE,
+    /** Swipe start-to-end (left-to-right) action. Defaults to Move. */
+    val swipeRightAction: SwipeAction = SwipeAction.MOVE,
     /** Swipe end-to-start (right-to-left) short-swipe action. */
     val swipeLeftAction: SwipeAction = SwipeAction.DELETE,
-    /** Action used after a deliberate long right swipe. */
-    val swipeRightLongAction: SwipeAction = SwipeAction.DELETE,
-    /** Action used after a deliberate long left swipe. */
-    val swipeLeftLongAction: SwipeAction = SwipeAction.ARCHIVE,
     val messageDensity: MessageDensity = MessageDensity.COMFORTABLE,
     /** Body-preview lines shown per row (0 hides the preview). */
     val previewLines: Int = 2,
@@ -115,14 +110,13 @@ class SettingsRepository @Inject constructor(
         val NOTIFICATIONS = booleanPreferencesKey("notifications_enabled")
         val THEME = stringPreferencesKey("theme_mode")
         val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
-        val EMPTY_TRASH_ON_LAUNCH = booleanPreferencesKey("empty_trash_on_launch")
-        val EMPTY_TRASH_ON_QUIT = booleanPreferencesKey("empty_trash_on_quit")
+        // Retained only long enough for the one-time move into account rows.
+        val LEGACY_EMPTY_TRASH_ON_LAUNCH = booleanPreferencesKey("empty_trash_on_launch")
+        val LEGACY_EMPTY_TRASH_ON_QUIT = booleanPreferencesKey("empty_trash_on_quit")
         val PUSH_ENABLED = booleanPreferencesKey("push_enabled")
         val BIOMETRIC_LOCK = booleanPreferencesKey("biometric_lock_enabled")
         val SWIPE_RIGHT = stringPreferencesKey("swipe_right_action")
         val SWIPE_LEFT = stringPreferencesKey("swipe_left_action")
-        val SWIPE_RIGHT_LONG = stringPreferencesKey("swipe_right_long_action")
-        val SWIPE_LEFT_LONG = stringPreferencesKey("swipe_left_long_action")
         val MESSAGE_DENSITY = stringPreferencesKey("message_density")
         val PREVIEW_LINES = intPreferencesKey("preview_lines")
         val LOAD_IMAGES = booleanPreferencesKey("load_images")
@@ -142,18 +136,14 @@ class SettingsRepository @Inject constructor(
                     notificationsEnabled = prefs[Keys.NOTIFICATIONS] ?: true,
                     themeMode = prefs[Keys.THEME]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: ThemeMode.SYSTEM,
                     useDynamicColor = prefs[Keys.DYNAMIC_COLOR] ?: true,
-                    emptyTrashOnLaunch = prefs[Keys.EMPTY_TRASH_ON_LAUNCH] ?: false,
-                    emptyTrashOnQuit = prefs[Keys.EMPTY_TRASH_ON_QUIT] ?: false,
                     pushEnabled = prefs[Keys.PUSH_ENABLED] ?: true,
                     biometricLockEnabled = prefs[Keys.BIOMETRIC_LOCK] ?: false,
                     // Legacy prefs holding the now-removed "TOGGLE_STAR"
                     // string coerce to ARCHIVE (right) / DELETE (left) -
                     // the safe defaults. Intentional one-way migration;
                     // do not surface this as a visible error.
-                    swipeRightAction = prefs[Keys.SWIPE_RIGHT]?.let { runCatching { SwipeAction.valueOf(it) }.getOrNull() } ?: SwipeAction.ARCHIVE,
+                    swipeRightAction = prefs[Keys.SWIPE_RIGHT]?.let { runCatching { SwipeAction.valueOf(it) }.getOrNull() } ?: SwipeAction.MOVE,
                     swipeLeftAction = prefs[Keys.SWIPE_LEFT]?.let { runCatching { SwipeAction.valueOf(it) }.getOrNull() } ?: SwipeAction.DELETE,
-                    swipeRightLongAction = prefs[Keys.SWIPE_RIGHT_LONG]?.let { runCatching { SwipeAction.valueOf(it) }.getOrNull() } ?: SwipeAction.DELETE,
-                    swipeLeftLongAction = prefs[Keys.SWIPE_LEFT_LONG]?.let { runCatching { SwipeAction.valueOf(it) }.getOrNull() } ?: SwipeAction.ARCHIVE,
                     messageDensity = prefs[Keys.MESSAGE_DENSITY]?.let { runCatching { MessageDensity.valueOf(it) }.getOrNull() } ?: MessageDensity.COMFORTABLE,
                     previewLines = (prefs[Keys.PREVIEW_LINES] ?: 2).coerceIn(0, 3),
                     loadImages = prefs[Keys.LOAD_IMAGES] ?: false,
@@ -168,7 +158,12 @@ class SettingsRepository @Inject constructor(
                     // key silently; entries that fail to resolve fall back
                     // to the safe default (RETURN_TO_LIST).
                     afterDeleteNavigation = prefs[Keys.AFTER_DELETE_NAVIGATION]
-                        ?.let { runCatching { AfterDeleteNavigation.valueOf(it) }.getOrNull() }
+                        ?.let { stored ->
+                            // Keep existing users on the renamed option: the
+                            // old enum name was persisted as NEXT_MESSAGE.
+                            val migrated = if (stored == "NEXT_MESSAGE") "NEXT_EMAIL" else stored
+                            runCatching { AfterDeleteNavigation.valueOf(migrated) }.getOrNull()
+                        }
                         ?: AfterDeleteNavigation.RETURN_TO_LIST,
                     inboxLimit = prefs[Keys.INBOX_LIMIT] ?: 250,
                     inboxSort = prefs[Keys.INBOX_SORT]?.let { runCatching { MessageSort.valueOf(it) }.getOrNull() } ?: MessageSort.DATE_DESC,
@@ -182,14 +177,35 @@ class SettingsRepository @Inject constructor(
     suspend fun setNotificationsEnabled(enabled: Boolean) = dataStore.edit { it[Keys.NOTIFICATIONS] = enabled }
     suspend fun setThemeMode(mode: ThemeMode) = dataStore.edit { it[Keys.THEME] = mode.name }
     suspend fun setDynamicColor(enabled: Boolean) = dataStore.edit { it[Keys.DYNAMIC_COLOR] = enabled }
-    suspend fun setEmptyTrashOnLaunch(enabled: Boolean) = dataStore.edit { it[Keys.EMPTY_TRASH_ON_LAUNCH] = enabled }
-    suspend fun setEmptyTrashOnQuit(enabled: Boolean) = dataStore.edit { it[Keys.EMPTY_TRASH_ON_QUIT] = enabled }
+
+    /**
+     * Reads the pre-v28 global Trash switches without changing them. The
+     * application copies these values to existing mailboxes before clearing
+     * them, so users who enabled the old global setting do not lose it during
+     * the scope change.
+     */
+    suspend fun readLegacyTrashSettings(): Pair<Boolean, Boolean>? {
+        val prefs = dataStore.data.first()
+        val hasLaunch = prefs[Keys.LEGACY_EMPTY_TRASH_ON_LAUNCH] != null
+        val hasQuit = prefs[Keys.LEGACY_EMPTY_TRASH_ON_QUIT] != null
+        if (!hasLaunch && !hasQuit) return null
+        return (
+            prefs[Keys.LEGACY_EMPTY_TRASH_ON_LAUNCH] ?: false
+        ) to (
+            prefs[Keys.LEGACY_EMPTY_TRASH_ON_QUIT] ?: false
+        )
+    }
+
+    /** Remove the old global switches after account rows have been updated. */
+    suspend fun clearLegacyTrashSettings() = dataStore.edit {
+        it.remove(Keys.LEGACY_EMPTY_TRASH_ON_LAUNCH)
+        it.remove(Keys.LEGACY_EMPTY_TRASH_ON_QUIT)
+    }
+
     suspend fun setPushEnabled(enabled: Boolean) = dataStore.edit { it[Keys.PUSH_ENABLED] = enabled }
     suspend fun setBiometricLockEnabled(enabled: Boolean) = dataStore.edit { it[Keys.BIOMETRIC_LOCK] = enabled }
     suspend fun setSwipeRightAction(action: SwipeAction) = dataStore.edit { it[Keys.SWIPE_RIGHT] = action.name }
     suspend fun setSwipeLeftAction(action: SwipeAction) = dataStore.edit { it[Keys.SWIPE_LEFT] = action.name }
-    suspend fun setSwipeRightLongAction(action: SwipeAction) = dataStore.edit { it[Keys.SWIPE_RIGHT_LONG] = action.name }
-    suspend fun setSwipeLeftLongAction(action: SwipeAction) = dataStore.edit { it[Keys.SWIPE_LEFT_LONG] = action.name }
     suspend fun setMessageDensity(density: MessageDensity) = dataStore.edit { it[Keys.MESSAGE_DENSITY] = density.name }
     suspend fun setPreviewLines(lines: Int) = dataStore.edit { it[Keys.PREVIEW_LINES] = lines.coerceIn(0, 3) }
     suspend fun setLoadImages(enabled: Boolean) = dataStore.edit { it[Keys.LOAD_IMAGES] = enabled }

@@ -242,11 +242,11 @@ class MailRepository @Inject constructor(
         else -> flowOf(emptyList())
     }
 
-    suspend fun findNextMessageIdInFolder(folderId: Long, currentMessageId: Long): Long? {
+    suspend fun findAdjacentMessageIdsInFolder(folderId: Long, currentMessageId: Long): Pair<Long?, Long?> {
         val messages = getMessagesOnce(folderId).sortedByDescending { it.date }
         val index = messages.indexOfFirst { it.id == currentMessageId }
-        return if (index == -1 || index + 1 >= messages.size) null
-        else messages[index + 1].id
+        if (index < 0) return null to null
+        return messages.getOrNull(index - 1)?.id to messages.getOrNull(index + 1)?.id
     }
 
     /**

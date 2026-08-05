@@ -680,6 +680,20 @@ val MIGRATION_26_27: Migration = object : Migration(26, 27) {
 }
 
 /**
+ * Moves Trash cleanup preferences from the global DataStore to each mailbox.
+ * Existing accounts default to disabled, preserving the previous effective
+ * behavior for users who had not enabled the old global switches. The old
+ * DataStore keys are intentionally ignored after this migration; account
+ * settings are now the single source of truth.
+ */
+val MIGRATION_27_28: Migration = object : Migration(27, 28) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE accounts ADD COLUMN emptyTrashOnLaunch INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE accounts ADD COLUMN emptyTrashOnQuit INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
+/**
  * Idempotently creates the FTS4 virtual table, the keep-in-sync triggers and an
  * initial backfill.  All statements use IF NOT EXISTS so a partial state can be
  * resumed without crashing; the backfill is a no-op on empty `messages`.

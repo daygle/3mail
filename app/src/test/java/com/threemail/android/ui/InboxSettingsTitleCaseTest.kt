@@ -120,11 +120,45 @@ class InboxSettingsTitleCaseTest {
     }
 
     @Test
+    fun inbox_selection_overflow_mark_selected_as_read_renders_title_case() {
+        composeTestRule.setContent {
+            MaterialTheme { StaticLabelPreview(labelId = R.string.mark_selected_as_read) }
+        }
+        assertTextVisible("Mark Selected As Read")
+    }
+
+    @Test
+    fun inbox_selection_overflow_mark_selected_as_unread_renders_title_case() {
+        composeTestRule.setContent {
+            MaterialTheme { StaticLabelPreview(labelId = R.string.mark_selected_as_unread) }
+        }
+        assertTextVisible("Mark Selected As Unread")
+    }
+
+    @Test
     fun inbox_selection_overflow_mark_unread_renders_title_case() {
         composeTestRule.setContent {
             MaterialTheme { StaticLabelPreview(labelId = R.string.mark_unread) }
         }
         assertTextVisible("Mark Unread")
+    }
+
+    @Test
+    fun long_press_selection_action_labels_render_title_case() {
+        composeTestRule.setContent {
+            MaterialTheme {
+                androidx.compose.foundation.layout.Column {
+                    StaticLabelPreview(labelId = R.string.archive)
+                    StaticLabelPreview(labelId = R.string.move_to_folder)
+                    StaticLabelPreview(labelId = R.string.mark_as_spam)
+                    StaticLabelPreview(labelId = R.string.delete)
+                }
+            }
+        }
+        assertTextVisible("Archive")
+        assertTextVisible("Move")
+        assertTextVisible("Mark Spam")
+        assertTextVisible("Delete")
     }
 
     @Test
@@ -234,6 +268,22 @@ class AccountFolderRolesVisibilityTest {
         }
         // Gmail is filtered out before the section even enters composition.
         composeTestRule.onAllNodesWithText("Folder Roles").assertCountEquals(0)
+    }
+
+    @Test
+    fun after_moving_deleting_labels_render_email_wording() {
+        composeTestRule.setContent {
+            MaterialTheme {
+                androidx.compose.foundation.layout.Column {
+                    StaticLabelPreview(labelId = R.string.reading_after_delete_return_to_list)
+                    StaticLabelPreview(labelId = R.string.reading_after_delete_previous_email)
+                    StaticLabelPreview(labelId = R.string.reading_after_delete_next_email)
+                }
+            }
+        }
+        assertTextVisible("Return To Inbox")
+        assertTextVisible("Open Previous Email")
+        assertTextVisible("Open Next Email")
     }
 
     @Test

@@ -653,6 +653,42 @@ class MigrationsTest {
     }
 
     @Test
+    fun `migration 27 to 28 adds per-account trash settings disabled by default`() {
+        val context = RuntimeEnvironment.getApplication() as Context
+        val db = openWithCallback(context, 27) {
+            "CREATE TABLE accounts (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "email TEXT NOT NULL)"
+        }
+        try {
+            db.execSQL("INSERT INTO accounts (email) VALUES ('one@example.com')")
+            db.execSQL("INSERT INTO accounts (email) VALUES ('two@example.com')")
+
+            MIGRATION_27_28.migrate(db)
+
+            val columns = mutableSetOf<String>()
+            db.query("PRAGMA table_info(accounts)").use { cursor ->
+                val nameIdx = cursor.getColumnIndexOrThrow("name")
+                while (cursor.moveToNext()) columns.add(cursor.getString(nameIdx))
+            }
+            assertTrue(columns.contains("emptyTrashOnLaunch"))
+            assertTrue(columns.contains("emptyTrashOnQuit"))
+            db.query(
+                "SELECT emptyTrashOnLaunch, emptyTrashOnQuit FROM accounts ORDER BY id"
+            ).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(0, cursor.getInt(0))
+                assertEquals(0, cursor.getInt(1))
+                assertTrue(cursor.moveToNext())
+                assertEquals(0, cursor.getInt(0))
+                assertEquals(0, cursor.getInt(1))
+            }
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
     fun `migration 24 to 25 splits outgoing security and adds username columns`() {
         val db = openV24Database()
         try {
