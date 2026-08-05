@@ -35,23 +35,31 @@ jobs:
         with:
           gradle-version: "9.6.1"
 
-      - name: Run unit tests
-        run: ./gradlew testDebugUnitTest --stacktrace
-
-      - name: Assemble debug APK
-        run: ./gradlew assembleDebug --stacktrace
-
-      # Compile + package the instrumented-test APK on every PR so a broken
-      # androidTest source surfaces here, without waiting for the emulator
-      # job (which only runs on pushes to main).
-      - name: Assemble instrumented-test APK
-        run: ./gradlew assembleDebugAndroidTest --stacktrace
-
-      # Android lint gates the build: the report is clean (0 errors), so any
-      # newly introduced lint error should turn CI red. lintDebug aborts on
-      # errors by default; warnings/hints do not fail the build.
-      - name: Android lint
-        run: ./gradlew lintDebug --stacktrace
+      # Run all four gates in a single Gradle invocation with --continue so
+      # every independent failure is reported in one CI run instead of the
+      # first one masking the rest. Previously these were four separate steps;
+      # because a failed step aborts the job, a unit-test failure hid the
+      # assemble and lint results and each fix only surfaced the next problem
+      # on the following push. --continue keeps going past a failed task to
+      # attempt the other requested tasks (a task still blocks its own
+      # downstream tasks). Covered here:
+      #   - testDebugUnitTest: unit tests
+      #   - assembleDebug: the debug APK build
+      #   - assembleDebugAndroidTest: compile + package the instrumented-test
+      #     APK on every PR so a broken androidTest source surfaces here,
+      #     without waiting for the emulator job (which only runs on pushes to
+      #     main)
+      #   - lintDebug: Android lint gates the build; the report is clean
+      #     (0 errors), so any newly introduced lint error turns CI red.
+      #     lintDebug aborts on errors by default; warnings/hints do not fail.
+      - name: Build, unit test & lint
+        run: >-
+          ./gradlew
+          testDebugUnitTest
+          assembleDebug
+          assembleDebugAndroidTest
+          lintDebug
+          --continue --stacktrace
 
       # Lint's console output only details the first failure; dump the full
       # text report so every finding is visible in the log without having to
