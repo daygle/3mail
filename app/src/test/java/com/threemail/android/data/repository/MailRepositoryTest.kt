@@ -170,8 +170,10 @@ class MailRepositoryTest {
             11L to 13L,
             repository.findAdjacentMessageIdsInFolder(folderId, 12L)
         )
-        assertEquals(null to 13L, repository.findAdjacentMessageIdsInFolder(folderId, 11L))
-        assertEquals(11L to null, repository.findAdjacentMessageIdsInFolder(folderId, 13L))
+        // 11 is the newest: no newer neighbor, and its immediate older is 12.
+        assertEquals(null to 12L, repository.findAdjacentMessageIdsInFolder(folderId, 11L))
+        // 13 is the oldest: its immediate newer is 12, and no older neighbor.
+        assertEquals(12L to null, repository.findAdjacentMessageIdsInFolder(folderId, 13L))
     }
 
     @Test

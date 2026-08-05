@@ -217,6 +217,22 @@ class InboxSettingsTitleCaseTest {
         assertTextVisible("Insert Image")
     }
 
+    @Test
+    fun after_moving_deleting_labels_render_email_wording() {
+        composeTestRule.setContent {
+            MaterialTheme {
+                androidx.compose.foundation.layout.Column {
+                    StaticLabelPreview(labelId = R.string.reading_after_delete_return_to_list)
+                    StaticLabelPreview(labelId = R.string.reading_after_delete_previous_email)
+                    StaticLabelPreview(labelId = R.string.reading_after_delete_next_email)
+                }
+            }
+        }
+        assertTextVisible("Return To Inbox")
+        assertTextVisible("Open Previous Email")
+        assertTextVisible("Open Next Email")
+    }
+
     /**
      * Asserts the given text appears at least once in the rendered tree.
      * Uses composeTestRule.onAllNodesWithText which is set-aware of stub /
@@ -268,22 +284,6 @@ class AccountFolderRolesVisibilityTest {
         }
         // Gmail is filtered out before the section even enters composition.
         composeTestRule.onAllNodesWithText("Folder Roles").assertCountEquals(0)
-    }
-
-    @Test
-    fun after_moving_deleting_labels_render_email_wording() {
-        composeTestRule.setContent {
-            MaterialTheme {
-                androidx.compose.foundation.layout.Column {
-                    StaticLabelPreview(labelId = R.string.reading_after_delete_return_to_list)
-                    StaticLabelPreview(labelId = R.string.reading_after_delete_previous_email)
-                    StaticLabelPreview(labelId = R.string.reading_after_delete_next_email)
-                }
-            }
-        }
-        assertTextVisible("Return To Inbox")
-        assertTextVisible("Open Previous Email")
-        assertTextVisible("Open Next Email")
     }
 
     @Test
