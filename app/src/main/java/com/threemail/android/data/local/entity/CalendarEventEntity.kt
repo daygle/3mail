@@ -18,7 +18,7 @@ import androidx.room.PrimaryKey
  * Both FKs cascade so removing an account or a source drops its cached
  * events. The `(accountId, calendarId, eventId)` unique index only guards
  * Google rows (SQLite treats NULL as distinct in unique indexes, which is
- * what we want — ICS refreshes replace a source's rows wholesale instead
+ * what we want - ICS refreshes replace a source's rows wholesale instead
  * of upserting).
  */
 @Entity(

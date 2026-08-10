@@ -89,7 +89,7 @@ object FolderPaths {
 
     /**
      * True when [candidateParentServerId] is [folderServerId] itself or one of
-     * its descendants — the two illegal move destinations (a folder can't be
+     * its descendants - the two illegal move destinations (a folder can't be
      * moved inside its own subtree).
      */
     fun isSelfOrDescendant(

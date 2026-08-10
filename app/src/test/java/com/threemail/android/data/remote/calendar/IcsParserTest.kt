@@ -238,7 +238,7 @@ class IcsParserTest {
                     "RRULE:FREQ=DAILY"
                 )
             ),
-            // Narrow one-week window in 2026 — over 2900 days after DTSTART.
+            // Narrow one-week window in 2026 - over 2900 days after DTSTART.
             utcMs(2026, 3, 2), utcMs(2026, 3, 9), utc
         )
         assertEquals(7, events.size)

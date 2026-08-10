@@ -50,7 +50,7 @@ class CalendarEventViewModel @Inject constructor(
 
     /**
      * The Room row backing edit mode, kept so a CalDAV save can carry the
-     * object's href / iCalUID / etag through unchanged — the form only edits
+     * object's href / iCalUID / etag through unchanged - the form only edits
      * the user-visible fields.
      */
     private var loadedEvent: CalendarEvent? = null

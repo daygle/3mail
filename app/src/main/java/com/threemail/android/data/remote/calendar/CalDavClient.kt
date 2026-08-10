@@ -35,7 +35,7 @@ import javax.xml.parsers.DocumentBuilderFactory
  *    concurrent server-side edit fails loudly instead of being clobbered.
  *
  * OkHttp rather than HttpURLConnection because the JDK client rejects
- * WebDAV verbs (`PROPFIND`, `REPORT`). Auth is HTTP Basic per request —
+ * WebDAV verbs (`PROPFIND`, `REPORT`). Auth is HTTP Basic per request -
  * CalDAV servers (Nextcloud, Fastmail, Radicale, Baïkal…) expect exactly
  * that over TLS, usually with an app password.
  */
@@ -79,7 +79,7 @@ class CalDavClient @Inject constructor() {
         val auth = Credentials.basic(username, password)
 
         // Fallbacks may probe URLs that legitimately 404/405, but a bad
-        // login fails every step identically — surface it immediately.
+        // login fails every step identically - surface it immediately.
         fun <T> Result<T>.orNullUnlessAuth(): T? =
             getOrElse { if (it is CalDavAuthException) throw it else null }
 
@@ -212,7 +212,7 @@ class CalDavClient @Inject constructor() {
                 response.code == 412 -> throw CalDavException(
                     "The event changed on the server; refresh and try again"
                 )
-                // 404: already gone — deleting twice shouldn't error out.
+                // 404: already gone - deleting twice shouldn't error out.
                 !response.isSuccessful && response.code != 404 -> throw CalDavException(
                     "Deleting failed: HTTP ${response.code}"
                 )
@@ -306,7 +306,7 @@ class CalDavClient @Inject constructor() {
     /* ---------- XML helpers ---------- */
 
     /**
-     * Namespace-aware DocumentBuilder hardened against XXE — the XML comes
+     * Namespace-aware DocumentBuilder hardened against XXE - the XML comes
      * from a server the user is only beginning to trust.
      */
     private fun parseXml(xml: String): Document {

@@ -34,7 +34,7 @@ data class CalendarEvent(
     /**
      * Google events are editable; standalone-source events only when the
      * source protocol can write back (CalDAV single-instance objects, which
-     * carry their href in [eventId] — ICS feeds and recurring CalDAV
+     * carry their href in [eventId] - ICS feeds and recurring CalDAV
      * expansions leave it null and stay read-only).
      */
     val isEditable: Boolean

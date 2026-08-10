@@ -20,7 +20,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Standalone calendar subscriptions (ICS feeds today, CalDAV later) —
+ * Standalone calendar subscriptions (ICS feeds today, CalDAV later) -
  * the calendars that exist without a signed-in mail account.
  *
  * Mirrors [CalendarRepository]'s local-first shape: Room is the source of
@@ -91,7 +91,7 @@ class CalendarSourceRepository @Inject constructor(
 
     /**
      * Adds one source per picked CalDAV collection and pulls its default
-     * event window. The password stays in the entity — the domain model
+     * event window. The password stays in the entity - the domain model
      * never carries it.
      */
     suspend fun addCalDavSources(
@@ -283,7 +283,7 @@ class CalendarSourceRepository @Inject constructor(
                 sourceId = sourceId,
                 // Marker id: stable per-source colour hashing in the UI.
                 calendarId = "source:$sourceId",
-                // eventId deliberately null — it is the "remotely editable"
+                // eventId deliberately null - it is the "remotely editable"
                 // signal throughout the UI, and ICS caches are read-only.
                 eventId = null,
                 iCalUID = parsed.uid,

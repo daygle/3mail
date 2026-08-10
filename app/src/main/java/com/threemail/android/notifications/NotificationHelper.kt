@@ -188,7 +188,7 @@ class NotificationHelper @Inject constructor(
             val subject = message.subject.ifBlank {
                 context.getString(R.string.notification_no_subject)
             }
-            inbox.addLine("$sender — $subject")
+            inbox.addLine("$sender - $subject")
         }
         return NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)

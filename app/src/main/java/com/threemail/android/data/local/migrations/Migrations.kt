@@ -518,7 +518,7 @@ val MIGRATION_21_22: Migration = object : Migration(21, 22) {
  *  1. Creates the `calendar_sources` table backing
  *     [com.threemail.android.data.local.entity.CalendarSourceEntity].
  *  2. Rebuilds `calendar_events` so `accountId` becomes nullable and a
- *     nullable `sourceId` FK onto `calendar_sources` is added — a cached
+ *     nullable `sourceId` FK onto `calendar_sources` is added - a cached
  *     event now belongs to either a Google account or a standalone source.
  *     SQLite can't relax NOT NULL or add an FK via ALTER, so this is the
  *     standard create-copy-drop-rename dance; the four indices are

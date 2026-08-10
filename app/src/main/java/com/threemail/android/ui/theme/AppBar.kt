@@ -19,7 +19,7 @@ val AppBarGreyLight = Color(0xFFF1F3F4)
 val AppBarGreyDark = Color(0xFF2B2D31)
 
 /**
- * Shared [TopAppBarColors] for the app's standard top bars. Kept flat — the
+ * Shared [TopAppBarColors] for the app's standard top bars. Kept flat - the
  * scrolled colour matches the resting colour so the bar stays an even grey
  * rather than tinting as content scrolls under it. Darkness is inferred from
  * the active scheme so it tracks the System / Light / Dark theme and dynamic

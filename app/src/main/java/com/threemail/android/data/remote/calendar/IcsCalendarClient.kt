@@ -10,8 +10,8 @@ import javax.inject.Singleton
 /**
  * Fetches raw iCalendar payloads for standalone ICS subscriptions.
  *
- * `webcal://` (and `webcals://`) links — the de-facto "subscribe to this
- * calendar" scheme used by Apple, Outlook, sports-fixture sites, etc. —
+ * `webcal://` (and `webcals://`) links - the de-facto "subscribe to this
+ * calendar" scheme used by Apple, Outlook, sports-fixture sites, etc. -
  * are plain HTTPS underneath, so they're rewritten before fetching.
  * Responses are capped at [MAX_BODY_BYTES] so a mistyped URL pointing at
  * some huge binary can't balloon memory.

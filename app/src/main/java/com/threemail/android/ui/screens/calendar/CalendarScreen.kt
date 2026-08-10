@@ -90,7 +90,7 @@ fun CalendarScreen(
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     // Read-only detail for events cached from a standalone subscription
-    // (ICS feeds have no edit surface — there is nothing to write back to).
+    // (ICS feeds have no edit surface - there is nothing to write back to).
     var sourceDetailEvent by remember {
         mutableStateOf<com.threemail.android.domain.model.CalendarEvent?>(null)
     }

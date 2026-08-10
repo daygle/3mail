@@ -40,7 +40,7 @@ private const val OVERFLOW_DAYS = 7
  * Aggregates two event feeds onto one 6-week grid window:
  *  - every active Gmail account with `calendarSyncEnabled` (via
  *    [CalendarRepository]), and
- *  - every visible standalone subscription — ICS feeds — (via
+ *  - every visible standalone subscription - ICS feeds - (via
  *    [CalendarSourceRepository]).
  *
  * The optional filter narrows to a single account or a single source;

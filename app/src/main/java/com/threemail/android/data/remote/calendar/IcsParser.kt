@@ -28,7 +28,7 @@ import java.time.temporal.TemporalAdjusters
  *
  * Known limitations (documented, acceptable for subscription feeds):
  *  - `BYDAY` with ordinals (e.g. `2SU` in MONTHLY rules), `BYMONTH`,
- *    `BYSETPOS` are not expanded — such rules fall back to their simple
+ *    `BYSETPOS` are not expanded - such rules fall back to their simple
  *    frequency stepping
  *  - `RECURRENCE-ID` per-instance overrides are ignored (the instance
  *    renders at its original slot); `EXDATE`-style cancellations work
@@ -406,7 +406,7 @@ object IcsParser {
         var emittedOrSkipped = 0
 
         // For unbounded rules (no COUNT) we can skip whole intervals that end
-        // before the window instead of stepping one occurrence at a time —
+        // before the window instead of stepping one occurrence at a time -
         // otherwise a daily event with a years-old DTSTART would burn the
         // MAX_OCCURRENCES budget before reaching today. COUNT rules must step
         // from DTSTART because every generated instance consumes the count.

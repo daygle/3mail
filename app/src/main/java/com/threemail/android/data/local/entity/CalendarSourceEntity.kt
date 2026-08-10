@@ -4,7 +4,7 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 /**
- * Room row for one standalone calendar source — a calendar the user
+ * Room row for one standalone calendar source - a calendar the user
  * subscribed to that is NOT backed by a signed-in mail account (mirrors the
  * domain [com.threemail.android.domain.model.CalendarSource]).
  *
