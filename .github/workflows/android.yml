@@ -6,6 +6,12 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Least-privilege token for the whole workflow: every step (checkout,
+# upload-artifact, emulator runner) only reads repository contents - nothing
+# here pushes, creates releases, or calls the API with write access.
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
