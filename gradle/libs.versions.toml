@@ -36,7 +36,7 @@ ksp = "2.3.10"
 # line in app/build.gradle.kts - we use the JDK18-on builds because the JDK17
 # flavour stopped receiving public updates for the 1.78 line.
 bcpg = "1.85"
-bcprov = "1.85"
+bcprov = "1.85.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
