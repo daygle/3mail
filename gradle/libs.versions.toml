@@ -28,7 +28,7 @@ splashscreen = "1.2.0"
 robolectric = "4.16.1"
 biometric = "1.1.0"
 androidxTestCore = "1.7.0"
-ksp = "2.3.10"
+ksp = "2.3.11"
 # Bouncy Castle for the in-app OpenKeychain-equivalent OpenPGP path.
 # bcprov-jdk18on holds the JCE provider; bcpg-jdk18on holds the OpenPGP
 # packet code (PgpPublicKey, PgpEncryptedDataGenerator, PgpSignatureGenerator,
