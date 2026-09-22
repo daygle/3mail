@@ -23,12 +23,12 @@ calendarApi = "v3-rev20260708-2.0.0"
 coil = "3.6.2"
 okhttp = "5.5.0"
 credentials = "1.6.0"
-googleid = "1.2.0"
+googleid = "1.2.1"
 splashscreen = "1.2.0"
 robolectric = "4.16.1"
 biometric = "1.1.0"
 androidxTestCore = "1.7.0"
-ksp = "2.3.11"
+ksp = "2.3.12"
 # Bouncy Castle for the in-app OpenKeychain-equivalent OpenPGP path.
 # bcprov-jdk18on holds the JCE provider; bcpg-jdk18on holds the OpenPGP
 # packet code (PgpPublicKey, PgpEncryptedDataGenerator, PgpSignatureGenerator,
