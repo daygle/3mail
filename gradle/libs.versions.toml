@@ -35,7 +35,7 @@ ksp = "2.3.11"
 # etc.) used by OpenPgpController. JDK 18+ reflects the project jvmTarget = 17
 # line in app/build.gradle.kts - we use the JDK18-on builds because the JDK17
 # flavour stopped receiving public updates for the 1.78 line.
-bcpg = "1.85"
+bcpg = "1.86"
 bcprov = "1.85.2"
 
 [libraries]
