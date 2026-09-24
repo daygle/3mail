@@ -120,6 +120,11 @@ The fix, [`sync/ThreeMailWorkerFactory.kt`](app/src/main/java/com/threemail/andr
 - `./gradlew connectedDebugAndroidTest --stacktrace` runs the instrumented Compose UI smoke suite (`app/src/androidTest/java/com/threemail/android/ui/InboxSettingsTitleCaseDeviceTest.kt`)
 - Uploads the connected-test report as a workflow artifact
 
+**`CodeQL`** ([`.github/workflows/codeql.yml`](.github/workflows/codeql.yml)):
+
+- Runs the java-kotlin CodeQL analysis on every push to `main`, every PR, and a weekly schedule, using **`build-mode: none`** extraction (no Gradle build required).
+- Uses advanced setup with the codeql-action release `codeql-bundle-v2.27.1` instead of GitHub's default setup. Default setup still served CodeQL 2.27.0, whose Kotlin extractor aborts on Kotlin 2.4.20 with `KotlinVersionTooRecentError` ([github/codeql#22381](https://github.com/github/codeql/issues/22381)); Kotlin 2.4.20 support landed in CodeQL 2.27.1. Once default setup reliably serves ≥ 2.27.1, this workflow can be deleted and default setup re-enabled in **Settings → Code security**.
+
 ## License
 
 Licensed under the MIT License - see [`LICENSE`](LICENSE) at the repo root. Copyright © 2026 daygle.

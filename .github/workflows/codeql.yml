@@ -1,0 +1,55 @@
+name: CodeQL
+
+# Default-setup CodeQL (GitHub-managed, dynamic workflow) fails on this repo:
+# its bundle still ships CodeQL 2.27.0, whose Kotlin extractor hard-fails on
+# Kotlin 2.4.20 with `KotlinVersionTooRecentError` (see github/codeql#22381).
+# Kotlin 2.4.20 support landed in CodeQL 2.27.1, and the codeql-action release
+# `codeql-bundle-v2.27.1` pins that bundle, so run CodeQL here via advanced
+# setup instead of waiting on GitHub's default-setup rollout. Once default
+# setup reliably serves >= 2.27.1, this file can be deleted and default setup
+# re-enabled in Settings -> Code security.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly, matching the previous default-setup cadence.
+    - cron: "0 18 * * 3"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (java-kotlin)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # No Gradle/Android SDK steps are needed: with build-mode: none the
+      # extractor parses the Kotlin/Java sources directly instead of running a
+      # full Gradle build, which is exactly what bypasses the Kotlin version
+      # check that aborts inside a real kotlinc invocation.
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@codeql-bundle-v2.27.1
+        with:
+          languages: java-kotlin
+          build-mode: none
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@codeql-bundle-v2.27.1
+        with:
+          category: "/language:java-kotlin"
