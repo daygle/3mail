@@ -1,13 +1,32 @@
 name: CodeQL
 
-# Default-setup CodeQL (GitHub-managed, dynamic workflow) fails on this repo:
-# its bundle still ships CodeQL 2.27.0, whose Kotlin extractor hard-fails on
-# Kotlin 2.4.20 with `KotlinVersionTooRecentError` (see github/codeql#22381).
-# Kotlin 2.4.20 support landed in CodeQL 2.27.1, and the codeql-action release
-# `codeql-bundle-v2.27.1` pins that bundle, so run CodeQL here via advanced
-# setup instead of waiting on GitHub's default-setup rollout. Once default
-# setup reliably serves >= 2.27.1, this file can be deleted and default setup
-# re-enabled in Settings -> Code security.
+# GitHub's default setup serves CodeQL 2.27.0, whose Kotlin extractor hard-fails
+# on Kotlin 2.4.20 (KotlinVersionTooRecentError, github/codeql#22381). Kotlin
+# 2.4.20 support landed in CodeQL 2.27.1, and codeql-action@v4 ships 2.27.1 as
+# its default bundle - so we run CodeQL via advanced setup on @v4 instead of
+# waiting on GitHub's default-setup rollout. If default setup ever serves
+# >= 2.27.1, this file can be deleted and default setup re-enabled in
+# Settings -> Code security.
+#
+# Two things about advanced setup are easy to get wrong, and both were wrong
+# here at once (every run of this workflow failed; see PRs #74-#77):
+#
+#   1. build-mode must NOT be `none`. `none` is only supported for Java - when
+#      Kotlin sources are present the extractor is never invoked and the
+#      database finalize step dies with exit 32:
+#        "CodeQL detected code written in Java/Kotlin but could not process any
+#         of it using the 'none' build mode."
+#      This app is Kotlin + Compose, so `none` can never work here. `manual`
+#      runs a real Gradle build, which is what actually invokes the extractor.
+#      (Default setup avoided this because it auto-detects and runs Gradle.)
+#
+#   2. The action must be referenced by MAJOR tag (@v4). Pinning to
+#      `github/codeql-action/init@codeql-bundle-v2.27.1` looks like a stricter
+#      pin but is not: that tag ships no feature-flags.yml, so no default CLI
+#      version is set and the action silently falls back to the CLI it bundles
+#      (2.27.0) - the exact version this file exists to avoid. It logged
+#      "Falling back to the CLI version shipped with the Action. This is
+#      2.27.0" and ran from /opt/hostedtoolcache/CodeQL/2.27.0/.
 on:
   push:
     branches: [main]
@@ -19,6 +38,9 @@ on:
 
 permissions:
   contents: read
+  # analyze uploads the SARIF results. Without this the upload is rejected with
+  # "Resource not accessible by integration" and the step fails.
+  security-events: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -28,7 +50,9 @@ jobs:
   analyze:
     name: Analyze (java-kotlin)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # A real Gradle build plus a full java-kotlin database creation is the slow
+    # part; 45 is a deliberate ceiling so a hung build fails fast.
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -39,17 +63,31 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      # No Gradle/Android SDK steps are needed: with build-mode: none the
-      # extractor parses the Kotlin/Java sources directly instead of running a
-      # full Gradle build, which is exactly what bypasses the Kotlin version
-      # check that aborts inside a real kotlinc invocation.
+      # local.properties is checked in with a developer-specific (Windows)
+      # sdk.dir, so point it at the runner's SDK instead of the committed value.
+      - name: Configure Android SDK path
+        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+
+      # No gradle-version pin here on purpose: use the committed wrapper so
+      # CodeQL analyses the same Gradle the repo actually builds with. (Note
+      # android.yml pins 9.6.1 and therefore ignores the wrapper, which is why
+      # the gradle-wrapper bump in PR #77 is not covered by that job.)
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@codeql-bundle-v2.27.1
+        uses: github/codeql-action/init@v4
         with:
           languages: java-kotlin
-          build-mode: none
+          build-mode: manual
+
+      # assembleDebug is the cheapest task set that reaches
+      # :app:compileDebugKotlin, and that is the task the Kotlin extractor
+      # hooks into - a no-op build would produce an empty database.
+      - name: Build
+        run: ./gradlew assembleDebug --stacktrace
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@codeql-bundle-v2.27.1
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:java-kotlin"
