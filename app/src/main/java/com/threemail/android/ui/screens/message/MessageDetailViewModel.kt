@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.threemail.android.util.SafeFileName
 import java.io.File
 import javax.inject.Inject
 
@@ -544,7 +545,9 @@ class MessageDetailViewModel @Inject constructor(
                     return@launch
                 }
                 val destDir = File(context.cacheDir, "attachments").apply { mkdirs() }
-                val destFile = File(destDir, attachment.fileName)
+                // attachment.fileName comes straight from the sender's MIME
+                // headers, so it must not be trusted as a path.
+                val destFile = SafeFileName.resolveInside(destDir, attachment.fileName, fallback = "attachment")
                 val remote = mailRemoteFactory.create(account)
                 remote.downloadAttachment(folder, message, attachment, destFile)
                     .onSuccess { file ->

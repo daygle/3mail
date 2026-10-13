@@ -81,6 +81,7 @@ import com.threemail.android.ui.screens.settings.SettingsViewModel
 import com.threemail.android.domain.model.Attachment
 import com.threemail.android.domain.model.Contact
 import com.threemail.android.util.RichTextFormatter
+import com.threemail.android.util.SafeFileName
 import com.threemail.android.util.TextEdit
 import java.io.File
 import java.util.UUID
@@ -631,15 +632,9 @@ private fun copyBytes(context: Context, uri: Uri, subdir: String): CopiedFile? {
             }
         }
         val outDir = File(context.cacheDir, subdir).apply { mkdirs() }
-        // Sanitize the ContentProvider-supplied display name: strip any path
-        // components and reject traversal segments ("." / "..") so a malicious
-        // provider can't escape the cache subdir. Pure string ops (no File(name))
-        // so we never build a File from the raw, unsanitized value.
-        val safeName = name
-            .substringAfterLast('/')
-            .substringAfterLast('\\')
-            .let { if (it.isBlank() || it == "." || it == "..") "file" else it }
-        val outFile = File(outDir, safeName)
+        // The ContentProvider-supplied display name is untrusted: a malicious
+        // provider could use "../" segments to escape the cache subdir.
+        val outFile = SafeFileName.resolveInside(outDir, name)
         resolver.openInputStream(uri)?.use { input ->
             outFile.outputStream().use { output -> input.copyTo(output) }
         } ?: return null

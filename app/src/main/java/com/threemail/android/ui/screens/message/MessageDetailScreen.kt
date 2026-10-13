@@ -860,6 +860,8 @@ class SafeWebView(
     init {
         settings.javaScriptEnabled = false
         settings.domStorageEnabled = false
+        settings.allowFileAccess = false
+        settings.allowContentAccess = false
         settings.setSupportZoom(true)
         settings.builtInZoomControls = true
         settings.displayZoomControls = false

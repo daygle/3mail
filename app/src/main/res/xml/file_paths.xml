@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
+    <!-- Only downloaded attachments are ever shared (MessageDetailScreen's
+         "open with" chooser). Don't expose filesDir: it holds the PGP keyring. -->
     <cache-path name="attachments" path="attachments/" />
-    <files-path name="files" path="." />
 </paths>
