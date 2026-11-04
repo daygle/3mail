@@ -192,3 +192,47 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 }
+
+// Robolectric's android-all framework jar, resolved by Gradle instead of by
+// Robolectric at test runtime.
+//
+// By default Robolectric downloads this ~150 MB jar itself, from inside the
+// test JVM, straight from repo1.maven.org - outside Gradle's dependency cache
+// (so CI's setup-gradle cache never keeps it) and with no retry. Maven Central
+// rate-limits that with HTTP 429, which failed every Robolectric test class
+// at once ("Failed to fetch maven artifact
+// org.robolectric:android-all-instrumented:..."). Resolving it here goes
+// through Gradle's repositories, retries and cache, and the test task then
+// runs Robolectric in offline mode against the resolved copy.
+//
+// The coordinate must match what Robolectric asks for: SDK 34 (pinned in
+// src/test/resources/robolectric.properties), the Robolectric build of that
+// SDK, and the pre-instrumentation version ("-i7" for Robolectric 4.17). When
+// bumping Robolectric or the sdk= pin, take the new value from Robolectric's
+// DefaultSdkProvider (or from the "Failed to fetch" message an offline run
+// prints).
+val robolectricAndroidAll: Configuration by configurations.creating {
+    isCanBeConsumed = false
+    isTransitive = false
+}
+
+dependencies {
+    robolectricAndroidAll("org.robolectric:android-all-instrumented:14-robolectric-10818077-i7")
+}
+
+val robolectricJarsDir = layout.buildDirectory.dir("robolectric-jars")
+
+val syncRobolectricJars by tasks.registering(Sync::class) {
+    from(robolectricAndroidAll)
+    into(robolectricJarsDir)
+}
+
+tasks.withType<Test>().configureEach {
+    dependsOn(syncRobolectricJars)
+    inputs.files(robolectricAndroidAll).withPropertyName("robolectricAndroidAll")
+    systemProperty("robolectric.offline", "true")
+    systemProperty(
+        "robolectric.dependency.dir",
+        robolectricJarsDir.get().asFile.absolutePath,
+    )
+}
