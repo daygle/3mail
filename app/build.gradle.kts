@@ -217,7 +217,7 @@ val robolectricAndroidAll: Configuration by configurations.creating {
 }
 
 dependencies {
-    robolectricAndroidAll("org.robolectric:android-all-instrumented:14-robolectric-10818077-i7")
+    robolectricAndroidAll("org.robolectric:android-all-instrumented:17-robolectric-16653203-i7")
 }
 
 val robolectricJarsDir = layout.buildDirectory.dir("robolectric-jars")
