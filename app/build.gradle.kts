@@ -210,7 +210,12 @@ dependencies {
 // SDK, and the pre-instrumentation version ("-i7" for Robolectric 4.17). When
 // bumping Robolectric or the sdk= pin, take the new value from Robolectric's
 // DefaultSdkProvider (or from the "Failed to fetch" message an offline run
-// prints).
+// prints) - not Maven Central's latest, which is generally a newer framework
+// build than the one this Robolectric names for a given SDK (4.17 wants
+// 17-robolectric-15733970-i7 for SDK 37, not the 17-robolectric-16653203-i7 an
+// automated version bump would take). The offline directory can only hold the
+// exact jar requested, so a mismatch fails every Robolectric class with
+// "Path is not a file: ...android-all-instrumented-...".
 val robolectricAndroidAll: Configuration by configurations.creating {
     isCanBeConsumed = false
     isTransitive = false
