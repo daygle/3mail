@@ -107,6 +107,20 @@ room {
 // the CI console, since the HTML/XML report artifacts aren't always reachable
 // when triaging a red build.
 tasks.withType<Test>().configureEach {
+    // Robolectric reflects into OpenJDK internals on Java 17+; SDK 36+ reads
+    // FileDescriptor internals during app-state setup and fails with
+    // "Failed to interact with raw FileDescriptor internals" without these.
+    jvmArgs(
+        "--add-opens=java.base/java.lang=ALL-UNNAMED",
+        "--add-opens=java.base/java.util=ALL-UNNAMED",
+        "--add-opens=java.base/java.io=ALL-UNNAMED",
+        "--add-opens=java.base/java.net=ALL-UNNAMED",
+        "--add-opens=java.base/java.security=ALL-UNNAMED",
+        "--add-opens=java.base/java.text=ALL-UNNAMED",
+        "--add-opens=java.base/jdk.internal.access=ALL-UNNAMED",
+        "--add-opens=java.desktop/java.awt.font=ALL-UNNAMED",
+        "--add-opens=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",
+    )
     testLogging {
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
         events("failed")
@@ -183,6 +197,12 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.androidx.ui.test.junit4)
+    // Compose's ui-test brings espresso-core 3.5.0 transitively, and that
+    // version injects events through InputManager.getInstance(), which the
+    // SDK 37 framework no longer has (NoSuchMethodException out of
+    // Espresso.onIdle, i.e. every Compose UI test at SDK 37). Pin the same
+    // 3.7.0 the instrumented tests use, which no longer takes that path.
+    testImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
@@ -205,12 +225,14 @@ dependencies {
 // through Gradle's repositories, retries and cache, and the test task then
 // runs Robolectric in offline mode against the resolved copy.
 //
-// The coordinate must match what Robolectric asks for: SDK 34 (pinned in
-// src/test/resources/robolectric.properties), the Robolectric build of that
-// SDK, and the pre-instrumentation version ("-i7" for Robolectric 4.17). When
-// bumping Robolectric or the sdk= pin, take the new value from Robolectric's
-// DefaultSdkProvider (or from the "Failed to fetch" message an offline run
-// prints).
+// The coordinate must match the Robolectric version and the sdk= pin: every
+// Robolectric release carries its own SDK -> android-all-instrumented table,
+// and the offline test run resolves exactly the jar it names there. 4.18-beta-1
+// maps SDK 37 -> 17-robolectric-16653203-i7; 4.17 maps 37 ->
+// 17-robolectric-15733970-i7 and has no 16653203 entry at all. Changing this
+// line alone makes Robolectric look for a build id the offline directory does
+// not contain, which fails every Robolectric class at once with
+// "Path is not a file: ...android-all-instrumented-...".
 val robolectricAndroidAll: Configuration by configurations.creating {
     isCanBeConsumed = false
     isTransitive = false
