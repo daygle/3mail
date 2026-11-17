@@ -20,7 +20,7 @@ buildscript {
             // XSS in Apache HttpClient < 4.5.13 (via httpmime 4.5.6).
             classpath("org.apache.httpcomponents:httpclient:4.5.14")
             // Uncontrolled recursion in commons-lang3 < 3.18.0 (via commons-compress).
-            classpath("org.apache.commons:commons-lang3:3.21.0")
+            classpath("org.apache.commons:commons-lang3:3.22.0")
             // DoS via compressed JWE in jose4j (via bundletool).
             classpath("org.bitbucket.b_c:jose4j:0.9.7")
         }
