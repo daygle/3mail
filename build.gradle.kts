@@ -14,7 +14,7 @@ buildscript {
             // Keep in step with the app's bcprov/bcpg in libs.versions.toml.
             classpath("org.bouncycastle:bcprov-jdk18on:1.86")
             classpath("org.bouncycastle:bcpkix-jdk18on:1.87")
-            classpath("org.bouncycastle:bcutil-jdk18on:1.86")
+            classpath("org.bouncycastle:bcutil-jdk18on:1.87")
             // XXE in JDOM < 2.0.6.1 (via jetifier-processor).
             classpath("org.jdom:jdom2:2.0.6.1")
             // XSS in Apache HttpClient < 4.5.13 (via httpmime 4.5.6).
