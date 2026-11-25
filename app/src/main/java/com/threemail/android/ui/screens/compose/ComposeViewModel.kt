@@ -16,6 +16,7 @@ import com.threemail.android.sync.SyncScheduler
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.Attachment
 import com.threemail.android.domain.model.Contact
+import com.threemail.android.domain.model.EmailAddress
 import com.threemail.android.domain.model.FolderType
 import com.threemail.android.domain.model.Identity
 import com.threemail.android.util.AddressParser
@@ -356,7 +357,7 @@ class ComposeViewModel @Inject constructor(
         )
         if (granted) {
             // Immediately search the current active-field last segment so contacts surface without a fresh keystroke.
-            val segment = currentRecipientFieldText().substringAfterLast(',').trim()
+            val segment = AddressParser.lastSegment(currentRecipientFieldText())
             contactQueries.tryEmit(segment)
         }
     }
@@ -366,26 +367,23 @@ class ComposeViewModel @Inject constructor(
      * with the picked contact's formatted address, then appends ", " so the
      * user can keep typing. Matches Gmail / iOS autocomplete behavior.
      *
-     * Display names containing `,` or `;` are stripped of those characters
-     * rather than quoted: the last-segment replacement below finds the active
-     * segment with `lastIndexOf(',')`, which a quoted name would confuse.
+     * Display names are formatted with [AddressParser.format], so a name that
+     * contains a separator keeps it as a quoted name
+     * (`"Doe, Jane" <jane@x.com>`), and the segment scan below is quote-aware
+     * so that comma is not mistaken for a field separator.
      */
     fun pickContact(contact: Contact, emailIndex: Int = 0) {
         val state = _uiState.value
         val email = contact.emails.getOrNull(emailIndex)?.takeIf { it.isNotBlank() } ?: return
-        val safeName = contact.displayName
-            .replace(",", "")
-            .replace(";", "")
-            .replace("\n", " ")
-            .trim()
-        val formatted = if (safeName.isBlank()) email
-        else "${safeName} <${email}>"
+        val formatted = AddressParser.format(
+            EmailAddress(name = contact.displayName.replace("\n", " ").trim(), address = email)
+        )
         val activeText = currentRecipientFieldText()
-        val lastComma = activeText.lastIndexOf(',')
-        val newActive = if (lastComma == -1) {
+        val lastSeparator = AddressParser.lastSeparatorIndex(activeText)
+        val newActive = if (lastSeparator == -1) {
             "$formatted, "
         } else {
-            val prefix = activeText.substring(0, lastComma).trimEnd { it == ',' || it == ' ' }
+            val prefix = activeText.substring(0, lastSeparator).trimEnd { it == ',' || it == ' ' }
             "$prefix, $formatted, "
         }
         val newTo = if (state.activeRecipientField == RecipientField.TO) newActive else state.to
@@ -401,7 +399,7 @@ class ComposeViewModel @Inject constructor(
     }
 
     private fun scheduleContactSearch(fieldText: String) {
-        val segment = fieldText.substringAfterLast(',').trim()
+        val segment = AddressParser.lastSegment(fieldText)
         contactQueries.tryEmit(segment)
         if (!contactRepository.hasPermission() && !_uiState.value.contactsPermissionRequested) {
             _uiState.value = _uiState.value.copy(
