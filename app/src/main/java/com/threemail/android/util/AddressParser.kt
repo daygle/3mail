@@ -64,6 +64,52 @@ object AddressParser {
     fun isValid(address: String): Boolean = EMAIL.matches(address.trim())
 
     /**
+     * Index of the last [SEPARATORS] character outside double quotes, or -1 for
+     * a single segment. Callers that replace "the recipient being typed" use
+     * this so the comma inside `"Doe, Jane" <jane@x.com>` is not mistaken for a
+     * field separator.
+     */
+    fun lastSeparatorIndex(text: String): Int {
+        var inQuotes = false
+        var escaped = false
+        var last = -1
+        text.forEachIndexed { index, c ->
+            when {
+                escaped -> escaped = false
+                inQuotes && c == '\\' -> escaped = true
+                c == '"' -> inQuotes = !inQuotes
+                !inQuotes && c in SEPARATORS -> last = index
+            }
+        }
+        return last
+    }
+
+    /** The segment after the last top-level separator, trimmed. */
+    fun lastSegment(text: String): String {
+        val index = lastSeparatorIndex(text)
+        return (if (index == -1) text else text.substring(index + 1)).trim()
+    }
+
+    /**
+     * The text to search contacts for while the last segment is still being
+     * typed. Contact search matches literal text against unquoted names, so
+     * this drops the quote of an unfinished quoted name (`"Doe, Ja` searches
+     * for `Doe, Ja`) and the `<address>` part of a named address.
+     */
+    fun lastSearchTerm(text: String): String {
+        val segment = lastSegment(text)
+        val name = segment.substringBefore('<').trim()
+        if (name.isEmpty()) return segment.trim('<', '>').trim()
+        val start = if (name.startsWith("\"")) 1 else 0
+        val end = if (name.length > start + 1 && name.endsWith("\"")) name.length - 1 else name.length
+        if (start >= end) return ""
+        return name.substring(start, end)
+            .replace("\\\"", "\"")
+            .replace("\\\\", "\\")
+            .trim()
+    }
+
+    /**
      * Splits on [SEPARATORS] outside double quotes. Inside quotes a backslash
      * escapes the next character, so `\"` does not close the quote.
      */

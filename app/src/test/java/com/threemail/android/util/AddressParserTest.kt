@@ -78,6 +78,39 @@ class AddressParserTest {
     }
 
     @Test
+    fun `last segment treats a quoted name as one recipient`() {
+        assertEquals(
+            "\"Doe, Jane\" <jane@x.com>",
+            AddressParser.lastSegment("\"Doe, Jane\" <jane@x.com>")
+        )
+        assertEquals("bob@y.com", AddressParser.lastSegment("\"Doe, Jane\" <jane@x.com>, bob@y.com"))
+    }
+
+    @Test
+    fun `contact picked after a quoted name keeps both names`() {
+        val field = "\"Doe, Jane\" <jane@x.com>, "
+        val index = AddressParser.lastSeparatorIndex(field)
+        val rebuilt = field.substring(0, index).trimEnd { it == ',' || it == ' ' } +
+            ", " + AddressParser.format(EmailAddress("Smith, John", "john@y.com")) + ", "
+        assertEquals(listOf("Doe, Jane", "Smith, John"), AddressParser.parse(rebuilt).map { it.name })
+    }
+
+    @Test
+    fun `search term drops the quote of an unfinished quoted name`() {
+        assertEquals("Doe, Ja", AddressParser.lastSearchTerm("\"Doe, Ja"))
+        assertEquals("Doe, Jane", AddressParser.lastSearchTerm("\"Doe, Jane\""))
+        assertEquals("Sm", AddressParser.lastSearchTerm("\"Doe, Jane\" <jane@x.com>, Sm"))
+        assertEquals("", AddressParser.lastSearchTerm("\""))
+    }
+
+    @Test
+    fun `search term uses the name part of a named address`() {
+        assertEquals("Jane", AddressParser.lastSearchTerm("Jane <jane@x.co"))
+        assertEquals("jane@x.co", AddressParser.lastSearchTerm("jane@x.co"))
+        assertEquals("jane@x", AddressParser.lastSearchTerm("<jane@x"))
+    }
+
+    @Test
     fun `validates addresses`() {
         assertTrue(AddressParser.isValid("a@b.com"))
         assertFalse(AddressParser.isValid("not-an-email"))
