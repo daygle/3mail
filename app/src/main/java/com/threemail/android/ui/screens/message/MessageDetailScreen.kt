@@ -98,6 +98,7 @@ import com.threemail.android.domain.model.Attachment
 import com.threemail.android.domain.model.MailMessage
 import com.threemail.android.ui.components.LoadingIndicator
 import com.threemail.android.ui.theme.avatarColorFor
+import com.threemail.android.util.AddressParser
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import java.io.File
@@ -335,10 +336,10 @@ fun MessageDetailScreen(
         // server fetch fails / returns nothing. Field names are the literal
         // RFC 5322 names, so they are intentionally not localized.
         val parsedFallback = buildList {
-            add("From" to message.from.joinToString(", ") { it.toString() })
-            if (message.to.isNotEmpty()) add("To" to message.to.joinToString(", ") { it.toString() })
-            if (message.cc.isNotEmpty()) add("Cc" to message.cc.joinToString(", ") { it.toString() })
-            if (message.bcc.isNotEmpty()) add("Bcc" to message.bcc.joinToString(", ") { it.toString() })
+            add("From" to AddressParser.format(message.from))
+            if (message.to.isNotEmpty()) add("To" to AddressParser.format(message.to))
+            if (message.cc.isNotEmpty()) add("Cc" to AddressParser.format(message.cc))
+            if (message.bcc.isNotEmpty()) add("Bcc" to AddressParser.format(message.bcc))
             add("Date" to formatHeaderDate(message.date))
             add("Subject" to message.subject)
             if (message.messageId.isNotBlank()) add("Message-ID" to message.messageId)

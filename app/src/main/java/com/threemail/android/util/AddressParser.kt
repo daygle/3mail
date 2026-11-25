@@ -35,6 +35,9 @@ object AddressParser {
     fun format(addresses: List<EmailAddress>): String =
         addresses.joinToString(", ") { formatOne(it) }
 
+    /** Formats a single address, quoting its display name when needed. */
+    fun format(address: EmailAddress): String = formatOne(address)
+
     private fun formatOne(address: EmailAddress): String {
         if (address.name.isBlank()) return address.address
         return "${quoteName(address.name)} <${address.address}>"
