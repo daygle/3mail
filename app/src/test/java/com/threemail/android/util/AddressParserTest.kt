@@ -26,6 +26,32 @@ class AddressParserTest {
     }
 
     @Test
+    fun `quoted names keep separator characters intact`() {
+        val result = AddressParser.parse("\"Doe, Jane\" <jane@x.com>; \"Smith; John\" <john@y.com>")
+        assertEquals(2, result.size)
+        assertEquals("Doe, Jane", result[0].name)
+        assertEquals("jane@x.com", result[0].address)
+        assertEquals("Smith; John", result[1].name)
+        assertEquals("john@y.com", result[1].address)
+    }
+
+    @Test
+    fun `escaped quotes inside a quoted name are unescaped`() {
+        val result = AddressParser.parse("\"Jane \\\"JJ\\\" Doe\" <jane@x.com>, bob@y.com")
+        assertEquals(2, result.size)
+        assertEquals("Jane \"JJ\" Doe", result[0].name)
+        assertEquals("bob@y.com", result[1].address)
+    }
+
+    @Test
+    fun `newline separated quoted names stay intact`() {
+        val result = AddressParser.parse("\"Doe, Jane\" <jane@x.com>\nbob@y.com")
+        assertEquals(2, result.size)
+        assertEquals("Doe, Jane", result[0].name)
+        assertEquals("bob@y.com", result[1].address)
+    }
+
+    @Test
     fun `ignores blank tokens`() {
         assertEquals(1, AddressParser.parse(" , a@x.com , ").size)
     }

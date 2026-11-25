@@ -9,6 +9,7 @@ import com.threemail.android.data.remote.RemoteCapabilities
 import com.threemail.android.data.remote.MimeBuilder
 import com.threemail.android.data.remote.OutgoingMessage
 import com.threemail.android.data.remote.RemoteFetch
+import com.threemail.android.data.remote.ServerHosts
 import com.threemail.android.data.remote.gmail.RecoverableAuthException
 import com.threemail.android.data.remote.idle.IdleEvent
 import com.threemail.android.data.remote.MimeParsing
@@ -137,20 +138,24 @@ class ImapClient(
     // Prefer the explicitly configured outgoing server; only fall back to a
     // best-effort guess when the account doesn't specify one (e.g. rows created
     // before outgoing config existed, or the well-known providers below).
-    private fun getSmtpServer(): String = account.outgoingServer?.takeIf { it.isNotBlank() } ?: when {
-        account.email.endsWith("@gmail.com") -> "smtp.gmail.com"
-        account.email.endsWith("@outlook.com") || account.email.endsWith("@hotmail.com") -> "smtp.office365.com"
-        account.email.endsWith("@icloud.com") -> "smtp.mail.me.com"
-        else -> account.incomingServer?.replace("imap", "smtp")
+    // Domain matching ignores case: email domains are case-insensitive
+    // (RFC 5321 §2.3.5), so `User@Gmail.com` resolves like `user@gmail.com`.
+    internal fun getSmtpServer(): String = account.outgoingServer?.takeIf { it.isNotBlank() } ?: when {
+        ServerHosts.isDomain(account.email, "gmail.com") -> "smtp.gmail.com"
+        ServerHosts.isDomain(account.email, "outlook.com") ||
+            ServerHosts.isDomain(account.email, "hotmail.com") -> "smtp.office365.com"
+        ServerHosts.isDomain(account.email, "icloud.com") -> "smtp.mail.me.com"
+        else -> ServerHosts.smtpFor(account.incomingServer, "imap")
             ?: throw IllegalArgumentException("No outgoing (SMTP) server configured for ${account.email}")
     }
 
     private fun getSmtpPort(): Int = account.outgoingPort
 
-    private fun getDefaultServer(): String = when {
-        account.email.endsWith("@gmail.com") -> "imap.gmail.com"
-        account.email.endsWith("@outlook.com") || account.email.endsWith("@hotmail.com") -> "outlook.office365.com"
-        account.email.endsWith("@icloud.com") -> "imap.mail.me.com"
+    internal fun getDefaultServer(): String = when {
+        ServerHosts.isDomain(account.email, "gmail.com") -> "imap.gmail.com"
+        ServerHosts.isDomain(account.email, "outlook.com") ||
+            ServerHosts.isDomain(account.email, "hotmail.com") -> "outlook.office365.com"
+        ServerHosts.isDomain(account.email, "icloud.com") -> "imap.mail.me.com"
         else -> account.incomingServer ?: throw IllegalArgumentException("Unknown IMAP server for ${account.email}")
     }
 

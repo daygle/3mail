@@ -61,6 +61,51 @@ class IcsWriterTest {
     }
 
     @Test
+    fun `folding counts UTF-8 octets rather than chars`() {
+        // 120 three-octet chars = 360 octets but only 120 chars: a char-based
+        // fold would emit physical lines far past the RFC 5545 limit.
+        val longTitle = "日".repeat(120)
+        val ics = IcsWriter.writeEvent(
+            CalendarEvent(
+                accountId = CalendarEvent.NO_ACCOUNT,
+                title = longTitle,
+                startEpochMs = utcMs(2026, 1, 1, 9, 0),
+                endEpochMs = utcMs(2026, 1, 1, 10, 0),
+                allDay = false
+            ),
+            uid = "u3"
+        )
+        ics.split("\r\n").forEach { line ->
+            val octets = line.toByteArray(Charsets.UTF_8).size
+            assertTrue("line is $octets octets: $line", octets <= 75)
+        }
+        // A fold that split a multi-byte sequence would corrupt the title.
+        val parsed = IcsParser.parse(ics, utcMs(2026, 1, 1), utcMs(2027, 1, 1), ZoneOffset.UTC)
+        assertEquals(longTitle, parsed[0].title)
+    }
+
+    @Test
+    fun `folding never splits a surrogate pair`() {
+        val longTitle = "👋".repeat(60) // four octets per emoji
+        val ics = IcsWriter.writeEvent(
+            CalendarEvent(
+                accountId = CalendarEvent.NO_ACCOUNT,
+                title = longTitle,
+                startEpochMs = utcMs(2026, 1, 1, 9, 0),
+                endEpochMs = utcMs(2026, 1, 1, 10, 0),
+                allDay = false
+            ),
+            uid = "u4"
+        )
+        ics.split("\r\n").forEach { line ->
+            val octets = line.toByteArray(Charsets.UTF_8).size
+            assertTrue("line is $octets octets", octets <= 75)
+        }
+        val parsed = IcsParser.parse(ics, utcMs(2026, 1, 1), utcMs(2027, 1, 1), ZoneOffset.UTC)
+        assertEquals(longTitle, parsed[0].title)
+    }
+
+    @Test
     fun `long lines are folded and lines use CRLF`() {
         val longTitle = "T".repeat(200)
         val ics = IcsWriter.writeEvent(
