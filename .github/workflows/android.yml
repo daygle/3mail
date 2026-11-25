@@ -35,11 +35,13 @@ jobs:
       - name: Configure Android SDK path
         run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
 
-      # gradle-wrapper.jar is committed, but we specify the version here to match.
+      # No gradle-version pin: the default is the "wrapper" alias, so the
+      # action reads gradle-wrapper.properties and caches against the Gradle the
+      # wrapper actually uses. A pin here does not change the build - every step
+      # below runs ./gradlew, which always honours the wrapper - it only makes
+      # the action install and provision a second, unused `gradle` distribution.
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
-        with:
-          gradle-version: "9.6.1"
 
       # Run all four gates in a single Gradle invocation with --continue so
       # every independent failure is reported in one CI run instead of the
@@ -134,10 +136,9 @@ jobs:
       - name: Configure Android SDK path
         run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
 
+      # Same as the build job: no gradle-version pin, use the committed wrapper.
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
-        with:
-          gradle-version: "9.6.1"
 
       - name: Run instrumented Compose UI tests
         uses: reactivecircus/android-emulator-runner@v2

@@ -81,10 +81,9 @@ jobs:
       - name: Configure Android SDK path
         run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
 
-      # No gradle-version pin here on purpose: use the committed wrapper so
-      # CodeQL analyses the same Gradle the repo actually builds with. (Note
-      # android.yml pins 9.6.1 and therefore ignores the wrapper, which is why
-      # the gradle-wrapper bump in PR #77 is not covered by that job.)
+      # No gradle-version pin on purpose: the default is the "wrapper" alias, so
+      # the action reads gradle-wrapper.properties and CodeQL analyses the same
+      # Gradle the repo builds with. android.yml does the same.
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
