@@ -53,6 +53,19 @@ jobs:
     # A real Gradle build plus a full java-kotlin database creation is the slow
     # part; 45 is a deliberate ceiling so a hung build fails fast.
     timeout-minutes: 45
+    # Overlay analysis (CodeQL's incremental database mode) only works with
+    # build-mode: none, which Kotlin cannot use (see the build-mode note above),
+    # so the action can never take that path here. Left to auto-detect, every
+    # run logged
+    #   "Cannot build an overlay-base database because build-mode is set to
+    #    \"manual\" instead of \"none\". Falling back to creating a normal full
+    #    database instead."
+    # and then scanned the full database anyway. Opting out explicitly is the
+    # action's supported switch for this (CODEQL_OVERLAY_DATABASE_MODE=none):
+    # it skips the compatibility check instead of warning about it. Analysis
+    # results are unchanged - the overlay path was never actually used.
+    env:
+      CODEQL_OVERLAY_DATABASE_MODE: none
     steps:
       - name: Checkout
         uses: actions/checkout@v7
