@@ -16,12 +16,16 @@ if (localPropertiesFile.exists()) {
 
 configure<com.android.build.api.dsl.ApplicationExtension> {
     namespace = "com.threemail.android"
-    // Bumped to 37: several androidx libraries (hilt 1.4.0, lifecycle 2.11.0,
+    // Bumped to 37.2: several androidx libraries (hilt 1.4.0, lifecycle 2.11.0,
     // core 1.19.0, activity/navigationevent 1.13/1.0) declare minCompileSdk=36
-    // or 37 in their AAR metadata. compileSdk is decoupled from targetSdk
-    // (still 35, no new runtime behaviour) and minSdk (bumped from 26 to 31 to
-    // avoid lint errors from API 31+ calls used throughout the codebase).
+    // or 37 in their AAR metadata, and Compose 1.13 (BOM 2026.11.01) declares
+    // minCompileSdk=37.1 - without the minor level, checkDebugAarMetadata fails
+    // with "requires ... to compile against version 37.1 or later".
+    // compileSdk is decoupled from targetSdk (still 35, no new runtime
+    // behaviour) and minSdk (bumped from 26 to 31 to avoid lint errors from
+    // API 31+ calls used throughout the codebase).
     compileSdk = 37
+    compileSdkMinor = 2
 
     defaultConfig {
         applicationId = "com.threemail.android"
