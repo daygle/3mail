@@ -53,40 +53,40 @@ import org.robolectric.shadows.ShadowLooper
 import java.io.File
 
 /**
-     * Locks in that every destructive action on the currently-open message
-     * (delete / archive / moveToFolder / markSpam) reaches the screen's
-     * auto-advance trigger by setting [MessageDetailViewModel.UiState.isDeleted]
-     * to true. Without this guarantee the LaunchedEffect in [MessageDetailScreen]
-     * would not see a transition when archive, move, or markSpam run, leaving
-     * the user's "After delete / archive / move / spam" preference ("Open next
-     * message") to silently fall back to "Return to inbox" for those actions.
-     *
-     * Construction follows the MailActionsTest recipe:
-     *  - Real [MailRepository] backed by an in-memory [ThreeMailDatabase] so the
-     *    VM init chain (getMessageById -> loadFolders -> setRead -> resolveNext)
-     *    reads real fixture rows instead of stubs. Everything the test asserts
-     *    is downstream of that chain, so the production path is exercised end
-     *    to end.
-     *  - [MailActions] is the production class wired with a [MoveOnlyMailRemote]
-     *    stub for the IMAP wire call and a no-op [CredentialStore] - we don't
-     *    want the real AndroidKeyStore path (Robolectric can't drive it), and
-     *    archive / move / spam all need a working server stub to reach the
-     *    client-side path that flips isDeleted.
-     *  - [waitForUiState] combines [ShadowLooper.idleMainLooper] with a short
-     *    [Thread.sleep] so the coroutines launched on viewModelScope hop
-     *    cleanly across to (and back from) Room's query executor thread. The
-     *    pure-Dispatchers.Main drain the AddAccountViewModelTest relies on
-     *    is insufficient here because Room uses its own dispatcher, which
-     *    Robolectric doesn't drive.
-     *
-     * What the test intentionally does NOT cover:
-     *  - The Compose side. The screen's LaunchedEffect is what actually
-     *    navigates to nextMessageId / popBackStack; that's a Compose test
-     *    problem and not what this VM-level pinning solves.
-     *  - The UndoController's deferred commit. It runs on a 5s timer that
-     *    Robolectric's paused looper never elapses, so the suite trusts
-     *    UndoController's own contract rather than re-asserting it here.
-     */
+ * Locks in that every destructive action on the currently-open message
+ * (delete / archive / moveToFolder / markSpam) reaches the screen's
+ * auto-advance trigger by setting [MessageDetailViewModel.UiState.isDeleted]
+ * to true. Without this guarantee the LaunchedEffect in [MessageDetailScreen]
+ * would not see a transition when archive, move, or markSpam run, leaving
+ * the user's "After delete / archive / move / spam" preference ("Open next
+ * message") to silently fall back to "Return to inbox" for those actions.
+ *
+ * Construction follows the MailActionsTest recipe:
+ *  - Real [MailRepository] backed by an in-memory [ThreeMailDatabase] so the
+ *    VM init chain (getMessageById -> loadFolders -> setRead -> resolveNext)
+ *    reads real fixture rows instead of stubs. Everything the test asserts
+ *    is downstream of that chain, so the production path is exercised end
+ *    to end.
+ *  - [MailActions] is the production class wired with a [MoveOnlyMailRemote]
+ *    stub for the IMAP wire call and a no-op [CredentialStore] - we don't
+ *    want the real AndroidKeyStore path (Robolectric can't drive it), and
+ *    archive / move / spam all need a working server stub to reach the
+ *    client-side path that flips isDeleted.
+ *  - [waitForUiState] combines [ShadowLooper.idleMainLooper] with a short
+ *    [Thread.sleep] so the coroutines launched on viewModelScope hop
+ *    cleanly across to (and back from) Room's query executor thread. The
+ *    pure-Dispatchers.Main drain the AddAccountViewModelTest relies on
+ *    is insufficient here because Room uses its own dispatcher, which
+ *    Robolectric doesn't drive.
+ *
+ * What the test intentionally does NOT cover:
+ *  - The Compose side. The screen's LaunchedEffect is what actually
+ *    navigates to nextMessageId / popBackStack; that's a Compose test
+ *    problem and not what this VM-level pinning solves.
+ *  - The UndoController's deferred commit. It runs on a 5s timer that
+ *    Robolectric's paused looper never elapses, so the suite trusts
+ *    UndoController's own contract rather than re-asserting it here.
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 class MessageDetailViewModelTest {

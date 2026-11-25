@@ -6,7 +6,8 @@ import com.threemail.android.domain.model.EmailAddress
  * Parses free-text recipient fields (comma/semicolon separated) into structured
  * addresses. Supports the "Display Name <addr@host>" form and quoted display
  * names, which may contain the separator characters themselves
- * (`"Doe, Jane" <jane@example.com>`). Pure JVM logic.
+ * (`"Doe, Jane" <jane@example.com>`). [format] re-quotes such names, so
+ * `parse(format(addresses))` returns the original list. Pure JVM logic.
  */
 object AddressParser {
 
@@ -32,7 +33,28 @@ object AddressParser {
             }
 
     fun format(addresses: List<EmailAddress>): String =
-        addresses.joinToString(", ") { it.toString() }
+        addresses.joinToString(", ") { formatOne(it) }
+
+    private fun formatOne(address: EmailAddress): String {
+        if (address.name.isBlank()) return address.address
+        return "${quoteName(address.name)} <${address.address}>"
+    }
+
+    /**
+     * Quotes a display name that would not survive [parse] unquoted - one
+     * containing a separator, an angle bracket, a quote, a backslash or a line
+     * break, or one padded with whitespace. Quotes and backslashes inside are
+     * escaped so [unquote] restores the original name.
+     */
+    private fun quoteName(name: String): String {
+        val needsQuotes = name.any { it in QUOTED_NAME_SPECIALS } ||
+            name.first().isWhitespace() || name.last().isWhitespace()
+        if (!needsQuotes) return name
+        return "\"" + name.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+    }
+
+    /** Characters that force a display name to be quoted. */
+    private const val QUOTED_NAME_SPECIALS = "\",;<>\\\n\r"
 
     private val EMAIL = Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")
 

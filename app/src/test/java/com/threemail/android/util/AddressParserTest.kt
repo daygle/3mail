@@ -63,6 +63,21 @@ class AddressParserTest {
     }
 
     @Test
+    fun `format re-quotes names that need it so parsing round-trips`() {
+        val addrs = listOf(
+            EmailAddress("Doe, Jane", "jane@x.com"),
+            EmailAddress("Smith; John", "john@y.com"),
+            EmailAddress("Say \"hi\"", "hi@x.com"),
+            EmailAddress("plain name", "plain@x.com"),
+            EmailAddress(address = "bob@y.com")
+        )
+        val formatted = AddressParser.format(addrs)
+        assertTrue(formatted.contains("\"Doe, Jane\" <jane@x.com>"))
+        assertTrue(formatted.contains("\"Say \\\"hi\\\"\" <hi@x.com>"))
+        assertEquals(addrs, AddressParser.parse(formatted))
+    }
+
+    @Test
     fun `validates addresses`() {
         assertTrue(AddressParser.isValid("a@b.com"))
         assertFalse(AddressParser.isValid("not-an-email"))
