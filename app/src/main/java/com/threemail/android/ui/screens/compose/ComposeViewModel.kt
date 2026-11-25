@@ -357,7 +357,7 @@ class ComposeViewModel @Inject constructor(
         )
         if (granted) {
             // Immediately search the current active-field last segment so contacts surface without a fresh keystroke.
-            val segment = AddressParser.lastSegment(currentRecipientFieldText())
+            val segment = AddressParser.lastSearchTerm(currentRecipientFieldText())
             contactQueries.tryEmit(segment)
         }
     }
@@ -399,7 +399,7 @@ class ComposeViewModel @Inject constructor(
     }
 
     private fun scheduleContactSearch(fieldText: String) {
-        val segment = AddressParser.lastSegment(fieldText)
+        val segment = AddressParser.lastSearchTerm(fieldText)
         contactQueries.tryEmit(segment)
         if (!contactRepository.hasPermission() && !_uiState.value.contactsPermissionRequested) {
             _uiState.value = _uiState.value.copy(

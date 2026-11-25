@@ -96,6 +96,21 @@ class AddressParserTest {
     }
 
     @Test
+    fun `search term drops the quote of an unfinished quoted name`() {
+        assertEquals("Doe, Ja", AddressParser.lastSearchTerm("\"Doe, Ja"))
+        assertEquals("Doe, Jane", AddressParser.lastSearchTerm("\"Doe, Jane\""))
+        assertEquals("Sm", AddressParser.lastSearchTerm("\"Doe, Jane\" <jane@x.com>, Sm"))
+        assertEquals("", AddressParser.lastSearchTerm("\""))
+    }
+
+    @Test
+    fun `search term uses the name part of a named address`() {
+        assertEquals("Jane", AddressParser.lastSearchTerm("Jane <jane@x.co"))
+        assertEquals("jane@x.co", AddressParser.lastSearchTerm("jane@x.co"))
+        assertEquals("jane@x", AddressParser.lastSearchTerm("<jane@x"))
+    }
+
+    @Test
     fun `validates addresses`() {
         assertTrue(AddressParser.isValid("a@b.com"))
         assertFalse(AddressParser.isValid("not-an-email"))
