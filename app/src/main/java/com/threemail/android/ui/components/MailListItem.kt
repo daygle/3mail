@@ -194,13 +194,22 @@ fun MailListItem(
     }
 }
 
+// Building a SimpleDateFormat resolves locale data and is comparatively
+// expensive; inlining it here created up to three formatters per row on every
+// list recomposition while scrolling. These instances are only used from
+// composition on the main thread, so sharing them is safe.
+private val TIME_FORMAT = SimpleDateFormat("HH:mm", Locale.getDefault())
+private val WEEKDAY_FORMAT = SimpleDateFormat("EEE", Locale.getDefault())
+private val MONTH_DAY_FORMAT = SimpleDateFormat("MMM d", Locale.getDefault())
+private const val ONE_DAY_MS = 24L * 60 * 60 * 1000
+private const val ONE_WEEK_MS = 7L * ONE_DAY_MS
+
 private fun formatDate(timestamp: Long): String {
     val date = Date(timestamp)
-    val now = System.currentTimeMillis()
-    val diff = now - timestamp
+    val diff = System.currentTimeMillis() - timestamp
     return when {
-        (diff < 24 * 60 * 60 * 1000) -> SimpleDateFormat("HH:mm", Locale.getDefault()).format(date)
-        (diff < 7 * 24 * 60 * 60 * 1000) -> SimpleDateFormat("EEE", Locale.getDefault()).format(date)
-        else -> SimpleDateFormat("MMM d", Locale.getDefault()).format(date)
+        diff < ONE_DAY_MS -> TIME_FORMAT.format(date)
+        diff < ONE_WEEK_MS -> WEEKDAY_FORMAT.format(date)
+        else -> MONTH_DAY_FORMAT.format(date)
     }
 }

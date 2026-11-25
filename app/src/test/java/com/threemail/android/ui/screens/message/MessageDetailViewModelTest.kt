@@ -50,7 +50,9 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.shadows.ShadowLooper
-import java.io.File    /**
+import java.io.File
+
+/**
      * Locks in that every destructive action on the currently-open message
      * (delete / archive / moveToFolder / markSpam) reaches the screen's
      * auto-advance trigger by setting [MessageDetailViewModel.UiState.isDeleted]

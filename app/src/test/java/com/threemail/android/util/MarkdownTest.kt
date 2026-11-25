@@ -52,6 +52,23 @@ class MarkdownTest {
     }
 
     @Test
+    fun `ampersand in a link target is escaped exactly once`() {
+        val html = Markdown.toHtml("[search](https://example.com/?a=1&b=2)")
+        assertTrue(html.contains("href=\"https://example.com/?a=1&amp;b=2\""))
+        assertTrue(!html.contains("&amp;amp;"))
+    }
+
+    @Test
+    fun `ampersand in link text and image alt is escaped exactly once`() {
+        val link = Markdown.toHtml("[Rock & Roll](https://example.com)")
+        assertTrue(link.contains(">Rock &amp; Roll</a>"))
+        assertTrue(!link.contains("&amp;amp;"))
+        val image = Markdown.toHtml("![a & b](https://example.com/x.png)")
+        assertTrue(image.contains("alt=\"a &amp; b\""))
+        assertTrue(!image.contains("&amp;amp;"))
+    }
+
+    @Test
     fun `image with cid source keeps the cid scheme`() {
         val html = Markdown.toHtml("![img](cid:abc123@3mail)")
         assertTrue(html.contains("<img src=\"cid:abc123@3mail\""))

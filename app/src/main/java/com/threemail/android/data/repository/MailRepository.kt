@@ -66,10 +66,13 @@ class MailRepository @Inject constructor(
         }
 
     suspend fun saveFolders(folders: List<MailFolder>): List<MailFolder> {
-        val entities = folders.map { it.toEntity() }
-        val upserted = folderDao.upsertFolders(entities)
-        return upserted.map { entity ->
-            folders.first { it.serverId == entity.serverId }.copy(
+        // Index once: the previous `folders.first { ... }` inside the map made
+        // this O(n^2) over the folder list (and threw when a server returned
+        // two folders with the same serverId).
+        val byServerId = folders.associateBy { it.serverId }
+        val upserted = folderDao.upsertFolders(folders.map { it.toEntity() })
+        return upserted.mapNotNull { entity ->
+            byServerId[entity.serverId]?.copy(
                 id = entity.id,
                 syncVersion = entity.syncVersion,
                 unreadCount = entity.unreadCount,
@@ -211,22 +214,24 @@ class MailRepository @Inject constructor(
     }
 
     suspend fun getMessagesOnce(folderId: Long): List<MailMessage> {
-        val list = messageDao.getByFolderOnce(folderId)
-        return list.map { entity ->
-            entity.toDomain(isEncrypted = isEncryptedFor(entity.accountId, entity.messageId))
+        val entities = messageDao.getByFolderOnce(folderId)
+        if (entities.isEmpty()) return emptyList()
+        // One flag read per account instead of one per message: the previous
+        // shape ran a Room query for every row, so reading a 250-message folder
+        // meant 250 extra queries.
+        val encryptedByAccount = HashMap<Long, Set<String>>()
+        for (accountId in entities.mapTo(HashSet()) { it.accountId }) {
+            encryptedByAccount[accountId] = messageFlagDao.getByAccount(accountId)
+                .filter { it.isEncrypted }
+                .mapTo(HashSet()) { it.messageId }
+        }
+        return entities.map { entity ->
+            entity.toDomain(
+                isEncrypted = entity.messageId in encryptedByAccount[entity.accountId].orEmpty()
+            )
         }
     }
 
-    /**
-     * Resolve the message displayed immediately after the currently-open
-     * one in the inbox list, so the message-detail VM can advance to it
-     * after the user deletes the current message. Matches the inbox's
-     * newest-first ordering (date DESC) and returns null when the
-     * current one is the oldest in the folder, when it's missing from
-     * the folder's snapshot, or when the folder is empty.
-     *
-     * O(n) over the folder; cheap for the typical synced-window size.
-     */
     /**
      * Lightweight, reactive id-only feed for a single folder (or, when
      * [unified] is true, the cross-account unified inbox), newest-first.
@@ -242,6 +247,16 @@ class MailRepository @Inject constructor(
         else -> flowOf(emptyList())
     }
 
+    /**
+     * Resolve the message displayed immediately after the currently-open one in
+     * the inbox list, so the message-detail VM can advance to it after the user
+     * deletes the current message. Matches the inbox's newest-first ordering
+     * (date DESC) and returns null when the current one is the oldest in the
+     * folder, when it's missing from the folder's snapshot, or when the folder
+     * is empty.
+     *
+     * O(n) over the folder; cheap for the typical synced-window size.
+     */
     suspend fun findAdjacentMessageIdsInFolder(folderId: Long, currentMessageId: Long): Pair<Long?, Long?> {
         val messages = getMessagesOnce(folderId).sortedByDescending { it.date }
         val index = messages.indexOfFirst { it.id == currentMessageId }

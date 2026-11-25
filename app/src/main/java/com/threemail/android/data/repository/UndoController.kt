@@ -8,6 +8,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -83,7 +84,9 @@ class UndoController @Inject constructor() {
 
     companion object {
         const val WINDOW_MS = 5000L
-        private var counter = 0L
-        private fun nextToken(): Long = ++counter
+        // Atomic: enqueue() can be called from several view-model scopes at once,
+        // and a lost update here would let a stale commit timer win.
+        private val counter = AtomicLong()
+        private fun nextToken(): Long = counter.incrementAndGet()
     }
 }

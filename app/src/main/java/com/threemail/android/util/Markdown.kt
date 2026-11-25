@@ -20,16 +20,28 @@ object Markdown {
     }
 
     /**
+     * Matches a bare `&` - one that does not already open an HTML entity.
+     *
+     * [inline] escapes the block *before* running the markup regexes, so the
+     * attribute escapers receive text that is already entity-encoded.
+     * Re-escaping every `&` there turned `?a=1&b=2` into `?a=1&amp;amp;b=2`
+     * (broken link) and `Rock & Roll` into `Rock &amp;amp; Roll`.
+     */
+    private val BARE_AMP = Regex("&(?!(?:[A-Za-z][A-Za-z0-9]*|#\\d+|#[xX][0-9a-fA-F]+);)")
+
+    /** Escapes HTML markup characters, leaving already-encoded entities alone. */
+    private fun escapeOnce(value: String): String = value
+        .replace(BARE_AMP, "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+
+    /**
      * Escapes a URL for safe embedding as an HTML attribute value. Also normalizes
      * the scheme to http/https so attackers can't insert `javascript:` (already
      * filtered by [LINK], but defense in depth).
      */
     internal fun escapeUrl(url: String): String {
-        val safe = url
-            .replace("&", "&amp;")
-            .replace("\"", "&quot;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
+        val safe = escapeOnce(url).replace("\"", "&quot;")
         return if (!safe.lowercase().startsWith("http://") && !safe.lowercase().startsWith("https://") && !safe.lowercase().startsWith("mailto:")) {
             "https://$safe"
         } else safe
@@ -42,7 +54,7 @@ object Markdown {
      * prefixed with https:// to defeat javascript:-style payloads.
      */
     internal fun escapeImgSrc(src: String): String {
-        val safe = src.replace("&", "&amp;").replace("\"", "&quot;")
+        val safe = escapeOnce(src).replace("\"", "&quot;")
         val lower = safe.lowercase()
         if (lower.startsWith("cid:") || lower.startsWith("data:") ||
             lower.startsWith("http://") || lower.startsWith("https://") || lower.startsWith("mailto:")) {
@@ -71,7 +83,7 @@ object Markdown {
             val src = escapeImgSrc(m.groupValues[2])
             "<img src=\"$src\" alt=\"$alt\" style=\"max-width:100%;height:auto;\">"
         }
-        text = LINK.replace(text) { m -> "<a href=\"${escapeUrl(m.groupValues[2])}\">${escape(m.groupValues[1])}</a>" }
+        text = LINK.replace(text) { m -> "<a href=\"${escapeUrl(m.groupValues[2])}\">${escapeOnce(m.groupValues[1])}</a>" }
         text = BOLD.replace(text) { m -> "<strong>${m.groupValues[1]}</strong>" }
         text = ITALIC.replace(text) { m -> "<em>${m.groupValues[1]}</em>" }
         return text
@@ -83,9 +95,5 @@ object Markdown {
             .replace(">", "&gt;")
 
     /** Escapes both element text and attribute values, including quotes. */
-    private fun escapeAttr(s: String): String =
-        s.replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-            .replace("\"", "&quot;")
+    private fun escapeAttr(s: String): String = escapeOnce(s).replace("\"", "&quot;")
 }

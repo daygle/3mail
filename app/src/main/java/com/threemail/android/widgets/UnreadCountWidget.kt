@@ -46,7 +46,7 @@ class UnreadCountWidget : AppWidgetProvider() {
                 val count = ThreeMailDatabase.getInstance(context).messageDao()
                     .observeTotalUnreadAcrossInboxes()
                     .first()
-                updateWidgets(context, manager, ids, count)
+                render(context, manager, ids, count)
             } finally {
                 pending.finish()
             }
@@ -62,24 +62,6 @@ class UnreadCountWidget : AppWidgetProvider() {
                 action = ACTION_REFRESH
             }
             context.sendBroadcast(intent)
-        }
-
-        private fun updateWidgets(
-            context: Context,
-            manager: AppWidgetManager,
-            ids: IntArray,
-            knownCount: Int?
-        ) {
-            if (knownCount != null) {
-                render(context, manager, ids, knownCount)
-                return
-            }
-            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-                val count = ThreeMailDatabase.getInstance(context).messageDao()
-                    .observeTotalUnreadAcrossInboxes()
-                    .first()
-                render(context, manager, ids, count)
-            }
         }
 
         private fun render(

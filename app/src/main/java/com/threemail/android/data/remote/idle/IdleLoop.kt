@@ -46,10 +46,9 @@ class IdleLoop(private val ops: IdleFolderOps) {
             try {
                 // Most servers cap IDLE at 29 minutes (RFC 2177) - guard with
                 // a 25-minute ceiling so we re-IDLE before the server drops us.
-                val idleReentered = withTimeoutOrNull(IDLE_RENEW_MS) {
-                    ops.idle()
-                    true
-                } ?: false
+                // A timeout that fires without new mail is an internal re-arm,
+                // not a signal: only a changed message count is emitted below.
+                withTimeoutOrNull(IDLE_RENEW_MS) { ops.idle() }
                 val newCount = ops.messageCount()
                 val delta = newCount - lastCount
                 when {
@@ -60,9 +59,6 @@ class IdleLoop(private val ops: IdleFolderOps) {
                     // locally without going down the new-mail notification path.
                     delta < 0 -> emit(IdleEvent.MailboxShrank(newCount, -delta))
                 }
-                // If the timeout fired (`idleReentered == false`) we re-armed
-                // IDLE on our own - that's an internal detail, not a new-mail
-                // signal unless the message count actually changed.
                 lastCount = newCount
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
