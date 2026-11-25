@@ -63,7 +63,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -99,6 +98,7 @@ import com.threemail.android.domain.model.Attachment
 import com.threemail.android.domain.model.MailMessage
 import com.threemail.android.ui.components.LoadingIndicator
 import com.threemail.android.ui.theme.avatarColorFor
+import com.threemail.android.util.AddressParser
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import java.io.File
@@ -336,10 +336,10 @@ fun MessageDetailScreen(
         // server fetch fails / returns nothing. Field names are the literal
         // RFC 5322 names, so they are intentionally not localized.
         val parsedFallback = buildList {
-            add("From" to message.from.joinToString(", ") { it.toString() })
-            if (message.to.isNotEmpty()) add("To" to message.to.joinToString(", ") { it.toString() })
-            if (message.cc.isNotEmpty()) add("Cc" to message.cc.joinToString(", ") { it.toString() })
-            if (message.bcc.isNotEmpty()) add("Bcc" to message.bcc.joinToString(", ") { it.toString() })
+            add("From" to AddressParser.format(message.from))
+            if (message.to.isNotEmpty()) add("To" to AddressParser.format(message.to))
+            if (message.cc.isNotEmpty()) add("Cc" to AddressParser.format(message.cc))
+            if (message.bcc.isNotEmpty()) add("Bcc" to AddressParser.format(message.bcc))
             add("Date" to formatHeaderDate(message.date))
             add("Subject" to message.subject)
             if (message.messageId.isNotBlank()) add("Message-ID" to message.messageId)
@@ -882,6 +882,26 @@ class SafeWebView(
         shrinkToFit = true
     }
 
+    /** Last HTML handed to [render]; guards against reloading on recomposition. */
+    private var renderedHtml: String? = null
+
+    /**
+     * Applies [loadImages] / [shrinkToFit] and (re)loads [html] only when one of
+     * them actually changed.
+     *
+     * Compose runs `AndroidView`'s `update` lambda on every recomposition of the
+     * host screen, so loading unconditionally re-parsed and re-laid-out the
+     * whole message body each pass and dropped the user's scroll position.
+     */
+    fun render(html: String, loadImages: Boolean, shrinkToFit: Boolean) {
+        val settingsChanged = this.loadImages != loadImages || this.shrinkToFit != shrinkToFit
+        if (!settingsChanged && renderedHtml == html) return
+        this.loadImages = loadImages
+        this.shrinkToFit = shrinkToFit
+        renderedHtml = html
+        loadHtml(html)
+    }
+
     /**
      * Disallow parent from intercepting touch events when we are zooming or
      * have horizontal scroll content, so that the vertical scroll of the
@@ -952,15 +972,11 @@ private fun HtmlEmailContent(
         factory = { ctx ->
             SafeWebView(ctx).also {
                 webView = it
-                it.loadImages = loadImages
-                it.shrinkToFit = shrinkToFit
-                it.loadHtml(html)
+                it.render(html, loadImages, shrinkToFit)
             }
         },
         update = {
-            it.loadImages = loadImages
-            it.shrinkToFit = shrinkToFit
-            it.loadHtml(html)
+            it.render(html, loadImages, shrinkToFit)
         }
     )
     DisposableEffect(Unit) {

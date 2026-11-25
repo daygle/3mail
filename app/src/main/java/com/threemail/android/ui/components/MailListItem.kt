@@ -24,15 +24,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.threemail.android.data.settings.MessageDensity
 import com.threemail.android.domain.model.MailMessage
 import com.threemail.android.ui.theme.avatarColorFor
-import java.text.SimpleDateFormat
-import java.util.Date
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -194,13 +195,22 @@ fun MailListItem(
     }
 }
 
+// Building a formatter resolves locale data, and a list row previously built up
+// to three of them per recomposition. Sharing one set avoids that. Unlike
+// SimpleDateFormat, DateTimeFormatter is immutable and thread-safe, so the
+// instances can be reused regardless of which thread renders a row.
+private val TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm", Locale.getDefault())
+private val WEEKDAY_FORMAT = DateTimeFormatter.ofPattern("EEE", Locale.getDefault())
+private val MONTH_DAY_FORMAT = DateTimeFormatter.ofPattern("MMM d", Locale.getDefault())
+private const val ONE_DAY_MS = 24L * 60 * 60 * 1000
+private const val ONE_WEEK_MS = 7L * ONE_DAY_MS
+
 private fun formatDate(timestamp: Long): String {
-    val date = Date(timestamp)
-    val now = System.currentTimeMillis()
-    val diff = now - timestamp
+    val diff = System.currentTimeMillis() - timestamp
+    val dateTime = Instant.ofEpochMilli(timestamp).atZone(ZoneId.systemDefault())
     return when {
-        (diff < 24 * 60 * 60 * 1000) -> SimpleDateFormat("HH:mm", Locale.getDefault()).format(date)
-        (diff < 7 * 24 * 60 * 60 * 1000) -> SimpleDateFormat("EEE", Locale.getDefault()).format(date)
-        else -> SimpleDateFormat("MMM d", Locale.getDefault()).format(date)
+        diff < ONE_DAY_MS -> TIME_FORMAT.format(dateTime)
+        diff < ONE_WEEK_MS -> WEEKDAY_FORMAT.format(dateTime)
+        else -> MONTH_DAY_FORMAT.format(dateTime)
     }
 }

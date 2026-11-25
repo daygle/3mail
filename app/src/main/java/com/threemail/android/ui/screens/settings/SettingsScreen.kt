@@ -13,9 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Sync
@@ -50,7 +48,6 @@ import com.threemail.android.data.settings.ThemeMode
 import com.threemail.android.ui.components.CardDivider
 import com.threemail.android.ui.components.SettingsChoice
 import com.threemail.android.ui.components.SettingsChoiceDialog
-import com.threemail.android.ui.components.SettingsContentRow
 import com.threemail.android.ui.components.SettingsGroup
 import com.threemail.android.ui.components.SettingsRow
 import com.threemail.android.ui.components.SettingsSwitchRow

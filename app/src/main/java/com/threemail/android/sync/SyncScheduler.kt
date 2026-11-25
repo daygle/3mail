@@ -17,7 +17,6 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
-@Singleton
 /**
  * `open` (class + the enqueue/schedule methods) so unit tests can subclass it
  * with no-op overrides and avoid touching the real WorkManager singleton, which
@@ -25,28 +24,10 @@ import javax.inject.Singleton
  * by [com.threemail.android.data.repository.AccountRepository]. Production always
  * gets the Hilt-wired concrete class.
  */
+@Singleton
 open class SyncScheduler @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
-
-    open fun schedulePeriodicSync(intervalMinutes: Long = 15, replace: Boolean = false) {
-        val interval = intervalMinutes.coerceAtLeast(15) // WorkManager minimum period.
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .setRequiresBatteryNotLow(true)
-            .build()
-
-        val request = PeriodicWorkRequestBuilder<MailSyncWorker>(interval, TimeUnit.MINUTES)
-            .setConstraints(constraints)
-            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.MINUTES)
-            .build()
-
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-            SYNC_WORK_NAME,
-            if (replace) ExistingPeriodicWorkPolicy.UPDATE else ExistingPeriodicWorkPolicy.KEEP,
-            request
-        )
-    }
 
     /**
      * Reconciles the set of per-account periodic mail syncs against the current
@@ -185,11 +166,6 @@ open class SyncScheduler @Inject constructor(
             ExistingWorkPolicy.APPEND,
             request
         )
-    }
-
-    fun cancelPeriodicSync() {
-        WorkManager.getInstance(context).cancelUniqueWork(SYNC_WORK_NAME)
-        WorkManager.getInstance(context).cancelUniqueWork(CALENDAR_SYNC_WORK_NAME)
     }
 
     /**

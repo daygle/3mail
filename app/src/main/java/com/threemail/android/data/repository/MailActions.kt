@@ -130,9 +130,14 @@ class MailActions @Inject constructor(
      */
     suspend fun moveBatch(messages: Collection<MailMessage>, target: MailFolder) {
         if (messages.isEmpty()) return
+        // Folder lists are cached per account: reading them inside the loop made
+        // a 100-message selection issue 100 identical Room queries.
+        val foldersByAccount = HashMap<Long, List<MailFolder>>()
         val moves = messages.mapNotNull { message ->
             if (message.accountId != target.accountId) return@mapNotNull null
-            val folders = mailRepository.getFoldersOnce(message.accountId)
+            val folders = foldersByAccount.getOrPut(message.accountId) {
+                mailRepository.getFoldersOnce(message.accountId)
+            }
             val source = folders.firstOrNull { it.id == message.folderId } ?: return@mapNotNull null
             if (source.id == target.id) return@mapNotNull null
             mailRepository.moveMessageToFolder(message.id, target.id)
@@ -236,8 +241,13 @@ class MailActions @Inject constructor(
      */
     suspend fun markSpamBatch(messages: Collection<MailMessage>) {
         if (messages.isEmpty()) return
+        // Same per-account cache as [moveBatch] - one query per account, not per
+        // selected message.
+        val foldersByAccount = HashMap<Long, List<MailFolder>>()
         val moves = messages.mapNotNull { message ->
-            val folders = mailRepository.getFoldersOnce(message.accountId)
+            val folders = foldersByAccount.getOrPut(message.accountId) {
+                mailRepository.getFoldersOnce(message.accountId)
+            }
             val source = folders.firstOrNull { it.id == message.folderId } ?: return@mapNotNull null
             val spam = folders.firstOrNull { it.type == FolderType.SPAM } ?: return@mapNotNull null
             if (source.id == spam.id) return@mapNotNull null

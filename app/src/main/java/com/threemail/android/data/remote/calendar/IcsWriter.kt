@@ -60,17 +60,46 @@ object IcsWriter {
         }
     }
 
-    /** Folds a content line at 74 chars with a leading-space continuation. */
+    /**
+     * Folds a content line with a leading-space continuation so that no
+     * physical line exceeds 75 UTF-8 octets, per RFC 5545 §3.1.
+     *
+     * Lengths are counted in octets, not chars, and a fold never splits a
+     * multi-byte sequence or a surrogate pair - either would corrupt the value
+     * for the receiving parser.
+     */
     internal fun fold(line: String): String {
-        if (line.length <= 74) return line
-        val sb = StringBuilder()
+        if (line.toByteArray(Charsets.UTF_8).size <= MAX_OCTETS) return line
+        val sb = StringBuilder(line.length + line.length / MAX_OCTETS * 3)
+        var used = 0
+        var continuation = false
         var index = 0
         while (index < line.length) {
-            val chunk = line.substring(index, minOf(index + 74, line.length))
-            if (index > 0) sb.append("\r\n ")
-            sb.append(chunk)
-            index += 74
+            val codePoint = line.codePointAt(index)
+            val octets = utf8Octets(codePoint)
+            // A continuation line spends one octet on its leading space.
+            val limit = if (continuation) MAX_OCTETS - 1 else MAX_OCTETS
+            if (used > 0 && used + octets > limit) {
+                sb.append("\r\n ")
+                used = 0
+                continuation = true
+                continue
+            }
+            sb.appendCodePoint(codePoint)
+            used += octets
+            index += Character.charCount(codePoint)
         }
         return sb.toString()
+    }
+
+    /** Maximum octets of content on the first physical line (75 with the fold space). */
+    private const val MAX_OCTETS = 74
+
+    /** UTF-8 encoded length of [codePoint], without allocating an array. */
+    private fun utf8Octets(codePoint: Int): Int = when {
+        codePoint < 0x80 -> 1
+        codePoint < 0x800 -> 2
+        codePoint < 0x10000 -> 3
+        else -> 4
     }
 }

@@ -1,5 +1,7 @@
 package com.threemail.android.data.crypto
 
+import java.io.ByteArrayOutputStream
+
 /**
  * zbase32 encoder (RFC 6189) used by WKD SHA-1 email-hash to URL paths.
  * Different alphabet from RFC 4648 base32 - the y-b-n-d-r-f-g-... ordering
@@ -18,7 +20,12 @@ object ZBase32 {
      */
     private const val ALPHABET = "ybndrfg8ejkmcpqxot1uwisza345h769"
 
-    private val DECODE_TABLE: IntArray = IntArray(128).also { table ->
+    /**
+     * Reverse map for [decode]. Entries default to -1 so a character outside
+     * the alphabet is rejected instead of silently decoding as `y` (alphabet
+     * index 0), which used to turn garbage input into valid-looking bytes.
+     */
+    private val DECODE_TABLE: IntArray = IntArray(128) { -1 }.also { table ->
         var idx = 0
         for (ch in ALPHABET) {
             table[ch.code] = idx++
@@ -70,17 +77,4 @@ object ZBase32 {
         }
         return out.toByteArray()
     }
-}
-
-/**
- * Tiny shim to avoid pulling in `java.io.ByteArrayOutputStream` from the
- * data layer; keeps the helper purely functional and avoids an import
- * surface that already has `kotlin.io` in the rest of the codebase.
- */
-private class ByteArrayOutputStream {
-    private val bytes: MutableList<Byte> = mutableListOf()
-    fun write(b: Int) {
-        bytes.add(b.toByte())
-    }
-    fun toByteArray(): ByteArray = bytes.toByteArray()
 }

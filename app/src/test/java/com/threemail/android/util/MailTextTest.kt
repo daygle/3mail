@@ -41,6 +41,27 @@ class MailTextTest {
     }
 
     @Test
+    fun `forward headers keep comma names parseable`() {
+        val original = message().copy(
+            from = listOf(EmailAddress("Doe, Jane", "jane@x.com")),
+            to = listOf(EmailAddress("Smith, Bob", "bob@x.com"))
+        )
+        val quote = MailText.forwardQuote(original)
+        assertTrue(quote.contains("From: \"Doe, Jane\" <jane@x.com>"))
+        val toLine = quote.lineSequence().first { it.startsWith("To: ") }
+        assertEquals(
+            listOf("Smith, Bob"),
+            AddressParser.parse(toLine.removePrefix("To: ")).map { it.name }
+        )
+    }
+
+    @Test
+    fun `reply attribution quotes comma names`() {
+        val quote = MailText.replyQuote(message().copy(from = listOf(EmailAddress("Doe, Jane", "jane@x.com"))))
+        assertTrue(quote.contains("\"Doe, Jane\" <jane@x.com> wrote:"))
+    }
+
+    @Test
     fun `reply all excludes self and dedupes`() {
         val (to, cc) = MailText.replyAllRecipients(message(), "me@x.com")
         assertTrue(to.any { it.address == "alice@x.com" })

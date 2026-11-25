@@ -44,6 +44,14 @@ interface MessageFlagDao {
     @Query("SELECT * FROM message_flags WHERE accountId = :accountId AND messageId = :messageId LIMIT 1")
     suspend fun getOne(accountId: Long, messageId: String): MessageFlagEntity?
 
+    /**
+     * One-shot variant of [observeByAccount], used by batch reads that need every
+     * flag for an account at once (see `MailRepository.getMessagesOnce`) instead
+     * of one query per message.
+     */
+    @Query("SELECT * FROM message_flags WHERE accountId = :accountId")
+    suspend fun getByAccount(accountId: Long): List<MessageFlagEntity>
+
     @Query("DELETE FROM message_flags WHERE accountId = :accountId AND messageId = :messageId")
     suspend fun deleteOne(accountId: Long, messageId: String)
 }

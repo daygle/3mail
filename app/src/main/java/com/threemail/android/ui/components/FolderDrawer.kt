@@ -62,7 +62,6 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -73,7 +72,6 @@ import com.threemail.android.data.repository.FolderPaths
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.FolderType
 import com.threemail.android.domain.model.MailFolder
-import com.threemail.android.ui.theme.avatarColorFor
 
 /**
  * A node in the folder tree, produced by [buildFolderTree]. The flat

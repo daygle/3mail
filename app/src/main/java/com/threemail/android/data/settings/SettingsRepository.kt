@@ -10,7 +10,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -128,49 +128,45 @@ class SettingsRepository @Inject constructor(
         val IMAGE_ALLOWLIST = stringSetPreferencesKey("image_allowlist")
     }
 
-    val settings: Flow<AppSettings> = flow {
-        dataStore.data.collect { prefs ->
-            emit(
-            AppSettings(
-                syncIntervalMinutes = prefs[Keys.SYNC_INTERVAL] ?: 15L,
-                    notificationsEnabled = prefs[Keys.NOTIFICATIONS] ?: true,
-                    themeMode = prefs[Keys.THEME]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: ThemeMode.SYSTEM,
-                    useDynamicColor = prefs[Keys.DYNAMIC_COLOR] ?: true,
-                    pushEnabled = prefs[Keys.PUSH_ENABLED] ?: true,
-                    biometricLockEnabled = prefs[Keys.BIOMETRIC_LOCK] ?: false,
-                    // Legacy prefs holding the now-removed "TOGGLE_STAR"
-                    // string coerce to ARCHIVE (right) / DELETE (left) -
-                    // the safe defaults. Intentional one-way migration;
-                    // do not surface this as a visible error.
-                    swipeRightAction = prefs[Keys.SWIPE_RIGHT]?.let { runCatching { SwipeAction.valueOf(it) }.getOrNull() } ?: SwipeAction.MOVE,
-                    swipeLeftAction = prefs[Keys.SWIPE_LEFT]?.let { runCatching { SwipeAction.valueOf(it) }.getOrNull() } ?: SwipeAction.DELETE,
-                    messageDensity = prefs[Keys.MESSAGE_DENSITY]?.let { runCatching { MessageDensity.valueOf(it) }.getOrNull() } ?: MessageDensity.COMFORTABLE,
-                    previewLines = (prefs[Keys.PREVIEW_LINES] ?: 2).coerceIn(0, 3),
-                    loadImages = prefs[Keys.LOAD_IMAGES] ?: false,
-                    shrinkEmailToFit = prefs[Keys.SHRINK_EMAIL_TO_FIT] ?: true,
-                    // Stored as enum names so renaming a value drops the
-                    // old key silently; entries that fail to resolve are
-                    // skipped so an unknown name never crashes the read.
-                    hiddenTopBarItems = (prefs[Keys.HIDDEN_TOP_BAR_ITEMS] ?: emptySet())
-                        .mapNotNull { runCatching { TopBarItemId.valueOf(it) }.getOrNull() }
-                        .toSet(),
-                    // Stored as enum.name so renaming a value drops the old
-                    // key silently; entries that fail to resolve fall back
-                    // to the safe default (RETURN_TO_LIST).
-                    afterDeleteNavigation = prefs[Keys.AFTER_DELETE_NAVIGATION]
-                        ?.let { stored ->
-                            // Keep existing users on the renamed option: the
-                            // old enum name was persisted as NEXT_MESSAGE.
-                            val migrated = if (stored == "NEXT_MESSAGE") "NEXT_EMAIL" else stored
-                            runCatching { AfterDeleteNavigation.valueOf(migrated) }.getOrNull()
-                        }
-                        ?: AfterDeleteNavigation.RETURN_TO_LIST,
-                    inboxLimit = prefs[Keys.INBOX_LIMIT] ?: 250,
-                    inboxSort = prefs[Keys.INBOX_SORT]?.let { runCatching { MessageSort.valueOf(it) }.getOrNull() } ?: MessageSort.DATE_DESC,
-                    imageAllowlist = prefs[Keys.IMAGE_ALLOWLIST] ?: emptySet()
-                )
-            )
-        }
+    val settings: Flow<AppSettings> = dataStore.data.map { prefs ->
+        AppSettings(
+            syncIntervalMinutes = prefs[Keys.SYNC_INTERVAL] ?: 15L,
+            notificationsEnabled = prefs[Keys.NOTIFICATIONS] ?: true,
+            themeMode = prefs[Keys.THEME]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: ThemeMode.SYSTEM,
+            useDynamicColor = prefs[Keys.DYNAMIC_COLOR] ?: true,
+            pushEnabled = prefs[Keys.PUSH_ENABLED] ?: true,
+            biometricLockEnabled = prefs[Keys.BIOMETRIC_LOCK] ?: false,
+            // Legacy prefs holding the now-removed "TOGGLE_STAR"
+            // string coerce to ARCHIVE (right) / DELETE (left) -
+            // the safe defaults. Intentional one-way migration;
+            // do not surface this as a visible error.
+            swipeRightAction = prefs[Keys.SWIPE_RIGHT]?.let { runCatching { SwipeAction.valueOf(it) }.getOrNull() } ?: SwipeAction.MOVE,
+            swipeLeftAction = prefs[Keys.SWIPE_LEFT]?.let { runCatching { SwipeAction.valueOf(it) }.getOrNull() } ?: SwipeAction.DELETE,
+            messageDensity = prefs[Keys.MESSAGE_DENSITY]?.let { runCatching { MessageDensity.valueOf(it) }.getOrNull() } ?: MessageDensity.COMFORTABLE,
+            previewLines = (prefs[Keys.PREVIEW_LINES] ?: 2).coerceIn(0, 3),
+            loadImages = prefs[Keys.LOAD_IMAGES] ?: false,
+            shrinkEmailToFit = prefs[Keys.SHRINK_EMAIL_TO_FIT] ?: true,
+            // Stored as enum names so renaming a value drops the
+            // old key silently; entries that fail to resolve are
+            // skipped so an unknown name never crashes the read.
+            hiddenTopBarItems = (prefs[Keys.HIDDEN_TOP_BAR_ITEMS] ?: emptySet())
+                .mapNotNull { runCatching { TopBarItemId.valueOf(it) }.getOrNull() }
+                .toSet(),
+            // Stored as enum.name so renaming a value drops the old
+            // key silently; entries that fail to resolve fall back
+            // to the safe default (RETURN_TO_LIST).
+            afterDeleteNavigation = prefs[Keys.AFTER_DELETE_NAVIGATION]
+                ?.let { stored ->
+                    // Keep existing users on the renamed option: the
+                    // old enum name was persisted as NEXT_MESSAGE.
+                    val migrated = if (stored == "NEXT_MESSAGE") "NEXT_EMAIL" else stored
+                    runCatching { AfterDeleteNavigation.valueOf(migrated) }.getOrNull()
+                }
+                ?: AfterDeleteNavigation.RETURN_TO_LIST,
+            inboxLimit = prefs[Keys.INBOX_LIMIT] ?: 250,
+            inboxSort = prefs[Keys.INBOX_SORT]?.let { runCatching { MessageSort.valueOf(it) }.getOrNull() } ?: MessageSort.DATE_DESC,
+            imageAllowlist = prefs[Keys.IMAGE_ALLOWLIST] ?: emptySet()
+        )
     }
 
     suspend fun setSyncInterval(minutes: Long) = dataStore.edit { it[Keys.SYNC_INTERVAL] = minutes }

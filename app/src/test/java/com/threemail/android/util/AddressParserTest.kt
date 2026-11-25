@@ -26,6 +26,32 @@ class AddressParserTest {
     }
 
     @Test
+    fun `quoted names keep separator characters intact`() {
+        val result = AddressParser.parse("\"Doe, Jane\" <jane@x.com>; \"Smith; John\" <john@y.com>")
+        assertEquals(2, result.size)
+        assertEquals("Doe, Jane", result[0].name)
+        assertEquals("jane@x.com", result[0].address)
+        assertEquals("Smith; John", result[1].name)
+        assertEquals("john@y.com", result[1].address)
+    }
+
+    @Test
+    fun `escaped quotes inside a quoted name are unescaped`() {
+        val result = AddressParser.parse("\"Jane \\\"JJ\\\" Doe\" <jane@x.com>, bob@y.com")
+        assertEquals(2, result.size)
+        assertEquals("Jane \"JJ\" Doe", result[0].name)
+        assertEquals("bob@y.com", result[1].address)
+    }
+
+    @Test
+    fun `newline separated quoted names stay intact`() {
+        val result = AddressParser.parse("\"Doe, Jane\" <jane@x.com>\nbob@y.com")
+        assertEquals(2, result.size)
+        assertEquals("Doe, Jane", result[0].name)
+        assertEquals("bob@y.com", result[1].address)
+    }
+
+    @Test
     fun `ignores blank tokens`() {
         assertEquals(1, AddressParser.parse(" , a@x.com , ").size)
     }
@@ -34,6 +60,21 @@ class AddressParserTest {
     fun `formats round trip`() {
         val addrs = listOf(EmailAddress("Jane", "jane@x.com"), EmailAddress(address = "bob@y.com"))
         assertEquals("Jane <jane@x.com>, bob@y.com", AddressParser.format(addrs))
+    }
+
+    @Test
+    fun `format re-quotes names that need it so parsing round-trips`() {
+        val addrs = listOf(
+            EmailAddress("Doe, Jane", "jane@x.com"),
+            EmailAddress("Smith; John", "john@y.com"),
+            EmailAddress("Say \"hi\"", "hi@x.com"),
+            EmailAddress("plain name", "plain@x.com"),
+            EmailAddress(address = "bob@y.com")
+        )
+        val formatted = AddressParser.format(addrs)
+        assertTrue(formatted.contains("\"Doe, Jane\" <jane@x.com>"))
+        assertTrue(formatted.contains("\"Say \\\"hi\\\"\" <hi@x.com>"))
+        assertEquals(addrs, AddressParser.parse(formatted))
     }
 
     @Test

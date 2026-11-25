@@ -7,6 +7,7 @@ import com.threemail.android.data.remote.toEmailAddress
 import com.threemail.android.data.remote.OutgoingMessage
 import com.threemail.android.data.remote.RemoteCapabilities
 import com.threemail.android.data.remote.RemoteFetch
+import com.threemail.android.data.remote.ServerHosts
 import com.threemail.android.domain.model.Account
 import com.threemail.android.domain.model.Attachment
 import com.threemail.android.domain.model.FolderType
@@ -81,17 +82,22 @@ class Pop3Client(private val account: Account) {
         return Session.getInstance(props)
     }
 
-    private fun incomingServer(): String = account.incomingServer?.takeIf { it.isNotBlank() }
+    // Domain matching ignores case: email domains are case-insensitive
+    // (RFC 5321 §2.3.5), so `User@Gmail.com` resolves like `user@gmail.com`.
+    internal fun incomingServer(): String = account.incomingServer?.takeIf { it.isNotBlank() }
         ?: when {
-            account.email.endsWith("@gmail.com") -> "pop.gmail.com"
-            account.email.endsWith("@outlook.com") || account.email.endsWith("@hotmail.com") -> "outlook.office365.com"
+            ServerHosts.isDomain(account.email, "gmail.com") -> "pop.gmail.com"
+            ServerHosts.isDomain(account.email, "outlook.com") ||
+                ServerHosts.isDomain(account.email, "hotmail.com") -> "outlook.office365.com"
             else -> throw IllegalArgumentException("No POP3 server configured for ${account.email}")
         }
 
-    private fun smtpServer(): String = account.outgoingServer?.takeIf { it.isNotBlank() } ?: when {
-        account.email.endsWith("@gmail.com") -> "smtp.gmail.com"
-        account.email.endsWith("@outlook.com") || account.email.endsWith("@hotmail.com") -> "smtp.office365.com"
-        else -> incomingServer().replace("pop", "smtp")
+    internal fun smtpServer(): String = account.outgoingServer?.takeIf { it.isNotBlank() } ?: when {
+        ServerHosts.isDomain(account.email, "gmail.com") -> "smtp.gmail.com"
+        ServerHosts.isDomain(account.email, "outlook.com") ||
+            ServerHosts.isDomain(account.email, "hotmail.com") -> "smtp.office365.com"
+        else -> ServerHosts.smtpFor(incomingServer(), "pop")
+            ?: throw IllegalArgumentException("No outgoing (SMTP) server configured for ${account.email}")
     }
 
     private fun password(): String =
@@ -264,9 +270,5 @@ class Pop3Client(private val account: Account) {
             uid = number,
             remoteId = number.toString()
         )
-    }
-
-    private companion object {
-        private const val TAG = "Pop3Client"
     }
 }

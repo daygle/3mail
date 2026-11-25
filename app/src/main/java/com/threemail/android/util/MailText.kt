@@ -24,7 +24,7 @@ object MailText {
     /** Builds the quoted body shown when replying to [original]. */
     fun replyQuote(original: MailMessage): String {
         val when_ = formatQuoteDate(original.date)
-        val who = original.from.firstOrNull()?.toString() ?: "someone"
+        val who = original.from.firstOrNull()?.let { AddressParser.format(it) } ?: "someone"
         val quoted = (bestBody(original)).lineSequence().joinToString("\n") { "> $it" }
         return "\n\nOn $when_, $who wrote:\n$quoted"
     }
@@ -33,10 +33,10 @@ object MailText {
     fun forwardQuote(original: MailMessage): String {
         val header = buildString {
             append("\n\n---------- Forwarded message ----------\n")
-            append("From: ${original.from.joinToString { it.toString() }}\n")
+            append("From: ${AddressParser.format(original.from)}\n")
             append("Date: ${formatQuoteDate(original.date)}\n")
             append("Subject: ${original.subject}\n")
-            append("To: ${original.to.joinToString { it.toString() }}\n\n")
+            append("To: ${AddressParser.format(original.to)}\n\n")
         }
         return header + bestBody(original)
     }

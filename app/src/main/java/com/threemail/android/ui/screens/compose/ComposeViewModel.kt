@@ -367,8 +367,8 @@ class ComposeViewModel @Inject constructor(
      * user can keep typing. Matches Gmail / iOS autocomplete behavior.
      *
      * Display names containing `,` or `;` are stripped of those characters
-     * rather than quoted, because [AddressParser.parse] splits on those
-     * delimiters unconditionally and wouldn't round-trip a quoted name.
+     * rather than quoted: the last-segment replacement below finds the active
+     * segment with `lastIndexOf(',')`, which a quoted name would confuse.
      */
     fun pickContact(contact: Contact, emailIndex: Int = 0) {
         val state = _uiState.value
